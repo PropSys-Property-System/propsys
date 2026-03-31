@@ -21,9 +21,11 @@ export default function RouterPage() {
 
       if (user) {
         // Redirección inteligente basada en rol
-        if (user.role === 'ADMIN' || user.role === 'STAFF') {
+        if (user.role === 'MANAGER' || user.role === 'BUILDING_ADMIN') {
           router.push('/admin/dashboard');
-        } else if (user.role === 'RESIDENT' || user.role === 'OWNER') {
+        } else if (user.role === 'STAFF') {
+          router.push('/staff/tasks');
+        } else if (user.role === 'OWNER' || user.role === 'TENANT') {
           router.push('/resident/receipts');
         } else {
           // Si por alguna razón no tiene rol definido, setup

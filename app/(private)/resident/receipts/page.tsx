@@ -1,21 +1,53 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
 import { ReceiptRow } from "@/components/Receipts";
-import { MOCK_RECEIPTS } from "@/lib/mocks";
 import { EmptyState } from "@/components/States";
 import { CreditCard, Search, Filter } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth/auth-context';
+import { receiptsRepo } from '@/lib/data';
+import { Receipt } from '@/lib/types';
 
 export default function ResidentReceiptsPage() {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [allReceipts, setAllReceipts] = useState<Receipt[]>([]);
   const router = useRouter();
   
-  const receipts = MOCK_RECEIPTS.filter(r => 
-    r.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      if (!user) return;
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await receiptsRepo.listForUser(user);
+        if (!isMounted) return;
+        setAllReceipts(data);
+      } catch {
+        if (!isMounted) return;
+        setError('No pudimos cargar tus recibos. Intenta nuevamente.');
+      } finally {
+        if (!isMounted) return;
+        setIsLoading(false);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const receipts = useMemo(() => {
+    return allReceipts.filter((r) => {
+      const t = searchTerm.toLowerCase();
+      return r.number.toLowerCase().includes(t) || r.description.toLowerCase().includes(t);
+    });
+  }, [allReceipts, searchTerm]);
 
   const actions = (
     <button className="flex items-center px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95 group">
@@ -79,7 +111,15 @@ export default function ResidentReceiptsPage() {
 
         {/* Lista de Recibos */}
         <div className="space-y-4">
-          {receipts.length > 0 ? (
+          {error ? (
+            <div className="py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+              <EmptyState title="Error" description={error} />
+            </div>
+          ) : isLoading ? (
+            <div className="py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+              <EmptyState title="Cargando..." description="Preparando tus recibos." />
+            </div>
+          ) : receipts.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 max-w-4xl">
               {receipts.map((receipt) => (
                 <ReceiptRow

@@ -27,8 +27,10 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
       // Si está autenticado, verificar roles
       if (allowedRoles && !allowedRoles.includes(user.role)) {
         // Redirigir al dashboard correspondiente si no tiene permiso para la ruta actual
-        if (user.role === 'ADMIN' || user.role === 'STAFF') {
+        if (user.role === 'MANAGER' || user.role === 'BUILDING_ADMIN') {
           router.push('/admin/dashboard');
+        } else if (user.role === 'STAFF') {
+          router.push('/staff/tasks');
         } else {
           router.push('/resident/receipts');
         }

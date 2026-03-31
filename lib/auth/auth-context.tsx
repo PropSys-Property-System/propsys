@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, AuthState, UserRole } from '../types';
-import { MOCK_ADMIN, MOCK_RESIDENT, MOCK_STAFF } from '../mocks';
+import { MOCK_BUILDING_ADMIN, MOCK_MANAGER, MOCK_OWNER, MOCK_STAFF, MOCK_TENANT } from '../mocks';
 
 interface AuthContextType extends AuthState {
   login: (role: UserRole) => Promise<void>;
@@ -40,10 +40,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let user: User;
     switch (role) {
-      case 'ADMIN': user = MOCK_ADMIN; break;
+      case 'MANAGER': user = MOCK_MANAGER; break;
+      case 'BUILDING_ADMIN': user = MOCK_BUILDING_ADMIN; break;
       case 'STAFF': user = MOCK_STAFF; break;
-      case 'RESIDENT': user = MOCK_RESIDENT; break;
-      default: user = MOCK_RESIDENT;
+      case 'OWNER': user = MOCK_OWNER; break;
+      case 'TENANT': user = MOCK_TENANT; break;
+      default: user = MOCK_TENANT;
     }
 
     localStorage.setItem('propsys_user', JSON.stringify(user));

@@ -1,13 +1,16 @@
 'use client';
 
-import React, { use } from 'react';
+import React, { use, useEffect, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
-import { MOCK_RECEIPTS, MOCK_BUILDINGS, MOCK_UNITS } from "@/lib/mocks";
-import { ErrorState } from "@/components/States";
+import { MOCK_BUILDINGS, MOCK_UNITS } from "@/lib/mocks";
+import { ErrorState, LoadingState } from "@/components/States";
 import { StatusBadge } from "@/components/Receipts";
 import { ArrowLeft, Download, CreditCard, Calendar, Building, Home, FileText, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth/auth-context';
+import { receiptsRepo } from '@/lib/data';
+import { Receipt } from '@/lib/types';
 
 interface PageParams {
   id: string;
@@ -15,9 +18,63 @@ interface PageParams {
 
 export default function ResidentReceiptDetailPage({ params }: { params: Promise<PageParams> }) {
   const router = useRouter();
+  const { user } = useAuth();
   const resolvedParams = use(params);
-  const receipt = MOCK_RECEIPTS.find(r => r.id === resolvedParams.id);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      if (!user) return;
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const r = await receiptsRepo.getByIdForUser(user, resolvedParams.id);
+        if (!isMounted) return;
+        setReceipt(r);
+      } catch {
+        if (!isMounted) return;
+        setLoadError('No pudimos cargar el recibo.');
+      } finally {
+        if (!isMounted) return;
+        setIsLoading(false);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [user, resolvedParams.id]);
+  
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
+        <LoadingState title="Cargando recibo..." />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
+        <ErrorState
+          title="Error"
+          description={loadError}
+          action={
+            <button 
+              onClick={() => router.push('/resident/receipts')}
+              className="flex items-center bg-primary text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" /> Volver a mis recibos
+            </button>
+          }
+        />
+      </div>
+    );
+  }
+
   if (!receipt) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">

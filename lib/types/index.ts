@@ -1,4 +1,9 @@
-export type UserRole = 'ADMIN' | 'STAFF' | 'RESIDENT' | 'OWNER';
+export type UserRole =
+  | 'MANAGER'
+  | 'BUILDING_ADMIN'
+  | 'STAFF'
+  | 'OWNER'
+  | 'TENANT';
 
 export interface User {
   id: string;
@@ -40,6 +45,63 @@ export interface Unit {
   floor?: string;
   ownerId?: string;
   residentId?: string;
+}
+
+export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface Ticket {
+  id: string;
+  buildingId: string;
+  unitId?: string;
+  createdByUserId: string;
+  title: string;
+  description: string;
+  status: TicketStatus;
+  priority: TicketPriority;
+  createdAt: string;
+}
+
+export type NoticeAudience = 'BUILDING' | 'ALL_BUILDINGS';
+
+export interface Notice {
+  id: string;
+  buildingId?: string;
+  audience: NoticeAudience;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface StaffMember {
+  id: string;
+  buildingId: string;
+  name: string;
+  role: string;
+  phone?: string;
+  shift?: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface CommonArea {
+  id: string;
+  buildingId: string;
+  name: string;
+  capacity?: number;
+  requiresApproval: boolean;
+}
+
+export type ReservationStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface Reservation {
+  id: string;
+  buildingId: string;
+  unitId: string;
+  commonAreaId: string;
+  createdByUserId: string;
+  startAt: string;
+  endAt: string;
+  status: ReservationStatus;
 }
 
 export interface AuthState {

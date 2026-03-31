@@ -10,7 +10,11 @@ import {
   Menu, 
   User,
   Building2,
-  Users
+  Users,
+  ClipboardList,
+  Wrench,
+  Megaphone,
+  Home
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -29,11 +33,23 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'STAFF'] },
-  { label: 'Recibos', href: '/admin/receipts', icon: Receipt, roles: ['ADMIN', 'STAFF'] },
-  { label: 'Mis Recibos', href: '/resident/receipts', icon: Receipt, roles: ['RESIDENT', 'OWNER'] },
-  { label: 'Edificios', href: '/admin/buildings', icon: Building2, roles: ['ADMIN'] },
-  { label: 'Usuarios', href: '/admin/users', icon: Users, roles: ['ADMIN'] },
+  { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, roles: ['MANAGER', 'BUILDING_ADMIN'] },
+  { label: 'Recibos', href: '/admin/receipts', icon: Receipt, roles: ['MANAGER', 'BUILDING_ADMIN'] },
+  { label: 'Staff', href: '/admin/staff', icon: Users, roles: ['MANAGER', 'BUILDING_ADMIN'] },
+  { label: 'Incidencias', href: '/admin/tickets', icon: Wrench, roles: ['MANAGER', 'BUILDING_ADMIN'] },
+  { label: 'Áreas Comunes', href: '/admin/common-areas', icon: Home, roles: ['MANAGER', 'BUILDING_ADMIN'] },
+  { label: 'Avisos', href: '/admin/notices', icon: Megaphone, roles: ['MANAGER', 'BUILDING_ADMIN'] },
+  { label: 'Edificios', href: '/admin/buildings', icon: Building2, roles: ['MANAGER'] },
+  { label: 'Usuarios', href: '/admin/users', icon: User, roles: ['MANAGER'] },
+
+  { label: 'Mis Tareas', href: '/staff/tasks', icon: ClipboardList, roles: ['STAFF'] },
+  { label: 'Incidencias', href: '/staff/tickets', icon: Wrench, roles: ['STAFF'] },
+
+  { label: 'Mis Recibos', href: '/resident/receipts', icon: Receipt, roles: ['OWNER', 'TENANT'] },
+  { label: 'Reservas', href: '/resident/reservations', icon: Home, roles: ['OWNER', 'TENANT'] },
+  { label: 'Incidencias', href: '/resident/tickets', icon: Wrench, roles: ['OWNER', 'TENANT'] },
+  { label: 'Avisos', href: '/resident/notices', icon: Megaphone, roles: ['OWNER', 'TENANT'] },
+  { label: 'Mis Unidades', href: '/resident/units', icon: Building2, roles: ['OWNER'] },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

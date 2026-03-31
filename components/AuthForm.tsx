@@ -9,7 +9,7 @@ import Link from 'next/link';
 export function AuthForm() {
   const { login, isLoading } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [role, setRole] = useState<UserRole>('RESIDENT');
+  const [role, setRole] = useState<UserRole>('TENANT');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -83,14 +83,24 @@ export function AuthForm() {
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
                 Perfil de Prueba
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['ADMIN', 'STAFF', 'RESIDENT'] as UserRole[]).map((r) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {(['MANAGER', 'BUILDING_ADMIN', 'STAFF', 'OWNER', 'TENANT'] as UserRole[]).map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => {
                       setRole(r);
-                      setEmail(r === 'ADMIN' ? 'admin@propsys.com' : r === 'STAFF' ? 'staff@propsys.com' : 'resident@propsys.com');
+                      setEmail(
+                        r === 'MANAGER'
+                          ? 'manager@propsys.com'
+                          : r === 'BUILDING_ADMIN'
+                            ? 'building.admin@propsys.com'
+                            : r === 'STAFF'
+                              ? 'staff@propsys.com'
+                              : r === 'OWNER'
+                                ? 'owner@propsys.com'
+                                : 'tenant@propsys.com'
+                      );
                     }}
                     className={`px-3 py-2.5 text-[10px] font-black rounded-xl border-2 transition-all ${
                       role === r 
@@ -111,7 +121,18 @@ export function AuthForm() {
                 placeholder="Correo electrónico"
                 className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm font-medium"
                 readOnly
-                value={email || (role === 'ADMIN' ? 'admin@propsys.com' : role === 'STAFF' ? 'staff@propsys.com' : 'resident@propsys.com')}
+                value={
+                  email ||
+                  (role === 'MANAGER'
+                    ? 'manager@propsys.com'
+                    : role === 'BUILDING_ADMIN'
+                      ? 'building.admin@propsys.com'
+                      : role === 'STAFF'
+                        ? 'staff@propsys.com'
+                        : role === 'OWNER'
+                          ? 'owner@propsys.com'
+                          : 'tenant@propsys.com')
+                }
               />
             </div>
           </div>
