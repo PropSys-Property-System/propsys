@@ -6,22 +6,23 @@ import { InternalRole, UIRole } from '../types/auth';
  * mientras el backend estructural maneja una jerarquía más granular.
  */
 export function mapInternalRoleToUIRole(internalRole: InternalRole): UIRole {
-  const roleMap: Record<InternalRole, UIRole> = {
-    'ROOT_ADMIN': 'MANAGER',
-    'CLIENT_MANAGER': 'MANAGER',
-    'BUILDING_ADMIN': 'BUILDING_ADMIN',
-    'STAFF': 'STAFF',
-    'OWNER': 'OWNER',
-    'OCCUPANT': 'TENANT'
-  };
-
-  const uiRole = roleMap[internalRole];
-  
-  if (!uiRole) {
-    throw new Error(`Unhandled internalRole: ${internalRole}. No mapping defined for UI.`);
+  switch (internalRole) {
+    case 'ROOT_ADMIN':
+    case 'CLIENT_MANAGER':
+      return 'MANAGER';
+    case 'BUILDING_ADMIN':
+      return 'BUILDING_ADMIN';
+    case 'STAFF':
+      return 'STAFF';
+    case 'OWNER':
+      return 'OWNER';
+    case 'OCCUPANT':
+      return 'TENANT';
+    default: {
+      const _exhaustiveCheck: never = internalRole;
+      throw new Error(`Unhandled internalRole: ${_exhaustiveCheck}. No mapping defined for UI.`);
+    }
   }
-
-  return uiRole;
 }
 
 /**

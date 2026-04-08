@@ -24,22 +24,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Simulamos carga de sesión desde localStorage
     const savedUserJson = localStorage.getItem('propsys_user');
     if (savedUserJson) {
-      const storedUser = JSON.parse(savedUserJson) as User;
-      
-      // Derivamos el UI role dinámicamente sin mutar el objeto original (inmortalidad del mock)
-      const user: User = {
-        ...storedUser,
-        role: mapInternalRoleToUIRole(storedUser.internalRole)
-      };
-      
-      setState({
-        user,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } else {
-      setState(prev => ({ ...prev, isLoading: false }));
+      try {
+        const storedUser = JSON.parse(savedUserJson) as User;
+        
+        // Validamos si la sesión es válida y tiene la estructura nueva (internalRole)
+        if (storedUser && storedUser.internalRole) {
+          // Derivamos el UI role dinámicamente sin mutar el objeto original (inmortalidad del mock)
+          const user: User = {
+            ...storedUser,
+            role: mapInternalRoleToUIRole(storedUser.internalRole)
+          };
+          
+          setState({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          return; // Sesión válida cargada correctamente
+        } else {
+          // Sesión vieja detectada: limpiamos localStorage
+          localStorage.removeItem('propsys_user');
+        }
+      } catch (e) {
+        // JSON corrupto: limpiamos localStorage
+        localStorage.removeItem('propsys_user');
+      }
     }
+    
+    // Si no hay sesión o era inválida, finalizamos la carga
+    setState(prev => ({ ...prev, isLoading: false }));
   }, []);
 
   const login = async (role: UserRole) => {
