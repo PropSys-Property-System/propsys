@@ -1,4 +1,7 @@
 import { InternalRole, AuthScope, UserStatus } from './auth';
+export * from './physical';
+export * from './operation';
+export * from './communication';
 
 export type UserRole =
   | 'MANAGER'
@@ -39,6 +42,7 @@ export interface Receipt {
 
 export interface Building {
   id: string;
+  clientId?: string;
   name: string;
   address: string;
   city: string;
@@ -46,6 +50,7 @@ export interface Building {
 
 export interface Unit {
   id: string;
+  clientId?: string;
   buildingId: string;
   number: string;
   floor?: string;
@@ -91,6 +96,7 @@ export interface StaffMember {
 
 export interface CommonArea {
   id: string;
+  clientId?: string;
   buildingId: string;
   name: string;
   capacity?: number;

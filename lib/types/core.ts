@@ -28,8 +28,8 @@ export interface AuditLog {
   entity: string;
   entityId: string;
   payload: {
-    oldData?: any;
-    newData?: any;
-    metadata?: Record<string, any>;
+    oldData?: unknown;
+    newData?: unknown;
+    metadata?: Record<string, unknown>;
   };
 }

@@ -7,6 +7,7 @@ import { Megaphone, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { noticesRepo } from '@/lib/data';
 import { Notice } from '@/lib/types';
+import { labelNoticeAudience } from '@/lib/presentation/labels';
 
 export default function ResidentNoticesPage() {
   const { user } = useAuth();
@@ -75,7 +76,7 @@ export default function ResidentNoticesPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest">
-                      {n.audience === 'ALL_BUILDINGS' ? 'PropSys' : 'Tu edificio'}
+                      {n.audience === 'ALL_BUILDINGS' ? 'PropSys' : labelNoticeAudience(n.audience)}
                     </span>
                     <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
                       {new Date(n.createdAt).toLocaleString('es-CL')}

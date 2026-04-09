@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, AuthState, UserRole } from '../types';
-import { MOCK_BUILDING_ADMIN, MOCK_MANAGER, MOCK_OWNER, MOCK_STAFF, MOCK_TENANT, MOCK_ROOT_ADMIN } from '../mocks';
-import { auditService } from '../audit/audit-service';
+import { MOCK_BUILDING_ADMIN, MOCK_MANAGER, MOCK_OWNER, MOCK_STAFF, MOCK_TENANT } from '../mocks';
 import { mapInternalRoleToUIRole } from './role-mapping';
 
 interface AuthContextType extends AuthState {
@@ -45,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Sesión vieja detectada: limpiamos localStorage
           localStorage.removeItem('propsys_user');
         }
-      } catch (e) {
+      } catch {
         // JSON corrupto: limpiamos localStorage
         localStorage.removeItem('propsys_user');
       }

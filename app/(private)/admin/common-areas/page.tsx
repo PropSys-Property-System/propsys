@@ -45,11 +45,12 @@ export default function AdminCommonAreasPage() {
   useEffect(() => {
     let isMounted = true;
     const loadAreas = async () => {
+      if (!user) return;
       if (!selectedBuildingId) return;
       try {
         setIsLoading(true);
         setError(null);
-        const data = await commonAreasRepo.listForBuilding(selectedBuildingId);
+        const data = await commonAreasRepo.listForBuilding(user, selectedBuildingId);
         if (!isMounted) return;
         setAreas(data);
       } catch {
@@ -64,7 +65,7 @@ export default function AdminCommonAreasPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedBuildingId]);
+  }, [selectedBuildingId, user]);
 
   const filtered = useMemo(() => {
     const t = searchTerm.toLowerCase();

@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { labelUserRole } from '@/lib/presentation/labels';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -105,7 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-900 truncate">{user?.name}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.role}</p>
+                <p className="text-xs text-slate-500 truncate">{user ? labelUserRole(user.role) : ''}</p>
               </div>
             </div>
             <button

@@ -39,7 +39,7 @@ export default function ResidentReservationsPage() {
           buildingsRepo.listForUser(user),
         ]);
         const buildingIds = Array.from(new Set(b.map((x) => x.id)));
-        const areasByBuilding = await Promise.all(buildingIds.map((id) => commonAreasRepo.listForBuilding(id)));
+        const areasByBuilding = await Promise.all(buildingIds.map((id) => commonAreasRepo.listForBuilding(user, id)));
         if (!isMounted) return;
         setReservations(r);
         setUnits(u);

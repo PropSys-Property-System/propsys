@@ -45,11 +45,12 @@ export default function AdminStaffPage() {
   useEffect(() => {
     let isMounted = true;
     const loadStaff = async () => {
+      if (!user) return;
       if (!selectedBuildingId) return;
       try {
         setIsLoading(true);
         setError(null);
-        const data = await staffRepo.listForBuilding(selectedBuildingId);
+        const data = await staffRepo.listForBuilding(user, selectedBuildingId);
         if (!isMounted) return;
         setStaff(data);
       } catch {
@@ -64,7 +65,7 @@ export default function AdminStaffPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedBuildingId]);
+  }, [selectedBuildingId, user]);
 
   const filtered = useMemo(() => {
     const t = searchTerm.toLowerCase();

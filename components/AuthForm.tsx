@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { UserRole } from '@/lib/types';
-import { Mail, Lock, Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Mail, Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import { labelUserRole } from '@/lib/presentation/labels';
 
 export function AuthForm() {
   const { login, isLoading } = useAuth();
@@ -78,7 +79,7 @@ export function AuthForm() {
                       : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
                   }`}
                 >
-                  {r}
+                  {labelUserRole(r)}
                 </button>
               ))}
             </div>

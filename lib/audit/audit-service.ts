@@ -26,9 +26,9 @@ export class AuditService {
     action: AuditAction;
     entity: string;
     entityId: string;
-    oldData?: any;
-    newData?: any;
-    metadata?: Record<string, any>;
+    oldData?: unknown;
+    newData?: unknown;
+    metadata?: Record<string, unknown>;
   }): void {
     const newLog: AuditLog = {
       id: `audit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
