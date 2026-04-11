@@ -18,7 +18,7 @@ import {
   Home
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { labelUserRole } from '@/lib/presentation/labels';
@@ -58,6 +58,7 @@ const NAV_ITEMS: NavItem[] = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
   const filteredNav = NAV_ITEMS.filter(item => user && item.roles.includes(user.role));
@@ -112,7 +113,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <button
-              onClick={() => logout()}
+              onClick={async () => {
+                await logout();
+                router.replace('/');
+                router.refresh();
+              }}
               className="flex items-center w-full px-4 py-2 text-sm font-medium text-red-600 rounded-md hover:bg-red-50 transition-colors"
             >
               <LogOut className="w-5 h-5 mr-3" />
