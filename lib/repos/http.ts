@@ -1,6 +1,8 @@
 ﻿export async function fetchJsonOrThrow<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const resolvedInput =
-    typeof input === 'string' && input.startsWith('/') ? new URL(input, 'http://localhost') : input;
+    typeof window === 'undefined' && typeof input === 'string' && input.startsWith('/')
+      ? new URL(input, process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
+      : input;
   const res = await fetch(resolvedInput, init);
   if (!res.ok) {
     let msg = `Error HTTP ${res.status}`;
@@ -13,5 +15,3 @@
   }
   return (await res.json()) as T;
 }
-
-

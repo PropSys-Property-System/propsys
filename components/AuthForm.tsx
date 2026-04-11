@@ -16,8 +16,8 @@ export function AuthForm() {
 
     try {
       await login(email, password);
-    } catch {
-      setError('Credenciales inválidas.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo iniciar sesión.');
     }
   };
 
@@ -86,4 +86,3 @@ export function AuthForm() {
     </div>
   );
 }
-
