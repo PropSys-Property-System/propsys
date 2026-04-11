@@ -1,22 +1,23 @@
-'use client';
+﻿'use client';
 
 import React, { use, useEffect, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
-import { MOCK_BUILDINGS, MOCK_UNITS } from "@/lib/mocks";
 import { ErrorState, LoadingState } from "@/components/States";
 import { StatusBadge } from "@/components/Receipts";
 import { ArrowLeft, Download, Printer, Send, Trash2, Edit2, Calendar, CreditCard, Building, Home, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-context';
-import { receiptsRepo } from '@/lib/data';
-import { Receipt } from '@/lib/types';
+import { buildingsRepo, receiptsRepo, unitsRepo } from '@/lib/data';
+import { Building as BuildingType, Receipt, Unit as UnitType } from '@/lib/types';
 
 export default function AdminReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { user } = useAuth();
   const resolvedParams = use(params);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [building, setBuilding] = useState<BuildingType | null>(null);
+  const [unit, setUnit] = useState<UnitType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   
@@ -30,6 +31,15 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
         const r = await receiptsRepo.getByIdForUser(user, resolvedParams.id);
         if (!isMounted) return;
         setReceipt(r);
+        if (!r) {
+          setBuilding(null);
+          setUnit(null);
+          return;
+        }
+        const [buildings, units] = await Promise.all([buildingsRepo.listForUser(user), unitsRepo.listForUser(user)]);
+        if (!isMounted) return;
+        setBuilding(buildings.find((b) => b.id === r.buildingId) ?? null);
+        setUnit(units.find((u) => u.id === r.unitId) ?? null);
       } catch {
         if (!isMounted) return;
         setLoadError('No pudimos cargar el recibo.');
@@ -86,22 +96,43 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
     );
   }
 
-  const building = MOCK_BUILDINGS.find(b => b.id === receipt.buildingId);
-  const unit = MOCK_UNITS.find(u => u.id === receipt.unitId);
-
   const actions = (
     <>
-      <button className="p-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-slate-300 transition-all shadow-sm group">
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="Próximamente"
+        className="p-2.5 bg-white border border-slate-200 text-slate-400 rounded-xl shadow-sm cursor-not-allowed opacity-70"
+      >
         <Edit2 className="w-4 h-4 group-hover:text-primary transition-colors" />
       </button>
-      <button className="p-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-slate-300 transition-all shadow-sm group">
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="Próximamente"
+        className="p-2.5 bg-white border border-slate-200 text-slate-400 rounded-xl shadow-sm cursor-not-allowed opacity-70"
+      >
         <Printer className="w-4 h-4 group-hover:text-primary transition-colors" />
       </button>
-      <button className="p-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl hover:border-slate-300 transition-all shadow-sm group">
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="Próximamente"
+        className="p-2.5 bg-white border border-slate-200 text-slate-400 rounded-xl shadow-sm cursor-not-allowed opacity-70"
+      >
         <Download className="w-4 h-4 group-hover:text-primary transition-colors" />
       </button>
-      <button className="flex items-center px-4 py-2.5 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
-        <Send className="w-4 h-4 mr-2" /> Enviar por Email
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="Próximamente"
+        className="flex items-center px-4 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
+      >
+        <Send className="w-4 h-4 mr-2" /> Próximamente
       </button>
     </>
   );
@@ -224,8 +255,14 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
 
               <div className="space-y-2">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Acciones Críticas</p>
-                <button className="w-full flex items-center justify-center px-4 py-3 bg-red-50 text-red-600 rounded-2xl font-bold text-xs hover:bg-red-100 transition-all border border-red-100 group">
-                  <Trash2 className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" /> Anular Recibo
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  title="Próximamente"
+                  className="w-full flex items-center justify-center px-4 py-3 bg-slate-100 text-slate-500 rounded-2xl font-bold text-xs cursor-not-allowed border border-slate-200"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" /> Próximamente
                 </button>
               </div>
             </div>
@@ -242,3 +279,4 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
     </div>
   );
 }
+

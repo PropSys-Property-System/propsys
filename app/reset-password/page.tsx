@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { Mail, ArrowLeft, ArrowRight, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
@@ -106,3 +106,4 @@ export default function ResetPasswordPage() {
     </div>
   );
 }
+

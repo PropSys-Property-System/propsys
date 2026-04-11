@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 
@@ -25,3 +25,4 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
     </div>
   );
 }
+

@@ -1,11 +1,16 @@
-'use client';
+﻿'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, AuthState, UserRole } from '../types';
-import { MOCK_BUILDING_ADMIN, MOCK_MANAGER, MOCK_OWNER, MOCK_STAFF, MOCK_TENANT } from '../mocks';
+import { User, AuthState } from '../types';
+import {
+  clearAssignmentsCache,
+  setAssignmentsCache,
+  type CachedBuildingAssignment,
+  type CachedUnitAssignment,
+} from '@/lib/access/assignments-cache';
 
 interface AuthContextType extends AuthState {
-  login: (role: UserRole) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -19,52 +24,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    // Simulamos carga de sesión desde localStorage
-    const savedUser = localStorage.getItem('propsys_user');
-    if (savedUser) {
-      setState({
-        user: JSON.parse(savedUser),
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } else {
-      setState(prev => ({ ...prev, isLoading: false }));
-    }
+    let isMounted = true;
+    const hydrate = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
+        if (!isMounted) return;
+        if (!res.ok) {
+          setState({ user: null, isAuthenticated: false, isLoading: false });
+          return;
+        }
+        const data = (await res.json()) as {
+          user: User;
+          buildingAssignments?: CachedBuildingAssignment[];
+          unitAssignments?: CachedUnitAssignment[];
+        };
+        if (data.user?.id && Array.isArray(data.buildingAssignments) && Array.isArray(data.unitAssignments)) {
+          setAssignmentsCache(data.user.id, { buildingAssignments: data.buildingAssignments, unitAssignments: data.unitAssignments });
+        }
+        setState({ user: data.user, isAuthenticated: true, isLoading: false });
+      } catch {
+        if (!isMounted) return;
+        setState({ user: null, isAuthenticated: false, isLoading: false });
+      }
+    };
+    hydrate();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const login = async (role: UserRole) => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    
-    // Simulamos delay de red
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    let user: User;
-    switch (role) {
-      case 'MANAGER': user = MOCK_MANAGER; break;
-      case 'BUILDING_ADMIN': user = MOCK_BUILDING_ADMIN; break;
-      case 'STAFF': user = MOCK_STAFF; break;
-      case 'OWNER': user = MOCK_OWNER; break;
-      case 'TENANT': user = MOCK_TENANT; break;
-      default: user = MOCK_TENANT;
-    }
-
-    localStorage.setItem('propsys_user', JSON.stringify(user));
-    setState({
-      user,
-      isAuthenticated: true,
-      isLoading: false,
+  const login = async (email: string, password: string) => {
+    setState((prev) => ({ ...prev, isLoading: true }));
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
     });
+    if (!res.ok) {
+      setState({ user: null, isAuthenticated: false, isLoading: false });
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || 'No se pudo iniciar sesión');
+    }
+    const me = await fetch('/api/auth/me', { credentials: 'include' });
+    if (!me.ok) {
+      setState({ user: null, isAuthenticated: false, isLoading: false });
+      const data = (await me.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || 'No se pudo iniciar sesión');
+    }
+    const data = (await me.json()) as {
+      user: User;
+      buildingAssignments?: CachedBuildingAssignment[];
+      unitAssignments?: CachedUnitAssignment[];
+    };
+    if (data.user?.id && Array.isArray(data.buildingAssignments) && Array.isArray(data.unitAssignments)) {
+      setAssignmentsCache(data.user.id, { buildingAssignments: data.buildingAssignments, unitAssignments: data.unitAssignments });
+    }
+    setState({ user: data.user, isAuthenticated: true, isLoading: false });
   };
 
   const logout = async () => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
-    localStorage.removeItem('propsys_user');
-    setState({
-      user: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
+    setState((prev) => ({ ...prev, isLoading: true }));
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => null);
+    if (state.user?.id) clearAssignmentsCache(state.user.id);
+    setState({ user: null, isAuthenticated: false, isLoading: false });
   };
 
   return (
@@ -81,3 +104,4 @@ export const useAuth = () => {
   }
   return context;
 }
+

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { cn } from '@/lib/utils';
@@ -51,3 +51,4 @@ export function KPICard({ title, value, icon: Icon, description, trend, variant 
     </div>
   );
 }
+

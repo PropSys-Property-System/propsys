@@ -1,0 +1,138 @@
+﻿import { NextResponse } from 'next/server';
+import { getPool } from '@/lib/server/db/client';
+import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import type { IncidentEntity } from '@/lib/types';
+import { randomUUID } from 'node:crypto';
+
+function toEntity(row: {
+  id: string;
+  client_id: string;
+  building_id: string;
+  unit_id: string | null;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  reported_by_user_id: string;
+  assigned_to_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}): IncidentEntity {
+  return {
+    id: row.id,
+    clientId: row.client_id,
+    buildingId: row.building_id,
+    unitId: row.unit_id ?? undefined,
+    title: row.title,
+    description: row.description,
+    status: row.status as IncidentEntity['status'],
+    priority: row.priority as IncidentEntity['priority'],
+    reportedByUserId: row.reported_by_user_id,
+    assignedToUserId: row.assigned_to_user_id ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  if (user.internalRole === 'OCCUPANT' || user.internalRole === 'OWNER') {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  const { id } = await ctx.params;
+  const body = await req.json().catch(() => null);
+  const status =
+    body?.status === 'REPORTED' || body?.status === 'ASSIGNED' || body?.status === 'IN_PROGRESS' || body?.status === 'RESOLVED' || body?.status === 'CLOSED'
+      ? body.status
+      : null;
+  if (!status) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+
+  const pool = getPool();
+  const currentRes = await pool.query<{
+    id: string;
+    client_id: string;
+    building_id: string;
+    unit_id: string | null;
+    title: string;
+    description: string;
+    status: string;
+    priority: string;
+    reported_by_user_id: string;
+    assigned_to_user_id: string | null;
+    created_at: string;
+    updated_at: string;
+  }>(
+    `SELECT id, client_id, building_id, unit_id, title, description, status, priority, reported_by_user_id, assigned_to_user_id, created_at, updated_at
+     FROM incidents
+     WHERE id = $1
+     LIMIT 1`,
+    [id]
+  );
+  const current = currentRes.rows[0];
+  if (!current) return NextResponse.json({ incident: null }, { status: 404 });
+  if (user.scope !== 'platform' && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ incident: null }, { status: 404 });
+
+  if (user.internalRole === 'STAFF') {
+    if (status === 'CLOSED') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (current.assigned_to_user_id && current.assigned_to_user_id !== user.id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  if (status === 'ASSIGNED' && !current.assigned_to_user_id) {
+    return NextResponse.json({ error: 'No se puede marcar como asignada sin responsable.' }, { status: 400 });
+  }
+
+  if (user.internalRole === 'BUILDING_ADMIN' || user.internalRole === 'STAFF') {
+    const ok = await pool.query<{ ok: boolean }>(
+      `SELECT true as ok
+       FROM user_building_assignments
+       WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+       LIMIT 1`,
+      [user.id, current.building_id]
+    );
+    if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  const now = new Date().toISOString();
+  const updated = await pool.query<{
+    id: string;
+    client_id: string;
+    building_id: string;
+    unit_id: string | null;
+    title: string;
+    description: string;
+    status: string;
+    priority: string;
+    reported_by_user_id: string;
+    assigned_to_user_id: string | null;
+    created_at: string;
+    updated_at: string;
+  }>(
+    `UPDATE incidents
+     SET status = $2, updated_at = $3
+     WHERE id = $1
+     RETURNING id, client_id, building_id, unit_id, title, description, status, priority, reported_by_user_id, assigned_to_user_id, created_at, updated_at`,
+    [id, status, now]
+  );
+
+  await pool
+    .query(
+      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)
+       VALUES ($1, $2, $3, 'UPDATE', 'Incident', $4, $5::jsonb, $6::jsonb, $7::jsonb)`,
+      [
+        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+        current.client_id,
+        user.id,
+        id,
+        JSON.stringify({ fromStatus: current.status, toStatus: status }),
+        JSON.stringify(current),
+        JSON.stringify(updated.rows[0]),
+      ]
+    )
+    .catch(() => null);
+
+  return NextResponse.json({ incident: toEntity(updated.rows[0]) });
+}
+

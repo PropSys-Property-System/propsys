@@ -1,9 +1,13 @@
-'use client';
+﻿import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { requireServerSessionUser } from '@/lib/server/auth/server-session';
 
-import React from 'react';
-import { RouteGuard } from '@/lib/auth/route-guard';
-
-export default function ResidentLayout({ children }: { children: React.ReactNode }) {
-  return <RouteGuard allowedRoles={['OWNER', 'TENANT']}>{children}</RouteGuard>;
+export default async function ResidentLayout({ children }: { children: ReactNode }) {
+  const user = await requireServerSessionUser('/resident/receipts');
+  if (user.role !== 'OWNER' && user.role !== 'TENANT') {
+    redirect('/router');
+  }
+  return <>{children}</>;
 }
+
 

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+﻿import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ReceiptRow } from './Receipts';
 import React from 'react';
@@ -58,3 +58,4 @@ describe('ReceiptRow', () => {
     expect(screen.getByText('---')).toBeInTheDocument();
   });
 });
+

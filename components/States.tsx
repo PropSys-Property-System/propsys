@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { PackageOpen, AlertCircle, Loader2 } from 'lucide-react';
@@ -43,3 +43,4 @@ export function LoadingState({ title = "Cargando..." }: { title?: string }) {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
@@ -45,11 +45,12 @@ export default function AdminCommonAreasPage() {
   useEffect(() => {
     let isMounted = true;
     const loadAreas = async () => {
+      if (!user) return;
       if (!selectedBuildingId) return;
       try {
         setIsLoading(true);
         setError(null);
-        const data = await commonAreasRepo.listForBuilding(selectedBuildingId);
+        const data = await commonAreasRepo.listForBuilding(user, selectedBuildingId);
         if (!isMounted) return;
         setAreas(data);
       } catch {
@@ -64,7 +65,7 @@ export default function AdminCommonAreasPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedBuildingId]);
+  }, [selectedBuildingId, user]);
 
   const filtered = useMemo(() => {
     const t = searchTerm.toLowerCase();
@@ -72,8 +73,11 @@ export default function AdminCommonAreasPage() {
   }, [areas, searchTerm]);
 
   const actions = (
-    <button className="flex items-center px-4 py-2 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
-      <Plus className="w-4 h-4 mr-2" /> Nueva Área
+    <button
+      disabled
+      className="flex items-center px-4 py-2 bg-slate-100 text-slate-400 rounded-xl font-bold text-sm cursor-not-allowed"
+    >
+      <Plus className="w-4 h-4 mr-2" /> Próximamente
     </button>
   );
 
@@ -144,4 +148,5 @@ export default function AdminCommonAreasPage() {
     </div>
   );
 }
+
 

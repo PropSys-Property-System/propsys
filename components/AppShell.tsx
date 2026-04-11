@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -12,6 +12,7 @@ import {
   Building2,
   Users,
   ClipboardList,
+  CalendarDays,
   Wrench,
   Megaphone,
   Home
@@ -20,6 +21,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { labelUserRole } from '@/lib/presentation/labels';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -38,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Staff', href: '/admin/staff', icon: Users, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Incidencias', href: '/admin/tickets', icon: Wrench, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Áreas Comunes', href: '/admin/common-areas', icon: Home, roles: ['MANAGER', 'BUILDING_ADMIN'] },
+  { label: 'Reservas', href: '/admin/reservations', icon: CalendarDays, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Avisos', href: '/admin/notices', icon: Megaphone, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Edificios', href: '/admin/buildings', icon: Building2, roles: ['MANAGER'] },
   { label: 'Usuarios', href: '/admin/users', icon: User, roles: ['MANAGER'] },
@@ -105,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-slate-900 truncate">{user?.name}</p>
-                <p className="text-xs text-slate-500 truncate">{user?.role}</p>
+                <p className="text-xs text-slate-500 truncate">{user ? labelUserRole(user.role) : ''}</p>
               </div>
             </div>
             <button
@@ -139,3 +142,4 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+

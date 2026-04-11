@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { ReceiptStatus } from '@/lib/types';
@@ -112,3 +112,4 @@ export function ReceiptRow({ number, date, amount, status, description, onView }
     </div>
   );
 }
+

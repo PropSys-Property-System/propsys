@@ -1,0 +1,149 @@
+﻿import {
+  ChecklistExecution,
+  ChecklistTemplate,
+  EvidenceAttachment,
+  IncidentEntity,
+  TaskEntity,
+} from '@/lib/types/operation';
+
+export const MOCK_INCIDENTS: IncidentEntity[] = [
+  {
+    id: 'inc-1',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    unitId: 'unit-102',
+    title: 'Fuga de agua en cocina',
+    description: 'Se detecta filtración bajo el lavaplatos. Se requiere revisión.',
+    status: 'REPORTED',
+    priority: 'HIGH',
+    reportedByUserId: 'u3',
+    assignedToUserId: 'u3',
+    createdAt: '2026-04-03T08:30:00.000Z',
+    updatedAt: '2026-04-03T08:30:00.000Z',
+  },
+  {
+    id: 'inc-2',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    title: 'Luz pasillo piso 1',
+    description: 'Se reporta luminaria intermitente en pasillo del piso 1.',
+    status: 'IN_PROGRESS',
+    priority: 'MEDIUM',
+    reportedByUserId: 'u2',
+    assignedToUserId: 'u3',
+    createdAt: '2026-04-03T10:15:00.000Z',
+    updatedAt: '2026-04-03T11:00:00.000Z',
+  },
+  {
+    id: 'inc-3',
+    clientId: 'client_001',
+    buildingId: 'b2',
+    title: 'Revisión extintores',
+    description: 'Programar revisión mensual de extintores en áreas comunes.',
+    status: 'ASSIGNED',
+    priority: 'LOW',
+    reportedByUserId: 'u2',
+    assignedToUserId: 'u3',
+    createdAt: '2026-04-02T09:00:00.000Z',
+    updatedAt: '2026-04-02T09:10:00.000Z',
+  },
+  {
+    id: 'inc-4',
+    clientId: 'client_002',
+    buildingId: 'b3',
+    unitId: 'unit-301',
+    title: 'Portón principal con falla',
+    description: 'El portón principal presenta ruido y demora al cerrar.',
+    status: 'REPORTED',
+    priority: 'MEDIUM',
+    reportedByUserId: 'u3',
+    createdAt: '2026-04-02T08:00:00.000Z',
+    updatedAt: '2026-04-02T08:00:00.000Z',
+  },
+];
+
+export const MOCK_TASKS_V1: TaskEntity[] = [
+  {
+    id: 'task-1',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    title: 'Ronda de seguridad (turno noche)',
+    description: 'Completar ronda de seguridad y registrar novedades.',
+    status: 'PENDING',
+    assignedToUserId: 'u3',
+    createdByUserId: 'u2',
+    createdAt: '2026-04-03T18:00:00.000Z',
+    updatedAt: '2026-04-03T18:00:00.000Z',
+  },
+  {
+    id: 'task-2',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    title: 'Revisión luminarias pasillo',
+    description: 'Verificar luminarias del piso 1 y reportar fallas.',
+    status: 'IN_PROGRESS',
+    assignedToUserId: 'u3',
+    createdByUserId: 'u2',
+    createdAt: '2026-04-03T09:00:00.000Z',
+    updatedAt: '2026-04-03T10:00:00.000Z',
+  },
+  {
+    id: 'task-3',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    title: 'Limpieza sala multiuso',
+    description: 'Limpieza posterior a evento y revisión de inventario.',
+    status: 'COMPLETED',
+    assignedToUserId: 'u3',
+    createdByUserId: 'u2',
+    createdAt: '2026-04-02T08:00:00.000Z',
+    updatedAt: '2026-04-02T12:00:00.000Z',
+  },
+];
+
+export const MOCK_CHECKLIST_TEMPLATES: ChecklistTemplate[] = [
+  {
+    id: 'chk-tpl-1',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    name: 'Apertura Turno Mañana',
+    items: [
+      { id: 'chk-i-1', label: 'Revisar acceso principal', required: true },
+      { id: 'chk-i-2', label: 'Revisar cámaras', required: true },
+      { id: 'chk-i-3', label: 'Registrar novedades', required: false },
+    ],
+    createdAt: '2026-04-01T08:00:00.000Z',
+    updatedAt: '2026-04-01T08:00:00.000Z',
+  },
+];
+
+export const MOCK_CHECKLIST_EXECUTIONS: ChecklistExecution[] = [
+  {
+    id: 'chk-exec-1',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    taskId: 'task-1',
+    templateId: 'chk-tpl-1',
+    assignedToUserId: 'u3',
+    status: 'PENDING',
+    results: [],
+    createdAt: '2026-04-03T07:30:00.000Z',
+    updatedAt: '2026-04-03T07:30:00.000Z',
+  },
+];
+
+export const MOCK_EVIDENCE_ATTACHMENTS: EvidenceAttachment[] = [
+  {
+    id: 'ev-1',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    unitId: 'unit-102',
+    incidentId: 'inc-1',
+    fileName: 'evidencia-fuga.jpg',
+    mimeType: 'image/jpeg',
+    url: 'https://example.com/evidence/evidencia-fuga.jpg',
+    uploadedByUserId: 'u3',
+    createdAt: '2026-04-03T08:35:00.000Z',
+  },
+];
+

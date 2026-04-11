@@ -58,3 +58,4 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
 
   return <>{children}</>;
 }
+

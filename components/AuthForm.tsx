@@ -1,15 +1,11 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { UserRole } from '@/lib/types';
-import { Mail, Lock, Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
+import { Mail, Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export function AuthForm() {
   const { login, isLoading } = useAuth();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [role, setRole] = useState<UserRole>('TENANT');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -18,23 +14,10 @@ export function AuthForm() {
     e.preventDefault();
     setError(null);
 
-    // Validación básica simulada
-    if (mode === 'login') {
-      if (!role) {
-        setError('Por favor selecciona un perfil de acceso.');
-        return;
-      }
-    } else {
-      if (!email || !password) {
-        setError('Por favor completa todos los campos.');
-        return;
-      }
-    }
-
     try {
-      await login(role);
+      await login(email, password);
     } catch {
-      setError('Error al intentar acceder. Por favor intenta de nuevo.');
+      setError('Credenciales inválidas.');
     }
   };
 
@@ -46,28 +29,8 @@ export function AuthForm() {
         </div>
         <h2 className="text-3xl font-black text-slate-900 tracking-tight">PropSys</h2>
         <p className="text-slate-500 mt-2 text-sm font-medium">
-          {mode === 'login' ? 'Bienvenido de nuevo a tu gestión inmobiliaria' : 'Únete a la nueva era de administración'}
+          Bienvenido de nuevo a tu gestión inmobiliaria
         </p>
-      </div>
-
-      {/* Toggle Login/Signup */}
-      <div className="flex p-1 bg-slate-100 rounded-xl mb-8">
-        <button
-          onClick={() => setMode('login')}
-          className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-            mode === 'login' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Acceder
-        </button>
-        <button
-          onClick={() => setMode('signup')}
-          className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
-            mode === 'signup' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Registrarse
-        </button>
       </div>
 
       {error && (
@@ -77,89 +40,27 @@ export function AuthForm() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {mode === 'login' ? (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
-                Perfil de Prueba
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {(['MANAGER', 'BUILDING_ADMIN', 'STAFF', 'OWNER', 'TENANT'] as UserRole[]).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => {
-                      setRole(r);
-                      setEmail(
-                        r === 'MANAGER'
-                          ? 'manager@propsys.com'
-                          : r === 'BUILDING_ADMIN'
-                            ? 'building.admin@propsys.com'
-                            : r === 'STAFF'
-                              ? 'staff@propsys.com'
-                              : r === 'OWNER'
-                                ? 'owner@propsys.com'
-                                : 'tenant@propsys.com'
-                      );
-                    }}
-                    className={`px-3 py-2.5 text-[10px] font-black rounded-xl border-2 transition-all ${
-                      role === r 
-                        ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' 
-                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative group">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-              <input
-                type="email"
-                placeholder="Correo electrónico"
-                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm font-medium"
-                readOnly
-                value={
-                  email ||
-                  (role === 'MANAGER'
-                    ? 'manager@propsys.com'
-                    : role === 'BUILDING_ADMIN'
-                      ? 'building.admin@propsys.com'
-                      : role === 'STAFF'
-                        ? 'staff@propsys.com'
-                        : role === 'OWNER'
-                          ? 'owner@propsys.com'
-                          : 'tenant@propsys.com')
-                }
-              />
-            </div>
+        <div className="space-y-4">
+          <div className="relative group">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+            <input
+              type="email"
+              placeholder="Correo electrónico"
+              className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm font-medium"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="relative group">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-              <input
-                type="email"
-                placeholder="Tu correo electrónico"
-                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm font-medium"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="relative group">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-              <input
-                type="password"
-                placeholder="Crea una contraseña"
-                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm font-medium"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+          <div className="relative group">
+            <input
+              type="password"
+              placeholder="Contraseña"
+              className="w-full px-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all text-sm font-medium"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </div>
-        )}
+        </div>
 
         <button
           type="submit"
@@ -170,7 +71,7 @@ export function AuthForm() {
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
             <>
-              <span>{mode === 'login' ? 'Entrar ahora' : 'Crear mi cuenta'}</span>
+              <span>Entrar ahora</span>
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </>
           )}
@@ -178,18 +79,11 @@ export function AuthForm() {
       </form>
       
       <div className="mt-10 text-center border-t border-slate-100 pt-8 flex flex-col space-y-3">
-        <Link 
-          href="/reset-password" 
-          className="text-xs font-bold text-slate-400 hover:text-primary transition-colors"
-        >
-          ¿Olvidaste tu contraseña?
-        </Link>
-        {mode === 'login' && (
-          <p className="text-[10px] text-slate-400 font-medium">
-            ¿No tienes cuenta? <button onClick={() => setMode('signup')} className="text-primary font-bold hover:underline">Regístrate</button>
-          </p>
-        )}
+        <span className="text-xs font-bold text-slate-400">
+          Si no tienes acceso, solicita credenciales a administracion.
+        </span>
       </div>
     </div>
   );
 }
+

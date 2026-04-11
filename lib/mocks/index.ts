@@ -9,12 +9,37 @@ import {
   Notice,
   Ticket,
 } from '../types';
+import {
+  MOCK_PHYSICAL_BUILDINGS,
+  MOCK_PHYSICAL_COMMON_AREAS,
+  MOCK_PHYSICAL_UNITS,
+  MOCK_USER_BUILDING_ASSIGNMENTS,
+  MOCK_USER_UNIT_ASSIGNMENTS,
+} from './physical';
+export * from './operation';
+export * from './communication';
+export * from './reservations';
+
+export const MOCK_ROOT_ADMIN: User = {
+  id: 'u0',
+  email: 'root@propsys.io',
+  name: 'Super Administrador',
+  role: 'MANAGER',
+  internalRole: 'ROOT_ADMIN',
+  clientId: null,
+  scope: 'platform',
+  status: 'ACTIVE',
+};
 
 export const MOCK_MANAGER: User = {
   id: 'u1',
   email: 'manager@propsys.com',
   name: 'Gestora Principal',
   role: 'MANAGER',
+  internalRole: 'CLIENT_MANAGER',
+  clientId: 'client_001',
+  scope: 'client',
+  status: 'ACTIVE',
 };
 
 export const MOCK_BUILDING_ADMIN: User = {
@@ -22,6 +47,10 @@ export const MOCK_BUILDING_ADMIN: User = {
   email: 'building.admin@propsys.com',
   name: 'Administrador Edificio',
   role: 'BUILDING_ADMIN',
+  internalRole: 'BUILDING_ADMIN',
+  clientId: 'client_001',
+  scope: 'client',
+  status: 'ACTIVE',
   buildingId: 'b1',
 };
 
@@ -30,6 +59,10 @@ export const MOCK_STAFF: User = {
   email: 'staff@propsys.com',
   name: 'Staff Operativo',
   role: 'STAFF',
+  internalRole: 'STAFF',
+  clientId: 'client_001',
+  scope: 'client',
+  status: 'ACTIVE',
   buildingId: 'b1',
 };
 
@@ -38,6 +71,10 @@ export const MOCK_OWNER: User = {
   email: 'owner@propsys.com',
   name: 'Propietaria Carla',
   role: 'OWNER',
+  internalRole: 'OWNER',
+  clientId: 'client_001',
+  scope: 'client',
+  status: 'ACTIVE',
   buildingId: 'b1',
   unitId: 'unit-101',
 };
@@ -47,6 +84,10 @@ export const MOCK_TENANT: User = {
   email: 'tenant@propsys.com',
   name: 'Inquilino Juan',
   role: 'TENANT',
+  internalRole: 'OCCUPANT',
+  clientId: 'client_001',
+  scope: 'client',
+  status: 'ACTIVE',
   buildingId: 'b1',
   unitId: 'unit-102',
 };
@@ -54,14 +95,33 @@ export const MOCK_TENANT: User = {
 export const MOCK_USERS: User[] = [MOCK_MANAGER, MOCK_BUILDING_ADMIN, MOCK_STAFF, MOCK_OWNER, MOCK_TENANT];
 
 export const MOCK_BUILDINGS: Building[] = [
-  { id: 'b1', name: 'Torre Alerce', address: 'Av. Siempre Viva 123', city: 'Santiago' },
-  { id: 'b2', name: 'Edificio Roble', address: 'Calle Falsa 456', city: 'Santiago' },
+  ...MOCK_PHYSICAL_BUILDINGS.filter((b) => b.clientId === 'client_001').map((b) => ({
+    id: b.id,
+    clientId: b.clientId,
+    name: b.name,
+    address: b.address,
+    city: b.city,
+  })),
 ];
 
 export const MOCK_UNITS: Unit[] = [
-  { id: 'unit-101', buildingId: 'b1', number: '101', floor: '1', ownerId: 'u4' },
-  { id: 'unit-102', buildingId: 'b1', number: '102', floor: '1', ownerId: 'u4', residentId: 'u5' },
-  { id: 'unit-201', buildingId: 'b2', number: '201', floor: '2', ownerId: 'u4' },
+  ...(() => {
+    const ownerByUnitId = new Map<string, string>();
+    const residentByUnitId = new Map<string, string>();
+    for (const a of MOCK_USER_UNIT_ASSIGNMENTS.filter((x) => x.clientId === 'client_001')) {
+      if (a.assignmentType === 'OWNER') ownerByUnitId.set(a.unitId, a.userId);
+      if (a.assignmentType === 'OCCUPANT') residentByUnitId.set(a.unitId, a.userId);
+    }
+    return MOCK_PHYSICAL_UNITS.filter((u) => u.clientId === 'client_001').map((u) => ({
+      id: u.id,
+      clientId: u.clientId,
+      buildingId: u.buildingId,
+      number: u.number,
+      floor: u.floor,
+      ownerId: ownerByUnitId.get(u.id),
+      residentId: residentByUnitId.get(u.id),
+    }));
+  })(),
 ];
 
 export const MOCK_RECEIPTS: Receipt[] = [
@@ -123,11 +183,17 @@ export const MOCK_STAFF_MEMBERS: StaffMember[] = [
 ];
 
 export const MOCK_COMMON_AREAS: CommonArea[] = [
-  { id: 'ca1', buildingId: 'b1', name: 'Quincho', capacity: 15, requiresApproval: true },
-  { id: 'ca2', buildingId: 'b1', name: 'Sala Multiuso', capacity: 30, requiresApproval: true },
-  { id: 'ca3', buildingId: 'b1', name: 'Gimnasio', capacity: 10, requiresApproval: false },
-  { id: 'ca4', buildingId: 'b2', name: 'Piscina', capacity: 20, requiresApproval: true },
+  ...MOCK_PHYSICAL_COMMON_AREAS.filter((a) => a.clientId === 'client_001').map((a) => ({
+    id: a.id,
+    clientId: a.clientId,
+    buildingId: a.buildingId,
+    name: a.name,
+    capacity: a.capacity,
+    requiresApproval: a.requiresApproval,
+  })),
 ];
+
+export { MOCK_PHYSICAL_BUILDINGS, MOCK_PHYSICAL_UNITS, MOCK_PHYSICAL_COMMON_AREAS, MOCK_USER_BUILDING_ASSIGNMENTS, MOCK_USER_UNIT_ASSIGNMENTS };
 
 export const MOCK_RESERVATIONS: Reservation[] = [
   {
@@ -193,3 +259,4 @@ export const MOCK_TICKETS: Ticket[] = [
     createdAt: '2026-04-03T10:15:00.000Z',
   },
 ];
+

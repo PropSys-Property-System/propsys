@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -63,3 +63,4 @@ export function WizardStep({ currentStep, steps }: WizardStepProps) {
     </div>
   );
 }
+

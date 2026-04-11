@@ -1,16 +1,15 @@
-'use client';
+﻿'use client';
 
 import React, { use, useEffect, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
-import { MOCK_BUILDINGS, MOCK_UNITS } from "@/lib/mocks";
 import { ErrorState, LoadingState } from "@/components/States";
 import { StatusBadge } from "@/components/Receipts";
 import { ArrowLeft, Download, CreditCard, Calendar, Building, Home, FileText, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-context';
-import { receiptsRepo } from '@/lib/data';
-import { Receipt } from '@/lib/types';
+import { buildingsRepo, receiptsRepo, unitsRepo } from '@/lib/data';
+import { Building as BuildingType, Receipt, Unit as UnitType } from '@/lib/types';
 
 interface PageParams {
   id: string;
@@ -21,6 +20,8 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
   const { user } = useAuth();
   const resolvedParams = use(params);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [building, setBuilding] = useState<BuildingType | null>(null);
+  const [unit, setUnit] = useState<UnitType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   
@@ -34,6 +35,15 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
         const r = await receiptsRepo.getByIdForUser(user, resolvedParams.id);
         if (!isMounted) return;
         setReceipt(r);
+        if (!r) {
+          setBuilding(null);
+          setUnit(null);
+          return;
+        }
+        const [buildings, units] = await Promise.all([buildingsRepo.listForUser(user), unitsRepo.listForUser(user)]);
+        if (!isMounted) return;
+        setBuilding(buildings.find((b) => b.id === r.buildingId) ?? null);
+        setUnit(units.find((u) => u.id === r.unitId) ?? null);
       } catch {
         if (!isMounted) return;
         setLoadError('No pudimos cargar el recibo.');
@@ -94,17 +104,26 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
     );
   }
 
-  const building = MOCK_BUILDINGS.find(b => b.id === receipt.buildingId);
-  const unit = MOCK_UNITS.find(u => u.id === receipt.unitId);
-
   const actions = (
     <>
-      <button className="flex items-center px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all group">
-        <Download className="w-4 h-4 mr-2 group-hover:translate-y-0.5 transition-transform" /> Descargar PDF
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="Próximamente"
+        className="flex items-center px-4 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
+      >
+        <Download className="w-4 h-4 mr-2" /> Próximamente
       </button>
       {receipt.status !== 'PAID' && (
-        <button className="flex items-center px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-black text-sm shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-95 group">
-          <CreditCard className="w-4 h-4 mr-2 group-hover:-translate-y-0.5 transition-transform" /> Pagar Ahora
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="Próximamente"
+          className="flex items-center px-6 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-black text-sm cursor-not-allowed"
+        >
+          <CreditCard className="w-4 h-4 mr-2" /> Próximamente
         </button>
       )}
     </>
@@ -205,3 +224,4 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
@@ -51,11 +51,11 @@ export default function AdminReceiptsPage() {
 
   const actions = (
     <>
-      <button className="flex items-center px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">
-        <Download className="w-4 h-4 mr-2" /> Exportar
+      <button disabled className="flex items-center px-4 py-2 bg-slate-100 text-slate-400 rounded-xl font-bold text-sm cursor-not-allowed">
+        <Download className="w-4 h-4 mr-2" /> Próximamente
       </button>
-      <button className="flex items-center px-4 py-2 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
-        <Plus className="w-4 h-4 mr-2" /> Nuevo Recibo
+      <button disabled className="flex items-center px-4 py-2 bg-slate-100 text-slate-400 rounded-xl font-bold text-sm cursor-not-allowed">
+        <Plus className="w-4 h-4 mr-2" /> Próximamente
       </button>
     </>
   );
@@ -81,8 +81,8 @@ export default function AdminReceiptsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <button className="flex items-center justify-center px-4 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:border-slate-300 transition-all">
-            <Filter className="w-4 h-4 mr-2" /> Filtros
+          <button disabled className="flex items-center justify-center px-4 py-3 bg-slate-100 border border-slate-200 text-slate-400 rounded-xl font-bold text-sm cursor-not-allowed">
+            <Filter className="w-4 h-4 mr-2" /> Próximamente
           </button>
         </div>
 
@@ -123,3 +123,4 @@ export default function AdminReceiptsPage() {
     </div>
   );
 }
+

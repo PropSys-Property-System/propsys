@@ -1,3 +1,9 @@
+import { InternalRole, AuthScope, UserStatus } from './auth';
+export * from './physical';
+export * from './operation';
+export * from './communication';
+export * from './reservations';
+
 export type UserRole =
   | 'MANAGER'
   | 'BUILDING_ADMIN'
@@ -9,7 +15,11 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: UserRole; // Derived UI Role for compatibility
+  internalRole: InternalRole; // Source of Truth
+  clientId?: string | null;
+  scope: AuthScope;
+  status: UserStatus;
   avatarUrl?: string;
   buildingId?: string;
   unitId?: string;
@@ -33,6 +43,7 @@ export interface Receipt {
 
 export interface Building {
   id: string;
+  clientId?: string;
   name: string;
   address: string;
   city: string;
@@ -40,6 +51,7 @@ export interface Building {
 
 export interface Unit {
   id: string;
+  clientId?: string;
   buildingId: string;
   number: string;
   floor?: string;
@@ -85,6 +97,7 @@ export interface StaffMember {
 
 export interface CommonArea {
   id: string;
+  clientId?: string;
   buildingId: string;
   name: string;
   capacity?: number;
@@ -109,3 +122,4 @@ export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
 }
+

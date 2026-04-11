@@ -1,9 +1,13 @@
-'use client';
+﻿import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { requireServerSessionUser } from '@/lib/server/auth/server-session';
 
-import React from 'react';
-import { RouteGuard } from '@/lib/auth/route-guard';
-
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <RouteGuard allowedRoles={['MANAGER', 'BUILDING_ADMIN']}>{children}</RouteGuard>;
+export default async function AdminLayout({ children }: { children: ReactNode }) {
+  const user = await requireServerSessionUser('/admin/dashboard');
+  if (user.role !== 'MANAGER' && user.role !== 'BUILDING_ADMIN') {
+    redirect('/router');
+  }
+  return <>{children}</>;
 }
+
 

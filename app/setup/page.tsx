@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { WizardStep } from '@/components/WizardStep';
@@ -142,3 +142,4 @@ export default function SetupPage() {
     </div>
   );
 }
+
