@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
@@ -137,8 +137,8 @@ export default function AdminTicketsPage() {
       setActionError(null);
       await incidentsRepo.updateStatusForUser(user, id, next);
       await reload();
-    } catch {
-      setActionError('No pudimos actualizar la incidencia.');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'No pudimos actualizar la incidencia.');
     } finally {
       setIsSubmitting(false);
     }
@@ -151,8 +151,8 @@ export default function AdminTicketsPage() {
       setActionError(null);
       await incidentsRepo.updateStatusForUser(user, id, 'CLOSED');
       await reload();
-    } catch {
-      setActionError('No pudimos cerrar la incidencia.');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'No pudimos cerrar la incidencia.');
     } finally {
       setIsSubmitting(false);
     }

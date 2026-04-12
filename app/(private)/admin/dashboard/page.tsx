@@ -32,6 +32,7 @@ export default function AdminDashboard() {
   const [templateNameById, setTemplateNameById] = useState<Record<string, string>>({});
   const [buildingNameById, setBuildingNameById] = useState<Record<string, string>>({});
   const [isApprovingChecklistId, setIsApprovingChecklistId] = useState<string | null>(null);
+  const [checklistError, setChecklistError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -59,14 +60,23 @@ export default function AdminDashboard() {
         setRecentReceipts(sortedReceipts.slice(0, 5));
 
         if (user.internalRole === 'BUILDING_ADMIN') {
-          const [executions, templates] = await Promise.all([
-            checklistExecutionsRepo.listForUser(user),
-            checklistTemplatesRepo.listForUser(user),
-          ]);
-          if (!isMounted) return;
-          setTemplateNameById(Object.fromEntries(templates.map((t: ChecklistTemplate) => [t.id, t.name])));
-          setChecklistsToApprove(executions.filter((e) => e.status === 'COMPLETED').slice(0, 8));
+          try {
+            const [executions, templates] = await Promise.all([
+              checklistExecutionsRepo.listForUser(user),
+              checklistTemplatesRepo.listForUser(user),
+            ]);
+            if (!isMounted) return;
+            setChecklistError(null);
+            setTemplateNameById(Object.fromEntries(templates.map((t: ChecklistTemplate) => [t.id, t.name])));
+            setChecklistsToApprove(executions.filter((e) => e.status === 'COMPLETED').slice(0, 8));
+          } catch {
+            if (!isMounted) return;
+            setChecklistError('No pudimos cargar los checklists por aprobar.');
+            setTemplateNameById({});
+            setChecklistsToApprove([]);
+          }
         } else {
+          setChecklistError(null);
           setChecklistsToApprove([]);
           setTemplateNameById({});
         }
@@ -221,7 +231,9 @@ export default function AdminDashboard() {
                   </div>
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{checklistsToApprove.length}</span>
                 </div>
-                {checklistsToApprove.length === 0 ? (
+                {checklistError ? (
+                  <p className="text-xs text-rose-600 font-medium">{checklistError}</p>
+                ) : checklistsToApprove.length === 0 ? (
                   <p className="text-xs text-slate-600 font-medium">Sin checklists pendientes.</p>
                 ) : (
                   <div className="space-y-2">

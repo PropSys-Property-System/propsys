@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -38,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Recibos', href: '/admin/receipts', icon: Receipt, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Staff', href: '/admin/staff', icon: Users, roles: ['MANAGER', 'BUILDING_ADMIN'] },
+  { label: 'Tareas', href: '/admin/tasks', icon: ClipboardList, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Incidencias', href: '/admin/tickets', icon: Wrench, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Áreas Comunes', href: '/admin/common-areas', icon: Home, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Reservas', href: '/admin/reservations', icon: CalendarDays, roles: ['MANAGER', 'BUILDING_ADMIN'] },

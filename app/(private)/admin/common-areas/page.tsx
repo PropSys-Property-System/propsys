@@ -16,6 +16,9 @@ export default function AdminCommonAreasPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [savingAreaId, setSavingAreaId] = useState<string | null>(null);
+  const canManageApproval = user?.internalRole === 'CLIENT_MANAGER' || user?.internalRole === 'ROOT_ADMIN';
 
   useEffect(() => {
     let isMounted = true;
@@ -50,6 +53,7 @@ export default function AdminCommonAreasPage() {
       try {
         setIsLoading(true);
         setError(null);
+        setActionError(null);
         const data = await commonAreasRepo.listForBuilding(user, selectedBuildingId);
         if (!isMounted) return;
         setAreas(data);
@@ -72,14 +76,28 @@ export default function AdminCommonAreasPage() {
     return areas.filter((a) => a.name.toLowerCase().includes(t));
   }, [areas, searchTerm]);
 
-  const actions = (
+  const updateApproval = async (area: CommonArea, nextRequiresApproval: boolean) => {
+    if (!user) return;
+    try {
+      setSavingAreaId(area.id);
+      setActionError(null);
+      const updated = await commonAreasRepo.updateRequiresApprovalForUser(user, area.id, nextRequiresApproval);
+      setAreas((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'No pudimos actualizar el área común.');
+    } finally {
+      setSavingAreaId(null);
+    }
+  };
+
+  const actions = canManageApproval ? (
     <button
       disabled
-      className="flex items-center px-4 py-2 bg-slate-100 text-slate-400 rounded-xl font-bold text-sm cursor-not-allowed"
+      className="flex items-center px-4 py-2 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm cursor-default"
     >
-      <Plus className="w-4 h-4 mr-2" /> Próximamente
+      <Plus className="w-4 h-4 mr-2" /> Gestión activa
     </button>
-  );
+  ) : null;
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
@@ -90,6 +108,7 @@ export default function AdminCommonAreasPage() {
       />
 
       <div className="p-6 md:p-8 space-y-6">
+        {actionError && <ErrorState title="Acción no disponible" description={actionError} />}
         {buildings.length > 1 && (
           <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row gap-4 md:items-center">
             <div className="flex items-center text-sm font-bold text-slate-700">
@@ -140,6 +159,20 @@ export default function AdminCommonAreasPage() {
                     {a.requiresApproval ? 'Requiere aprobación' : 'Auto-aprobación'}
                   </span>
                 </div>
+                {canManageApproval && (
+                  <button
+                    type="button"
+                    disabled={savingAreaId === a.id}
+                    onClick={() => updateApproval(a, !a.requiresApproval)}
+                    className="mt-4 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
+                  >
+                    {savingAreaId === a.id
+                      ? 'Guardando...'
+                      : a.requiresApproval
+                        ? 'Cambiar a auto-aprobación'
+                        : 'Requerir aprobación'}
+                  </button>
+                )}
               </div>
             ))}
           </div>

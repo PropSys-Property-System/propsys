@@ -54,5 +54,48 @@ export const commonAreasRepo = {
 
     return MOCK_PHYSICAL_COMMON_AREAS.filter((a) => a.buildingId === buildingId && a.clientId === user.clientId && a.status === 'ACTIVE' && !a.deletedAt).map(toLegacy);
   },
+
+  async updateRequiresApprovalForUser(user: User, id: string, requiresApproval: boolean): Promise<CommonArea> {
+    if (isDbMode()) {
+      const res = await fetch('/api/v1/physical/common-areas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id, requiresApproval }),
+      });
+      const data = (await res.json().catch(() => null)) as { area?: CommonArea; error?: string } | null;
+      if (!res.ok || !data?.area) throw new Error(data?.error || 'No autorizado');
+      return data.area;
+    }
+    await sleep(200);
+
+    if (user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
+      throw new Error('No autorizado');
+    }
+
+    const idx = MOCK_PHYSICAL_COMMON_AREAS.findIndex((area) => area.id === id && area.status === 'ACTIVE' && !area.deletedAt);
+    if (idx === -1) throw new Error('Área común no encontrada');
+
+    const current = MOCK_PHYSICAL_COMMON_AREAS[idx];
+    if (user.scope !== 'platform' && current.clientId !== user.clientId) {
+      throw new Error('Área común no encontrada');
+    }
+
+    const updated = {
+      ...current,
+      requiresApproval,
+      updatedAt: new Date().toISOString(),
+    };
+    MOCK_PHYSICAL_COMMON_AREAS[idx] = updated;
+
+    return {
+      id: updated.id,
+      clientId: updated.clientId,
+      buildingId: updated.buildingId,
+      name: updated.name,
+      capacity: updated.capacity,
+      requiresApproval: updated.requiresApproval,
+    };
+  },
 };
 

@@ -34,7 +34,11 @@ export function AuthForm() {
       </div>
 
       {error && (
-        <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-xs font-bold rounded-xl flex items-center">
+        <div
+          role="alert"
+          aria-live="polite"
+          className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-xs font-bold rounded-xl flex items-center"
+        >
           <span className="mr-2">⚠️</span> {error}
         </div>
       )}

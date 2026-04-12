@@ -1,4 +1,4 @@
-﻿'use client';
+﻿﻿'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
@@ -74,7 +74,6 @@ export default function StaffTicketsPage() {
   }, [allTickets, searchTerm]);
 
   const canCreate = user?.internalRole === 'STAFF';
-  const canUpdate = user?.internalRole === 'STAFF';
 
   const submitCreate = async () => {
     if (!user) return;
@@ -122,8 +121,8 @@ export default function StaffTicketsPage() {
       setActionError(null);
       await incidentsRepo.updateStatusForUser(user, id, next);
       await reload();
-    } catch {
-      setActionError('No pudimos actualizar la incidencia.');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'No pudimos actualizar la incidencia.');
     } finally {
       setIsSubmitting(false);
     }
@@ -149,6 +148,12 @@ export default function StaffTicketsPage() {
 
       <div className="p-6 md:p-8 space-y-6">
         {actionError && <ErrorState title="Acción no disponible" description={actionError} />}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4">
+          <p className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Flujo operativo</p>
+          <p className="mt-2 text-sm text-slate-600 font-medium">
+            El personal puede reportar incidencias y marcarlas como resueltas. Administración revisa el trabajo y realiza el cierre final.
+          </p>
+        </div>
 
         <div className="relative group max-w-2xl">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
@@ -180,19 +185,19 @@ export default function StaffTicketsPage() {
                   </div>
                   <p className="mt-3 text-sm font-black text-slate-900 truncate">{t.title}</p>
                   <p className="mt-1 text-xs text-slate-500 font-medium">{t.description}</p>
-                  {canUpdate && t.status !== 'CLOSED' && (
+                  {t.status !== 'RESOLVED' && t.status !== 'CLOSED' && (
                     <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
                       <select
                         value={statusById[t.id] ?? ''}
                         onChange={(e) => setStatusById((prev) => ({ ...prev, [t.id]: e.target.value as IncidentEntity['status'] }))}
-                        className="w-full sm:w-56 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-xs font-bold"
+                        className="w-full sm:w-72 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-xs font-bold"
                       >
                         <option value="" disabled>
-                          Cambiar estado...
+                          Marcar como...
                         </option>
-                        {allowedStaffStatuses.map((s) => (
-                          <option key={s} value={s}>
-                            {labelIncidentStatus(s)}
+                        {allowedStaffStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {labelIncidentStatus(status)}
                           </option>
                         ))}
                       </select>

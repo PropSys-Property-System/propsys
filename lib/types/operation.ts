@@ -1,4 +1,4 @@
-﻿export type IncidentStatus = 'REPORTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
+export type IncidentStatus = 'REPORTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED';
 export type IncidentPriority = 'LOW' | 'MEDIUM' | 'HIGH';
 
 export interface IncidentEntity {
@@ -23,6 +23,7 @@ export interface TaskEntity {
   id: string;
   clientId: string;
   buildingId: string;
+  checklistTemplateId?: string;
   title: string;
   description?: string;
   status: TaskStatus;
@@ -42,6 +43,8 @@ export interface ChecklistTemplate {
   id: string;
   clientId: string;
   buildingId: string;
+  isPrivate?: boolean;
+  taskId?: string;
   name: string;
   items: ChecklistTemplateItem[];
   createdAt: string;
@@ -84,6 +87,9 @@ export interface EvidenceAttachment {
   checklistExecutionId?: string;
   fileName: string;
   mimeType: string;
+  sizeBytes?: number;
+  storagePath?: string;
+  publicPath?: string;
   url: string;
   uploadedByUserId: string;
   createdAt: string;

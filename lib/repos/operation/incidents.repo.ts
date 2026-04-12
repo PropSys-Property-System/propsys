@@ -1,4 +1,4 @@
-﻿import { IncidentEntity, User } from '@/lib/types';
+import { IncidentEntity, User } from '@/lib/types';
 import { MOCK_INCIDENTS, MOCK_UNITS } from '@/lib/mocks';
 import { auditService } from '@/lib/audit/audit-service';
 import { accessScope } from '@/lib/access/access-scope';
@@ -131,8 +131,15 @@ export const incidentsRepo = {
     if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
 
     if (user.internalRole === 'STAFF') {
-      if (status === 'CLOSED') throw new Error('No autorizado');
-      if (current.assignedToUserId && current.assignedToUserId !== user.id) throw new Error('No autorizado');
+      const canTouchIncident = current.assignedToUserId === user.id || current.reportedByUserId === user.id;
+      if (!canTouchIncident) throw new Error('No autorizado');
+      if (current.status === 'RESOLVED' || current.status === 'CLOSED') {
+        throw new Error('No puedes modificar una incidencia resuelta o cerrada.');
+      }
+      if (status === 'CLOSED') throw new Error('El personal no puede cerrar incidencias.');
+      if (status !== 'IN_PROGRESS' && status !== 'RESOLVED') {
+        throw new Error('El personal solo puede marcar incidencias como En progreso o Resueltas.');
+      }
     }
     if (user.internalRole === 'OCCUPANT' || user.internalRole === 'OWNER') throw new Error('No autorizado');
 

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import type { IncidentEntity } from '@/lib/types';
@@ -76,8 +76,18 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (user.scope !== 'platform' && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ incident: null }, { status: 404 });
 
   if (user.internalRole === 'STAFF') {
-    if (status === 'CLOSED') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    if (current.assigned_to_user_id && current.assigned_to_user_id !== user.id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    const canTouchIncident =
+      current.assigned_to_user_id === user.id || current.reported_by_user_id === user.id;
+    if (!canTouchIncident) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (current.status === 'RESOLVED' || current.status === 'CLOSED') {
+      return NextResponse.json({ error: 'No puedes modificar una incidencia resuelta o cerrada.' }, { status: 403 });
+    }
+    if (status === 'CLOSED') {
+      return NextResponse.json({ error: 'El personal no puede cerrar incidencias.' }, { status: 403 });
+    }
+    if (status !== 'IN_PROGRESS' && status !== 'RESOLVED') {
+      return NextResponse.json({ error: 'El personal solo puede marcar incidencias como En progreso o Resueltas.' }, { status: 403 });
+    }
   }
 
   if (status === 'ASSIGNED' && !current.assigned_to_user_id) {

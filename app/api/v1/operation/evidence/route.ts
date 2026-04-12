@@ -1,8 +1,12 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import type { EvidenceAttachment } from '@/lib/types';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+
+export const runtime = 'nodejs';
 
 async function listBuildingIdsForUser(
   pool: ReturnType<typeof getPool>,
@@ -39,6 +43,9 @@ function toEvidence(row: {
   checklist_execution_id: string | null;
   file_name: string;
   mime_type: string;
+  size_bytes: string | number | null;
+  storage_path: string | null;
+  public_path: string | null;
   url: string;
   uploaded_by_user_id: string;
   created_at: string;
@@ -54,6 +61,9 @@ function toEvidence(row: {
     checklistExecutionId: row.checklist_execution_id ?? undefined,
     fileName: row.file_name,
     mimeType: row.mime_type,
+    sizeBytes: row.size_bytes != null ? Number(row.size_bytes) : undefined,
+    storagePath: row.storage_path ?? undefined,
+    publicPath: row.public_path ?? undefined,
     url: row.url,
     uploadedByUserId: row.uploaded_by_user_id,
     createdAt: row.created_at,
@@ -69,6 +79,48 @@ function fileNameFromUrl(url: string) {
   } catch {
     return 'evidence-link';
   }
+}
+
+const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'pdf']);
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']);
+
+function safeBaseName(input: string) {
+  const base = input.replace(/\\/g, '/').split('/').pop() ?? 'evidence';
+  const cleaned = base.replace(/[^\w.\-() ]+/g, '_').replace(/\s+/g, ' ').trim();
+  return cleaned.length > 120 ? cleaned.slice(0, 120) : cleaned || 'evidence';
+}
+
+function extensionFromName(name: string) {
+  const parts = name.split('.');
+  const ext = parts.length > 1 ? parts.pop() ?? '' : '';
+  return ext.toLowerCase();
+}
+
+function isAllowedEvidence(fileName: string, mimeType: string) {
+  const ext = extensionFromName(fileName);
+  if (!ALLOWED_EXTS.has(ext)) return false;
+  if (!mimeType) return true;
+  if (ALLOWED_MIME.has(mimeType)) return true;
+  if (mimeType.startsWith('image/') && (ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'webp')) return true;
+  return false;
+}
+
+async function saveEvidenceFile(input: { checklistExecutionId: string; file: File }) {
+  const originalName = safeBaseName(input.file.name || 'evidence');
+  const ext = extensionFromName(originalName);
+  const id = `evfile_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const storedName = `${id}.${ext}`;
+  const relDir = path.join('uploads', 'evidence', input.checklistExecutionId);
+  const absDir = path.join(process.cwd(), 'public', relDir);
+  await mkdir(absDir, { recursive: true });
+
+  const absPath = path.join(absDir, storedName);
+  const buf = Buffer.from(await input.file.arrayBuffer());
+  await writeFile(absPath, buf);
+
+  const publicPath = `/${relDir.replace(/\\/g, '/')}/${storedName}`;
+  return { originalName, storagePath: absPath, publicPath, sizeBytes: input.file.size };
 }
 
 export async function GET(req: Request) {
@@ -118,12 +170,15 @@ export async function GET(req: Request) {
       checklist_execution_id: string | null;
       file_name: string;
       mime_type: string;
+      size_bytes: string | number | null;
+      storage_path: string | null;
+      public_path: string | null;
       url: string;
       uploaded_by_user_id: string;
       created_at: string;
       deleted_at: string | null;
     }>(
-      `SELECT id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, url, uploaded_by_user_id, created_at, deleted_at
+      `SELECT id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at, deleted_at
        FROM evidence_attachments
        WHERE deleted_at IS NULL
          ${tenantWhere}
@@ -147,12 +202,15 @@ export async function GET(req: Request) {
     checklist_execution_id: string | null;
     file_name: string;
     mime_type: string;
+    size_bytes: string | number | null;
+    storage_path: string | null;
+    public_path: string | null;
     url: string;
     uploaded_by_user_id: string;
     created_at: string;
     deleted_at: string | null;
   }>(
-    `SELECT id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, url, uploaded_by_user_id, created_at, deleted_at
+    `SELECT id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at, deleted_at
      FROM evidence_attachments
      WHERE deleted_at IS NULL
        ${tenantWhere}
@@ -170,24 +228,46 @@ export async function POST(req: Request) {
   if (user.internalRole !== 'STAFF' && user.internalRole !== 'BUILDING_ADMIN') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-  const body = await req.json().catch(() => null);
-  const checklistExecutionId = typeof body?.checklistExecutionId === 'string' ? body.checklistExecutionId : null;
-  const url = typeof body?.url === 'string' ? body.url.trim() : '';
-  const fileName = typeof body?.fileName === 'string' ? body.fileName.trim() : '';
-  const mimeType = typeof body?.mimeType === 'string' ? body.mimeType.trim() : '';
-  if (!checklistExecutionId || !url) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+  const contentType = req.headers.get('content-type') || '';
+  const isMultipart = contentType.includes('multipart/form-data');
+  const body = isMultipart ? null : await req.json().catch(() => null);
+  const checklistExecutionId = isMultipart
+    ? null
+    : typeof body?.checklistExecutionId === 'string'
+      ? body.checklistExecutionId
+      : null;
+  const url = isMultipart ? '' : typeof body?.url === 'string' ? body.url.trim() : '';
+  const fileName = isMultipart ? '' : typeof body?.fileName === 'string' ? body.fileName.trim() : '';
+  const mimeType = isMultipart ? '' : typeof body?.mimeType === 'string' ? body.mimeType.trim() : '';
 
   const pool = getPool();
-  const execRes = await pool.query<{ id: string; client_id: string; building_id: string; task_id: string | null; assigned_to_user_id: string }>(
-    `SELECT id, client_id, building_id, task_id, assigned_to_user_id
+  const multipartForm = isMultipart ? await req.formData().catch(() => null) : null;
+  const execId = isMultipart
+    ? typeof multipartForm?.get('checklistExecutionId') === 'string'
+      ? (multipartForm.get('checklistExecutionId') as string)
+      : null
+    : checklistExecutionId;
+
+  if (!execId) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+
+  const execRes = await pool.query<{
+    id: string;
+    client_id: string;
+    building_id: string;
+    task_id: string | null;
+    assigned_to_user_id: string;
+    status: string;
+  }>(
+    `SELECT id, client_id, building_id, task_id, assigned_to_user_id, status
      FROM checklist_executions
      WHERE id = $1 AND deleted_at IS NULL
      LIMIT 1`,
-    [checklistExecutionId]
+    [execId]
   );
   const exec = execRes.rows[0];
   if (!exec) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
   if (user.scope !== 'platform' && (!user.clientId || exec.client_id !== user.clientId)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (exec.status === 'APPROVED') return NextResponse.json({ error: 'No puedes adjuntar evidencias a un checklist aprobado.' }, { status: 403 });
 
   if (user.internalRole === 'STAFF' && exec.assigned_to_user_id !== user.id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (user.internalRole === 'BUILDING_ADMIN') {
@@ -205,6 +285,74 @@ export async function POST(req: Request) {
   const now = new Date().toISOString();
   const id = `ev_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
+  if (isMultipart) {
+    const fileValue = multipartForm?.get('file') ?? null;
+    const file = fileValue instanceof File ? fileValue : null;
+    if (!file) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+    if (file.size > MAX_EVIDENCE_BYTES) return NextResponse.json({ error: 'El archivo supera el límite de 10 MB.' }, { status: 400 });
+    if (!isAllowedEvidence(file.name, file.type)) return NextResponse.json({ error: 'Tipo de archivo no permitido.' }, { status: 400 });
+
+    const saved = await saveEvidenceFile({ checklistExecutionId: exec.id, file });
+
+    const created = await pool.query<{
+      id: string;
+      client_id: string;
+      building_id: string;
+      unit_id: string | null;
+      incident_id: string | null;
+      task_id: string | null;
+      checklist_execution_id: string | null;
+      file_name: string;
+      mime_type: string;
+      size_bytes: string | number | null;
+      storage_path: string | null;
+      public_path: string | null;
+      url: string;
+      uploaded_by_user_id: string;
+      created_at: string;
+      deleted_at: string | null;
+    }>(
+      `INSERT INTO evidence_attachments (id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at)
+       VALUES ($1, $2, $3, NULL, NULL, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       RETURNING id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at, deleted_at`,
+      [
+        id,
+        clientId,
+        exec.building_id,
+        exec.task_id,
+        exec.id,
+        saved.originalName,
+        file.type || (saved.originalName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
+        saved.sizeBytes,
+        saved.storagePath,
+        saved.publicPath,
+        saved.publicPath,
+        user.id,
+        now,
+      ]
+    );
+
+    const entity = toEvidence(created.rows[0]);
+    await pool
+      .query(
+        `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
+         VALUES ($1, $2, $3, 'CREATE', 'EvidenceAttachment', $4, $5::jsonb, $6::jsonb)`,
+        [
+          `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+          clientId,
+          user.id,
+          entity.id,
+          JSON.stringify({ buildingId: entity.buildingId, checklistExecutionId: entity.checklistExecutionId ?? null, taskId: entity.taskId ?? null }),
+          JSON.stringify(entity),
+        ]
+      )
+      .catch(() => null);
+
+    return NextResponse.json({ evidence: entity });
+  }
+
+  if (!url) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+
   const created = await pool.query<{
     id: string;
     client_id: string;
@@ -215,6 +363,9 @@ export async function POST(req: Request) {
     checklist_execution_id: string | null;
     file_name: string;
     mime_type: string;
+    size_bytes: string | number | null;
+    storage_path: string | null;
+    public_path: string | null;
     url: string;
     uploaded_by_user_id: string;
     created_at: string;
@@ -222,7 +373,7 @@ export async function POST(req: Request) {
   }>(
     `INSERT INTO evidence_attachments (id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, url, uploaded_by_user_id, created_at)
      VALUES ($1, $2, $3, NULL, NULL, $4, $5, $6, $7, $8, $9, $10)
-     RETURNING id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, url, uploaded_by_user_id, created_at, deleted_at`,
+     RETURNING id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at, deleted_at`,
     [
       id,
       clientId,

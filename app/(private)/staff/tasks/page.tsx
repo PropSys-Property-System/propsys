@@ -1,9 +1,10 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
-import { ClipboardList, CheckCircle2, Circle, Link2, ListChecks, Search } from 'lucide-react';
+import { ClipboardList, CheckCircle2, Circle, Download, ExternalLink, FileText, ListChecks, Search, Trash2, Upload } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { checklistExecutionsRepo, checklistTemplatesRepo, evidenceRepo, tasksRepo } from '@/lib/data';
 import type { ChecklistExecution, ChecklistTemplate, EvidenceAttachment, TaskEntity } from '@/lib/types';
@@ -14,6 +15,7 @@ export default function StaffTasksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allTasks, setAllTasks] = useState<TaskEntity[]>([]);
+  const [statusById, setStatusById] = useState<Record<string, TaskEntity['status']>>({});
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskEntity | null>(null);
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
@@ -21,9 +23,22 @@ export default function StaffTasksPage() {
   const [execution, setExecution] = useState<ChecklistExecution | null>(null);
   const [resultsByItemId, setResultsByItemId] = useState<Record<string, boolean>>({});
   const [evidence, setEvidence] = useState<EvidenceAttachment[]>([]);
-  const [evidenceUrl, setEvidenceUrl] = useState('');
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidencePreviewUrl, setEvidencePreviewUrl] = useState<string>('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const imageLoader = ({ src }: { src: string }) => src;
+
+  useEffect(() => {
+    if (!evidenceFile || !evidenceFile.type.startsWith('image/')) {
+      setEvidencePreviewUrl('');
+      return;
+    }
+    const u = URL.createObjectURL(evidenceFile);
+    setEvidencePreviewUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [evidenceFile]);
 
   useEffect(() => {
     let isMounted = true;
@@ -54,13 +69,51 @@ export default function StaffTasksPage() {
     return allTasks.filter((x) => x.title.toLowerCase().includes(t) || (x.description ?? '').toLowerCase().includes(t));
   }, [searchTerm, allTasks]);
 
+  const reload = async () => {
+    if (!user) return;
+    const data = await tasksRepo.listForUser(user);
+    setAllTasks(data);
+  };
+
+  const updateStatus = async (id: string) => {
+    if (!user) return;
+    const next = statusById[id];
+    if (!next) return;
+    try {
+      setIsSubmitting(true);
+      setActionError(null);
+      await tasksRepo.updateStatusForUser(user, id, next);
+      await reload();
+      setStatusById((prev) => {
+        const nextState = { ...prev };
+        delete nextState[id];
+        return nextState;
+      });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'No pudimos actualizar la tarea.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const allowedNextStatuses = (task: TaskEntity): TaskEntity['status'][] => {
+    if (task.status === 'PENDING') return ['IN_PROGRESS'];
+    if (task.status === 'IN_PROGRESS' && !task.checklistTemplateId) return ['COMPLETED'];
+    return [];
+  };
+
   const openChecklist = async (task: TaskEntity) => {
     if (!user) return;
+    if (!task.checklistTemplateId) {
+      setActionError('Esta tarea no tiene checklist asignado.');
+      return;
+    }
     setSelectedTask(task);
     setIsChecklistOpen(true);
     setActionError(null);
     setIsSubmitting(false);
-    setEvidenceUrl('');
+    setEvidenceFile(null);
+    setEvidencePreviewUrl('');
     setTemplates([]);
     setSelectedTemplateId('');
     setExecution(null);
@@ -68,10 +121,13 @@ export default function StaffTasksPage() {
     setEvidence([]);
 
     try {
-      const allTemplates = await checklistTemplatesRepo.listForUser(user);
-      const scoped = allTemplates.filter((t) => t.buildingId === task.buildingId);
-      setTemplates(scoped);
-      setSelectedTemplateId(scoped[0]?.id ?? '');
+      const tpl = await checklistTemplatesRepo.getByIdForUser(user, task.checklistTemplateId);
+      if (!tpl) {
+        setActionError('El checklist asignado ya no está disponible.');
+        return;
+      }
+      setTemplates([tpl]);
+      setSelectedTemplateId(tpl.id);
 
       const execs = await checklistExecutionsRepo.listForTask(user, task.id);
       const current = execs[0] ?? null;
@@ -80,17 +136,21 @@ export default function StaffTasksPage() {
         const initial: Record<string, boolean> = {};
         for (const r of current.results) initial[r.itemId] = Boolean(r.value);
         setResultsByItemId(initial);
-        setSelectedTemplateId(current.templateId);
-        const ev = await evidenceRepo.listForChecklistExecution(user, current.id);
-        setEvidence(ev);
+        try {
+          const ev = await evidenceRepo.listForChecklistExecution(user, current.id);
+          setEvidence(ev);
+        } catch {
+          setActionError('No pudimos cargar las evidencias de esta tarea.');
+        }
       }
     } catch {
-      setActionError('No pudimos cargar el checklist de esta tarea.');
+      setActionError('No pudimos cargar el estado del checklist de esta tarea.');
     }
   };
 
   const activeTemplate = useMemo(() => templates.find((t) => t.id === selectedTemplateId) ?? null, [templates, selectedTemplateId]);
-  const isReadOnly = execution?.status === 'COMPLETED' || execution?.status === 'APPROVED';
+  const isItemsReadOnly = execution?.status === 'COMPLETED' || execution?.status === 'APPROVED';
+  const isEvidenceLocked = execution?.status === 'APPROVED';
 
   const ensureExecution = async () => {
     if (!user || !selectedTask) return null;
@@ -146,6 +206,7 @@ export default function StaffTasksPage() {
       setActionError(null);
       const updated = await checklistExecutionsRepo.completeForUser(user, exec.id, buildResults());
       if (updated) setExecution(updated);
+      await reload();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos completar el checklist.');
     } finally {
@@ -153,23 +214,66 @@ export default function StaffTasksPage() {
     }
   };
 
-  const addEvidence = async () => {
+  const isAllowedEvidence = (file: File) => {
+    const name = file.name.toLowerCase();
+    const isPdf = name.endsWith('.pdf') || file.type === 'application/pdf';
+    const isImageExt = name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || name.endsWith('.webp');
+    const isImageMime = file.type.startsWith('image/');
+    if (!(isPdf || isImageExt)) return false;
+    if (file.type && !(file.type === 'application/pdf' || file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp' || isImageMime)) {
+      return false;
+    }
+    return true;
+  };
+
+  const uploadEvidence = async () => {
     if (!user) return;
     const exec = await ensureExecution();
     if (!exec) return;
-    const url = evidenceUrl.trim();
-    if (!url) {
-      setActionError('Ingresa un enlace.');
+    if (exec.status === 'APPROVED') {
+      setActionError('No puedes adjuntar evidencias a un checklist aprobado.');
+      return;
+    }
+    if (!evidenceFile) {
+      setActionError('Selecciona un archivo.');
+      return;
+    }
+    if (evidenceFile.size > 10 * 1024 * 1024) {
+      setActionError('El archivo supera el límite de 10 MB.');
+      return;
+    }
+    if (!isAllowedEvidence(evidenceFile)) {
+      setActionError('Tipo de archivo no permitido. Solo imágenes (jpg/jpeg/png/webp) o PDF.');
       return;
     }
     try {
       setIsSubmitting(true);
       setActionError(null);
-      const created = await evidenceRepo.addForChecklistExecution(user, { checklistExecutionId: exec.id, url });
-      setEvidenceUrl('');
+      const created = await evidenceRepo.uploadForChecklistExecution(user, { checklistExecutionId: exec.id, file: evidenceFile });
+      setEvidenceFile(null);
       setEvidence((prev) => [created, ...prev]);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos adjuntar la evidencia.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteEvidence = async (ev: EvidenceAttachment) => {
+    if (!user) return;
+    if (isEvidenceLocked) {
+      setActionError('No puedes eliminar evidencias de un checklist aprobado.');
+      return;
+    }
+    const okConfirm = window.confirm(`¿Eliminar evidencia "${ev.fileName}"?`);
+    if (!okConfirm) return;
+    try {
+      setIsSubmitting(true);
+      setActionError(null);
+      await evidenceRepo.deleteForUser(user, ev.id);
+      setEvidence((prev) => prev.filter((x) => x.id !== ev.id));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'No pudimos eliminar la evidencia.');
     } finally {
       setIsSubmitting(false);
     }
@@ -213,15 +317,55 @@ export default function StaffTasksPage() {
                           ? 'En progreso'
                           : 'Pendiente'}
                   </p>
+                  {(() => {
+                    const nextStatuses = allowedNextStatuses(task);
+                    if (task.status === 'COMPLETED' || task.status === 'APPROVED') return null;
+                    if (nextStatuses.length === 0) return null;
+                    return (
+                    <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
+                      <select
+                        value={statusById[task.id] ?? ''}
+                        onChange={(e) => setStatusById((prev) => ({ ...prev, [task.id]: e.target.value as TaskEntity['status'] }))}
+                        className="w-full sm:w-56 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-xs font-bold"
+                      >
+                        <option value="" disabled>
+                          Cambiar estado...
+                        </option>
+                        {nextStatuses.map((s) => (
+                          <option key={s} value={s}>
+                            {s === 'IN_PROGRESS' ? 'En progreso' : 'Completada'}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        disabled={!statusById[task.id] || isSubmitting}
+                        onClick={() => updateStatus(task.id)}
+                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                    );
+                  })()}
                   <div className="mt-4">
                     <button
                       type="button"
                       onClick={() => openChecklist(task)}
+                      disabled={!task.checklistTemplateId}
                       className="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-all"
                     >
                       <ListChecks className="w-4 h-4 mr-2" /> Checklist & Evidencias
                     </button>
+                    {!task.checklistTemplateId && (
+                      <p className="mt-2 text-[11px] text-slate-400 font-semibold">Esta tarea no tiene checklist asignado.</p>
+                    )}
+                    {task.checklistTemplateId && task.status === 'IN_PROGRESS' && (
+                      <p className="mt-2 text-[11px] text-slate-400 font-semibold">Completa el checklist para finalizar la tarea.</p>
+                    )}
                   </div>
+                  {!activeTemplate && (
+                    <p className="text-[11px] text-slate-400 font-semibold">Primero debemos cargar el checklist para habilitar las evidencias.</p>
+                  )}
                 </div>
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 bg-primary/10">
                   {task.status === 'COMPLETED' || task.status === 'APPROVED' ? (
@@ -250,13 +394,17 @@ export default function StaffTasksPage() {
             onClick={() => setIsChecklistOpen(false)}
             type="button"
           />
-          <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative flex min-h-0 max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-lg font-black text-slate-900 truncate">Checklist</p>
                 <p className="mt-1 text-xs text-slate-500 font-medium truncate">{selectedTask.title}</p>
                 <p className="mt-3 text-[11px] text-slate-400 font-semibold">
-                  Evidencias en V1: enlaces (sin subida de archivos).
+                  Adjunta imágenes o PDF (máx. 10 MB) como evidencia del checklist.
                 </p>
               </div>
               <button
@@ -270,26 +418,17 @@ export default function StaffTasksPage() {
 
             {actionError && <div className="mt-4"><ErrorState title="Acción no disponible" description={actionError} /></div>}
 
-            <div className="mt-5 space-y-6">
+            <div className="mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Checklist</label>
-                {templates.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 font-semibold">
-                    No hay checklist configurado para este edificio.
+                {activeTemplate ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 font-black">
+                    {activeTemplate.name}
                   </div>
                 ) : (
-                  <select
-                    value={selectedTemplateId}
-                    onChange={(e) => setSelectedTemplateId(e.target.value)}
-                    disabled={Boolean(execution)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium disabled:opacity-70"
-                  >
-                    {templates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 font-semibold">
+                    Esta tarea no tiene checklist asignado o el checklist ya no está disponible.
+                  </div>
                 )}
               </div>
 
@@ -307,12 +446,12 @@ export default function StaffTasksPage() {
                     {activeTemplate.items.map((it) => (
                       <label
                         key={it.id}
-                        className={`flex items-start gap-3 rounded-2xl border border-slate-200 p-4 ${isReadOnly ? 'bg-slate-50' : 'bg-white'}`}
+                        className={`flex items-start gap-3 rounded-2xl border border-slate-200 p-4 ${isItemsReadOnly ? 'bg-slate-50' : 'bg-white'}`}
                       >
                         <input
                           type="checkbox"
                           checked={Boolean(resultsByItemId[it.id])}
-                          disabled={isReadOnly}
+                          disabled={isItemsReadOnly}
                           onChange={(e) => setResultsByItemId((prev) => ({ ...prev, [it.id]: e.target.checked }))}
                           className="mt-1 h-4 w-4"
                         />
@@ -329,7 +468,7 @@ export default function StaffTasksPage() {
                   <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
                     <button
                       type="button"
-                      disabled={isSubmitting || templates.length === 0 || isReadOnly}
+                      disabled={isSubmitting || !activeTemplate || isItemsReadOnly}
                       onClick={saveChecklist}
                       className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
                     >
@@ -337,7 +476,7 @@ export default function StaffTasksPage() {
                     </button>
                     <button
                       type="button"
-                      disabled={isSubmitting || templates.length === 0 || isReadOnly}
+                      disabled={isSubmitting || !activeTemplate || isItemsReadOnly}
                       onClick={completeChecklist}
                       className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
                     >
@@ -349,23 +488,51 @@ export default function StaffTasksPage() {
 
               <div className="space-y-3">
                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">Evidencias</p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    value={evidenceUrl}
-                    onChange={(e) => setEvidenceUrl(e.target.value)}
-                    placeholder="Pega un enlace (https://...)"
-                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                    disabled={isReadOnly}
-                  />
-                  <button
-                    type="button"
-                    onClick={addEvidence}
-                    disabled={isSubmitting || isReadOnly}
-                    className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
-                  >
-                    <Link2 className="w-4 h-4 inline-block mr-2" />
-                    Adjuntar
-                  </button>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
+                      onChange={(e) => setEvidenceFile(e.target.files?.[0] ?? null)}
+                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                      disabled={Boolean(isEvidenceLocked) || !activeTemplate}
+                    />
+                    <button
+                      type="button"
+                      onClick={uploadEvidence}
+                      disabled={isSubmitting || Boolean(isEvidenceLocked) || !activeTemplate}
+                      className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
+                    >
+                      <Upload className="w-4 h-4 inline-block mr-2" />
+                      Subir
+                    </button>
+                  </div>
+                  {evidenceFile && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-4">
+                      {evidencePreviewUrl ? (
+                        <Image
+                          loader={imageLoader}
+                          unoptimized
+                          src={evidencePreviewUrl}
+                          alt={evidenceFile.name}
+                          width={56}
+                          height={56}
+                          className="h-14 w-14 rounded-xl object-cover border border-slate-200"
+                        />
+                      ) : (
+                        <div className="h-14 w-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
+                          <FileText className="h-6 w-6 text-slate-500" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-900 truncate">{evidenceFile.name}</p>
+                        <p className="mt-1 text-xs text-slate-500 font-medium">{Math.ceil(evidenceFile.size / 1024)} KB</p>
+                      </div>
+                    </div>
+                  )}
+                  {isEvidenceLocked && (
+                    <p className="text-[11px] text-slate-400 font-semibold">No se pueden adjuntar evidencias cuando el checklist ya está aprobado.</p>
+                  )}
                 </div>
 
                 {evidence.length === 0 ? (
@@ -374,18 +541,73 @@ export default function StaffTasksPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {evidence.map((ev) => (
-                      <a
-                        key={ev.id}
-                        href={ev.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block rounded-2xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-all"
-                      >
-                        <p className="text-sm font-black text-slate-900 truncate">{ev.fileName}</p>
-                        <p className="mt-1 text-xs text-slate-500 font-medium truncate">{ev.url}</p>
-                      </a>
-                    ))}
+                    {evidence.map((ev) => {
+                      const isImage = ev.mimeType.startsWith('image/') || /\.(png|jpg|jpeg|webp)$/i.test(ev.fileName);
+                      const isPdf = ev.mimeType === 'application/pdf' || /\.pdf$/i.test(ev.fileName);
+                      const canDelete = !isEvidenceLocked && ev.uploadedByUserId === user?.id;
+                      return (
+                        <div key={ev.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div className="flex items-start gap-4">
+                            <a href={ev.url} target="_blank" rel="noreferrer" className="block">
+                              {isImage ? (
+                                <Image
+                                  loader={imageLoader}
+                                  unoptimized
+                                  src={ev.url}
+                                  alt={ev.fileName}
+                                  width={56}
+                                  height={56}
+                                  className="h-14 w-14 rounded-xl object-cover border border-slate-200"
+                                />
+                              ) : (
+                                <div className="h-14 w-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
+                                  <FileText className="h-6 w-6 text-slate-500" />
+                                </div>
+                              )}
+                            </a>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-black text-slate-900 truncate">{ev.fileName}</p>
+                              <p className="mt-1 text-xs text-slate-500 font-medium truncate">
+                                {isPdf ? 'PDF' : isImage ? 'Imagen' : ev.mimeType}
+                                {typeof ev.sizeBytes === 'number' ? ` · ${Math.ceil(ev.sizeBytes / 1024)} KB` : ''}
+                              </p>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <a
+                                  href={ev.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-all"
+                                >
+                                  <ExternalLink className="w-4 h-4 mr-2" />
+                                  Abrir
+                                </a>
+                                {isPdf && (
+                                  <a
+                                    href={ev.url}
+                                    download
+                                    className="inline-flex items-center px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-all"
+                                  >
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Descargar
+                                  </a>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteEvidence(ev)}
+                                    disabled={isSubmitting}
+                                    className="inline-flex items-center px-3 py-2 rounded-xl bg-white border border-slate-200 text-rose-700 font-bold text-xs hover:bg-rose-50 transition-all disabled:opacity-70"
+                                  >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Eliminar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

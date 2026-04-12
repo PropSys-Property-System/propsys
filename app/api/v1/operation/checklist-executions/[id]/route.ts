@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
@@ -119,6 +119,31 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     );
 
     const entity = toExecution(updatedRes.rows[0]);
+    if (entity.taskId) {
+      await pool
+        .query(
+          `UPDATE tasks
+           SET status = 'APPROVED', updated_at = $2
+           WHERE id = $1 AND checklist_template_id IS NOT NULL`,
+          [entity.taskId, now]
+        )
+        .then(async () => {
+          await pool
+            .query(
+              `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata)
+               VALUES ($1, $2, $3, 'UPDATE', 'Task', $4, $5::jsonb)`,
+              [
+                `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+                current.client_id,
+                user.id,
+                entity.taskId,
+                JSON.stringify({ source: 'checklist_execution', executionId: entity.id, toStatus: 'APPROVED' }),
+              ]
+            )
+            .catch(() => null);
+        })
+        .catch(() => null);
+    }
     await pool
       .query(
         `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)
@@ -169,6 +194,31 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   );
 
   const entity = toExecution(updatedRes.rows[0]);
+  if (action === 'COMPLETE' && entity.taskId) {
+    await pool
+      .query(
+        `UPDATE tasks
+         SET status = 'COMPLETED', updated_at = $2
+         WHERE id = $1 AND checklist_template_id IS NOT NULL AND status <> 'APPROVED'`,
+        [entity.taskId, now]
+      )
+      .then(async () => {
+        await pool
+          .query(
+            `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata)
+             VALUES ($1, $2, $3, 'UPDATE', 'Task', $4, $5::jsonb)`,
+            [
+              `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+              current.client_id,
+              user.id,
+              entity.taskId,
+              JSON.stringify({ source: 'checklist_execution', executionId: entity.id, toStatus: 'COMPLETED' }),
+            ]
+          )
+          .catch(() => null);
+      })
+      .catch(() => null);
+  }
   await pool
     .query(
       `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)

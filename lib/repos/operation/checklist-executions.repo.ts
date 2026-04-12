@@ -1,5 +1,5 @@
-﻿import { ChecklistExecution, User } from '@/lib/types';
-import { MOCK_CHECKLIST_EXECUTIONS } from '@/lib/mocks';
+import { ChecklistExecution, User } from '@/lib/types';
+import { MOCK_CHECKLIST_EXECUTIONS, MOCK_TASKS_V1 } from '@/lib/mocks';
 import { auditService } from '@/lib/audit/audit-service';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
@@ -117,6 +117,12 @@ export const checklistExecutionsRepo = {
     };
 
     MOCK_CHECKLIST_EXECUTIONS[idx] = updated;
+    if (updated.taskId) {
+      const taskIdx = MOCK_TASKS_V1.findIndex((t) => t.id === updated.taskId);
+      if (taskIdx !== -1 && MOCK_TASKS_V1[taskIdx].checklistTemplateId) {
+        MOCK_TASKS_V1[taskIdx] = { ...MOCK_TASKS_V1[taskIdx], status: 'COMPLETED', updatedAt: now };
+      }
+    }
 
     auditService.logAction({
       userId: user.id,
@@ -162,6 +168,12 @@ export const checklistExecutionsRepo = {
     };
 
     MOCK_CHECKLIST_EXECUTIONS[idx] = updated;
+    if (updated.taskId) {
+      const taskIdx = MOCK_TASKS_V1.findIndex((t) => t.id === updated.taskId);
+      if (taskIdx !== -1 && MOCK_TASKS_V1[taskIdx].checklistTemplateId) {
+        MOCK_TASKS_V1[taskIdx] = { ...MOCK_TASKS_V1[taskIdx], status: 'APPROVED', updatedAt: now };
+      }
+    }
 
     auditService.logAction({
       userId: user.id,

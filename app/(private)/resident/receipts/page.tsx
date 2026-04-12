@@ -1,25 +1,80 @@
 ﻿'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
 import { ReceiptRow } from "@/components/Receipts";
-import { MOCK_RECEIPTS } from "@/lib/mocks";
-import { EmptyState } from "@/components/States";
+import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import { CreditCard, Search, Filter } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/auth/auth-context';
+import { receiptsRepo } from '@/lib/data';
+import { Receipt } from '@/lib/types';
 
 export default function ResidentReceiptsPage() {
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const router = useRouter();
-  
-  const receipts = MOCK_RECEIPTS.filter(r => 
-    r.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.description.toLowerCase().includes(searchTerm.toLowerCase())
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      if (!user) return;
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+        const data = await receiptsRepo.listForUser(user);
+        if (!isMounted) return;
+        setReceipts(data);
+      } catch {
+        if (!isMounted) return;
+        setLoadError('No pudimos cargar tus recibos.');
+      } finally {
+        if (!isMounted) return;
+        setIsLoading(false);
+      }
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const filteredReceipts = useMemo(
+    () =>
+      receipts.filter((receipt) =>
+        receipt.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        receipt.description.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [receipts, searchTerm]
+  );
+
+  const pendingAmount = useMemo(
+    () =>
+      receipts
+        .filter((receipt) => receipt.status === 'PENDING' || receipt.status === 'OVERDUE')
+        .reduce((sum, receipt) => sum + receipt.amount, 0),
+    [receipts]
+  );
+
+  const latestPaidReceipt = useMemo(
+    () =>
+      [...receipts]
+        .filter((receipt) => receipt.status === 'PAID')
+        .sort((a, b) => new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime())[0] ?? null,
+    [receipts]
   );
 
   const actions = (
-    <button className="flex items-center px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-emerald-200 hover:bg-emerald-700 transition-all active:scale-95 group">
-      <CreditCard className="w-5 h-5 mr-3 group-hover:-translate-y-1 transition-transform" /> Pagar Todo
+    <button
+      disabled
+      aria-disabled="true"
+      title="Próximamente"
+      className="flex items-center px-6 py-3 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm cursor-not-allowed"
+    >
+      <CreditCard className="w-5 h-5 mr-3" /> Pagar Todo
     </button>
   );
 
@@ -37,7 +92,9 @@ export default function ResidentReceiptsPage() {
           <div className="p-8 bg-white rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-primary/20 transition-all cursor-default">
             <div className="space-y-1">
               <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Deuda Pendiente</p>
-              <p className="text-4xl font-black text-slate-900 group-hover:text-primary transition-colors">$155.000 <span className="text-xs font-bold text-slate-400">CLP</span></p>
+              <p className="text-4xl font-black text-slate-900 group-hover:text-primary transition-colors">
+                ${pendingAmount.toLocaleString('es-CL')} <span className="text-xs font-bold text-slate-400">CLP</span>
+              </p>
             </div>
             <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center">
               <CreditCard className="w-7 h-7 text-primary" />
@@ -47,7 +104,9 @@ export default function ResidentReceiptsPage() {
           <div className="p-8 bg-white rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-emerald-200 transition-all cursor-default">
             <div className="space-y-1">
               <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Último Pago</p>
-              <p className="text-4xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">$150.000 <span className="text-xs font-bold text-slate-400">CLP</span></p>
+              <p className="text-4xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
+                ${latestPaidReceipt ? latestPaidReceipt.amount.toLocaleString('es-CL') : '0'} <span className="text-xs font-bold text-slate-400">CLP</span>
+              </p>
             </div>
             <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
               <div className="w-7 h-7 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
@@ -79,9 +138,13 @@ export default function ResidentReceiptsPage() {
 
         {/* Lista de Recibos */}
         <div className="space-y-4">
-          {receipts.length > 0 ? (
+          {loadError ? (
+            <ErrorState title="Error" description={loadError} />
+          ) : isLoading ? (
+            <LoadingState title="Cargando recibos..." />
+          ) : filteredReceipts.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 max-w-4xl">
-              {receipts.map((receipt) => (
+              {filteredReceipts.map((receipt) => (
                 <ReceiptRow
                   key={receipt.id}
                   number={receipt.number}

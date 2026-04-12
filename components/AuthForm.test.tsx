@@ -34,5 +34,21 @@ describe('AuthForm (QA demo accounts)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Entrar ahora' }));
     expect(loginMock).toHaveBeenCalledWith('manager@propsys.com', 'PropsysQA#2026');
   });
+
+  it('shows backend error messages when login fails', async () => {
+    loginMock.mockRejectedValueOnce(new Error('Usuario inactivo'));
+    render(<AuthForm />);
+
+    fireEvent.change(screen.getByPlaceholderText('Correo electrónico'), {
+      target: { value: 'inactive@propsys.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Contraseña'), {
+      target: { value: 'PropsysQA#2026' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Entrar ahora' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Usuario inactivo');
+  });
 });
 

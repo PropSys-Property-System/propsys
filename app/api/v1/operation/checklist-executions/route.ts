@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
@@ -164,8 +164,9 @@ export async function POST(req: Request) {
          AND building_id = $2
          AND assigned_to_user_id = $3
          AND client_id = $4
+         AND checklist_template_id = $5
        LIMIT 1`,
-      [taskId, tpl.building_id, user.id, clientId]
+      [taskId, tpl.building_id, user.id, clientId, templateId]
     );
     if (!taskRes.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
