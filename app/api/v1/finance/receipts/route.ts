@@ -1,10 +1,11 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { Receipt } from '@/lib/types';
 
 async function listBuildingIdsForUser(pool: ReturnType<typeof getPool>, user: { id: string; clientId: string | null; scope: string; internalRole: string }) {
-  if (user.scope === 'platform' && (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER')) {
+  if (canBypassTenantScope(user)) {
     const all = await pool.query<{ id: string }>('SELECT id FROM buildings');
     return all.rows.map((r) => r.id);
   }
@@ -72,11 +73,12 @@ export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ receipts: [] });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ receipts: [] });
 
   const pool = getPool();
-  const tenantWhere = user.scope === 'platform' ? '' : 'AND client_id = $1';
-  const tenantParams = user.scope === 'platform' ? [] : [user.clientId];
+  const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
+  const tenantParams = bypassTenant ? [] : [user.clientId];
 
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
     const unitIds = await listUnitIdsForUser(pool, user);

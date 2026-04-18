@@ -1,6 +1,7 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { Receipt } from '@/lib/types';
 
 async function hasBuildingAssignment(pool: ReturnType<typeof getPool>, userId: string, buildingId: string) {
@@ -87,7 +88,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const row = rowRes.rows[0];
   if (!row) return NextResponse.json({ receipt: null }, { status: 404 });
 
-  if (user.scope !== 'platform' && (!user.clientId || row.client_id !== user.clientId)) {
+  if (!canBypassTenantScope(user) && (!user.clientId || row.client_id !== user.clientId)) {
     return NextResponse.json({ receipt: null }, { status: 404 });
   }
 

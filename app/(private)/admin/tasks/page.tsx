@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { ChevronDown, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { buildingsRepo, checklistExecutionsRepo, checklistTemplatesRepo, staffRepo, tasksRepo } from '@/lib/data';
+import { formatDateTime } from '@/lib/presentation/dates';
 import type { ChecklistTemplate, StaffMember, TaskEntity } from '@/lib/types';
 
 function labelTaskStatus(status: TaskEntity['status']) {
@@ -518,7 +519,7 @@ export default function AdminTasksPage() {
                     <p className="mt-3 text-sm font-black text-slate-900 truncate">{task.title}</p>
                     {task.description && <p className="mt-1 text-xs text-slate-500 font-medium line-clamp-2">{task.description}</p>}
                     <p className="mt-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      Creado {new Date(task.createdAt).toLocaleString('es-CL')}
+                          Creado {formatDateTime(task.createdAt)}
                     </p>
 
                     {canEditAssignee && (

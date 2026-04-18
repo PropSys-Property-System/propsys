@@ -78,6 +78,7 @@ export type NoticeAudience = 'BUILDING' | 'ALL_BUILDINGS';
 
 export interface Notice {
   id: string;
+  clientId?: string;
   buildingId?: string;
   audience: NoticeAudience;
   title: string;

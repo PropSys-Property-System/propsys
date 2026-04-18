@@ -16,6 +16,10 @@ export const evidenceRepo = {
     }
     await sleep(150);
 
+    if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+      return [];
+    }
+
     const tenantScoped =
       user.scope === 'platform'
         ? MOCK_EVIDENCE_ATTACHMENTS
@@ -65,13 +69,31 @@ export const evidenceRepo = {
       return data.evidence;
     }
     await sleep(150);
-    throw new Error('No disponible en mock');
+    const now = new Date().toISOString();
+    const id = `ev_${Date.now()}`;
+    const ev: EvidenceAttachment = {
+      id,
+      clientId: user.clientId ?? 'client_001',
+      buildingId: 'b1',
+      checklistExecutionId: input.checklistExecutionId,
+      fileName: input.fileName?.trim() || 'evidence-link',
+      mimeType: input.mimeType?.trim() || 'text/uri-list',
+      url: input.url,
+      uploadedByUserId: user.id,
+      createdAt: now,
+    };
+    MOCK_EVIDENCE_ATTACHMENTS.unshift(ev);
+    return ev;
   },
 
   async uploadForChecklistExecution(
-    user: User,
-    input: { checklistExecutionId: string; file: File }
+    _user: User,
+    _input: { checklistExecutionId: string; file: File }
   ): Promise<EvidenceAttachment> {
+    void _user;
+    void _input;
+    throw new Error('V1 solo admite evidencias como enlaces URL.');
+    /* legacy
     if (isDbMode()) {
       const fd = new FormData();
       fd.set('checklistExecutionId', input.checklistExecutionId);
@@ -105,6 +127,7 @@ export const evidenceRepo = {
     };
     MOCK_EVIDENCE_ATTACHMENTS.unshift(ev);
     return ev;
+    */
   },
 
   async deleteForUser(user: User, id: string): Promise<boolean> {
@@ -128,4 +151,3 @@ export const evidenceRepo = {
     return true;
   },
 };
-

@@ -1,11 +1,14 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { IncidentEntity } from '@/lib/types';
 
 async function listBuildingIdsForUser(pool: ReturnType<typeof getPool>, user: { id: string; clientId: string | null; scope: string; internalRole: string }) {
-  if (user.scope === 'platform' && (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER')) {
+  if (canBypassTenantScope(user)) {
     const all = await pool.query<{ id: string }>('SELECT id FROM buildings');
     return all.rows.map((r) => r.id);
   }
@@ -89,14 +92,17 @@ function toEntity(row: {
 export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ incidents: [] });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ incidents: [] });
 
   const pool = getPool();
-  const tenantWhere = user.scope === 'platform' ? '' : 'AND client_id = $1';
-  const tenantParams = user.scope === 'platform' ? [] : [user.clientId];
+  const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
+  const tenantParams = bypassTenant ? [] : [user.clientId];
 
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
     const unitIds = await listUnitIdsForUser(pool, user);
+    const buildingIds = await listBuildingIdsForUser(pool, user);
+    if (unitIds.length === 0 && buildingIds.length === 0) return NextResponse.json({ incidents: [] });
     const rows = await pool.query<{
       id: string;
       client_id: string;
@@ -115,9 +121,12 @@ export async function GET(req: Request) {
        FROM incidents
        WHERE 1=1
          ${tenantWhere}
-         AND (unit_id IS NULL OR unit_id = ANY($${tenantParams.length + 1}::text[]))
+         AND (
+           unit_id = ANY($${tenantParams.length + 1}::text[])
+           OR (unit_id IS NULL AND building_id = ANY($${tenantParams.length + 2}::text[]))
+         )
        ORDER BY created_at DESC`,
-      [...tenantParams, unitIds]
+      [...tenantParams, unitIds, buildingIds]
     );
     return NextResponse.json({ incidents: rows.rows.map(toEntity) });
   }
@@ -160,6 +169,8 @@ export async function POST(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole === 'OCCUPANT') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   const buildingId = typeof body?.buildingId === 'string' ? body.buildingId : null;
@@ -176,9 +187,9 @@ export async function POST(req: Request) {
   const building = buildingRes.rows[0];
   if (!building) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-  const clientId = user.scope === 'platform' ? building.client_id : user.clientId;
+  const clientId = bypassTenant ? building.client_id : user.clientId;
   if (!clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  if (user.scope !== 'platform' && building.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!bypassTenant && building.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   if (user.internalRole === 'OWNER') {
     if (!unitId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
@@ -211,41 +222,40 @@ export async function POST(req: Request) {
   const assignedToUserId = user.internalRole === 'STAFF' ? user.id : null;
   const id = `inc_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
-  const row = await pool.query<{
-    id: string;
-    client_id: string;
-    building_id: string;
-    unit_id: string | null;
-    title: string;
-    description: string;
-    status: string;
-    priority: string;
-    reported_by_user_id: string;
-    assigned_to_user_id: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `INSERT INTO incidents (id, client_id, building_id, unit_id, title, description, status, priority, reported_by_user_id, assigned_to_user_id, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
-     RETURNING id, client_id, building_id, unit_id, title, description, status, priority, reported_by_user_id, assigned_to_user_id, created_at, updated_at`,
-    [id, clientId, buildingId, unitId, title, description, status, priority, user.id, assignedToUserId, now]
-  );
-
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
-       VALUES ($1, $2, $3, 'CREATE', 'Incident', $4, $5::jsonb, $6::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+  try {
+    const row = await withTransaction(pool, async (db) => {
+      const created = await db.query<{
+        id: string;
+        client_id: string;
+        building_id: string;
+        unit_id: string | null;
+        title: string;
+        description: string;
+        status: string;
+        priority: string;
+        reported_by_user_id: string;
+        assigned_to_user_id: string | null;
+        created_at: string;
+        updated_at: string;
+      }>(
+        `INSERT INTO incidents (id, client_id, building_id, unit_id, title, description, status, priority, reported_by_user_id, assigned_to_user_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+         RETURNING id, client_id, building_id, unit_id, title, description, status, priority, reported_by_user_id, assigned_to_user_id, created_at, updated_at`,
+        [id, clientId, buildingId, unitId, title, description, status, priority, user.id, assignedToUserId, now]
+      );
+      await insertAuditLog(db, {
         clientId,
-        user.id,
-        id,
-        JSON.stringify({ buildingId, unitId, status, priority }),
-        JSON.stringify(row.rows[0]),
-      ]
-    )
-    .catch(() => null);
-
-  return NextResponse.json({ incident: toEntity(row.rows[0]) });
+        userId: user.id,
+        action: 'CREATE',
+        entity: 'Incident',
+        entityId: id,
+        metadata: { buildingId, unitId, status, priority },
+        newData: created.rows[0],
+      });
+      return created;
+    });
+    return NextResponse.json({ incident: toEntity(row.rows[0]) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }
-

@@ -1,5 +1,5 @@
 import { ChecklistExecution, User } from '@/lib/types';
-import { MOCK_CHECKLIST_EXECUTIONS, MOCK_TASKS_V1 } from '@/lib/mocks';
+import { MOCK_CHECKLIST_EXECUTIONS, MOCK_CHECKLIST_TEMPLATES, MOCK_TASKS_V1 } from '@/lib/mocks';
 import { auditService } from '@/lib/audit/audit-service';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
@@ -107,6 +107,14 @@ export const checklistExecutionsRepo = {
     if (user.internalRole !== 'STAFF') throw new Error('No autorizado');
     if (current.assignedToUserId !== user.id) throw new Error('No autorizado');
 
+    const template = MOCK_CHECKLIST_TEMPLATES.find((t) => t.id === current.templateId);
+    const requiredIds = (template?.items ?? []).filter((it) => it.required).map((it) => it.id);
+    if (requiredIds.length > 0) {
+      const resultByItemId = new Map(results.map((r) => [r.itemId, Boolean(r.value)]));
+      const ok = requiredIds.every((id) => resultByItemId.get(id) === true);
+      if (!ok) throw new Error('Marca todos los items requeridos para completar el checklist.');
+    }
+
     const now = new Date().toISOString();
     const updated: ChecklistExecution = {
       ...current,
@@ -189,4 +197,3 @@ export const checklistExecutionsRepo = {
     return updated;
   },
 };
-

@@ -6,8 +6,9 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Filter, Plus, Search, Wrench } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { buildingsRepo, incidentsRepo, unitsRepo } from '@/lib/data';
+import { formatDateTime } from '@/lib/presentation/dates';
 import { IncidentEntity } from '@/lib/types';
-import { formatClientBadge, labelIncidentPriority, labelIncidentStatus } from '@/lib/presentation/labels';
+import { formatClientBadge, labelClient, labelIncidentPriority, labelIncidentStatus } from '@/lib/presentation/labels';
 
 function statusChip(status: IncidentEntity['status']) {
   const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
@@ -29,6 +30,7 @@ export default function AdminTicketsPage() {
   const { user } = useAuth();
   const [allTickets, setAllTickets] = useState<IncidentEntity[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [buildingFilterId, setBuildingFilterId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -82,8 +84,11 @@ export default function AdminTicketsPage() {
 
   const tickets = useMemo(() => {
     const t = searchTerm.toLowerCase();
-    return allTickets.filter((x) => x.title.toLowerCase().includes(t) || x.description.toLowerCase().includes(t));
-  }, [allTickets, searchTerm]);
+    return allTickets.filter((x) => {
+      if (buildingFilterId && x.buildingId !== buildingFilterId) return false;
+      return x.title.toLowerCase().includes(t) || x.description.toLowerCase().includes(t);
+    });
+  }, [allTickets, searchTerm, buildingFilterId]);
 
   const canCreate = user?.internalRole === 'BUILDING_ADMIN';
   const canUpdate = user?.internalRole === 'BUILDING_ADMIN';
@@ -202,15 +207,29 @@ export default function AdminTicketsPage() {
 
         {actionError && <ErrorState title="Acción no disponible" description={actionError} />}
 
-        <div className="relative group max-w-2xl">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por título o descripción..."
-            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-          />
+        <div className="flex flex-col md:flex-row gap-4 max-w-4xl">
+          <div className="relative group flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por título o descripción..."
+              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            />
+          </div>
+          <select
+            value={buildingFilterId}
+            onChange={(e) => setBuildingFilterId(e.target.value)}
+            className="w-full md:w-72 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-bold"
+          >
+            <option value="">Todos los edificios</option>
+            {buildings.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {error ? (
@@ -227,11 +246,22 @@ export default function AdminTicketsPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={statusChip(t.status)}>{labelIncidentStatus(t.status)}</span>
                     <span className={priorityChip(t.priority)}>{labelIncidentPriority(t.priority)}</span>
+                    <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                      {labelClient(t.clientId)}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                      {buildings.find((b) => b.id === t.buildingId)?.name ?? t.buildingId}
+                    </span>
+                    {t.unitId && (
+                      <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                        Unidad {units.find((u) => u.id === t.unitId)?.number ?? t.unitId}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-3 text-sm font-black text-slate-900 truncate">{t.title}</p>
                   <p className="mt-1 text-xs text-slate-500 font-medium line-clamp-2">{t.description}</p>
                   <p className="mt-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Creado {new Date(t.createdAt).toLocaleString('es-CL')}
+                    Creado {formatDateTime(t.createdAt)}
                   </p>
                   {canUpdate && (
                     <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">

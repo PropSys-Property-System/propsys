@@ -14,6 +14,7 @@ describe('ReceiptRow', () => {
     number: 'REC-001',
     date: '2024-03-30T12:00:00Z', // Use ISO with time to avoid TZ issues
     amount: 150000,
+    currency: 'PEN',
     status: 'PENDING' as const,
     description: 'Gastos Comunes Marzo',
     onView: mockOnView,
@@ -28,7 +29,7 @@ describe('ReceiptRow', () => {
     
     expect(screen.getByText('REC-001')).toBeInTheDocument();
     expect(screen.getByText('Gastos Comunes Marzo')).toBeInTheDocument();
-    expect(screen.getByText('$150.000')).toBeInTheDocument();
+    expect(screen.getByText(/s\/\s*150,000/i)).toBeInTheDocument();
     // The exact date might still vary by local TZ, but let's check for year and month
     expect(screen.getByText(/mar.*2024/i)).toBeInTheDocument();
   });
@@ -49,7 +50,7 @@ describe('ReceiptRow', () => {
 
   it('handles invalid date gracefully', () => {
     render(<ReceiptRow {...mockProps} date="invalid-date" />);
-    expect(screen.getByText('Fecha inválida')).toBeInTheDocument();
+    expect(screen.getByText('Fecha invalida')).toBeInTheDocument();
   });
 
   it('handles non-numeric amount gracefully', () => {

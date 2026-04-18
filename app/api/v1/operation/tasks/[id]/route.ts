@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { TaskEntity } from '@/lib/types';
-import { randomUUID } from 'node:crypto';
 
 function toEntity(row: {
   id: string;
@@ -66,7 +68,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   );
   const current = currentRes.rows[0];
   if (!current) return NextResponse.json({ task: null }, { status: 404 });
-  if (user.scope !== 'platform' && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ task: null }, { status: 404 });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ task: null }, { status: 404 });
 
   if (user.internalRole === 'STAFF') {
     if (assignedToUserId) return NextResponse.json({ error: 'El personal no puede reasignar tareas.' }, { status: 403 });
@@ -119,9 +122,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
            AND uba.building_id = $2
            AND uba.status = 'ACTIVE'
            AND uba.deleted_at IS NULL
-           ${user.scope === 'platform' ? '' : 'AND uba.client_id = $3 AND u.client_id = $3'}
+          ${bypassTenant ? '' : 'AND uba.client_id = $3 AND u.client_id = $3'}
          LIMIT 1`,
-        user.scope === 'platform' ? [assignedToUserId, current.building_id] : [assignedToUserId, current.building_id, current.client_id]
+        bypassTenant ? [assignedToUserId, current.building_id] : [assignedToUserId, current.building_id, current.client_id]
       );
       if (!canAssign.rows[0]) {
         return NextResponse.json({ error: 'La tarea solo se puede asignar a personal activo del mismo edificio.' }, { status: 400 });
@@ -141,43 +144,50 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   const now = new Date().toISOString();
-  const updated = await pool.query<{
-    id: string;
-    client_id: string;
-    building_id: string;
-    checklist_template_id: string | null;
-    assigned_to_user_id: string;
-    created_by_user_id: string;
-    title: string;
-    description: string | null;
-    status: string;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `UPDATE tasks
-     SET assigned_to_user_id = COALESCE($2, assigned_to_user_id),
-         status = COALESCE($3, status),
-         updated_at = $4
-     WHERE id = $1
-     RETURNING id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at`,
-    [id, assignedToUserId, status, now]
-  );
+  try {
+    const updated = await withTransaction(pool, async (db) => {
+      const res = await db.query<{
+        id: string;
+        client_id: string;
+        building_id: string;
+        checklist_template_id: string | null;
+        assigned_to_user_id: string;
+        created_by_user_id: string;
+        title: string;
+        description: string | null;
+        status: string;
+        created_at: string;
+        updated_at: string;
+      }>(
+        `UPDATE tasks
+         SET assigned_to_user_id = COALESCE($2, assigned_to_user_id),
+             status = COALESCE($3, status),
+             updated_at = $4
+         WHERE id = $1
+         RETURNING id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at`,
+        [id, assignedToUserId, status, now]
+      );
 
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)
-       VALUES ($1, $2, $3, 'UPDATE', 'Task', $4, $5::jsonb, $6::jsonb, $7::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-        current.client_id,
-        user.id,
-        id,
-        JSON.stringify({ fromStatus: current.status, toStatus: status ?? current.status, assignedToUserId: assignedToUserId ?? current.assigned_to_user_id }),
-        JSON.stringify(current),
-        JSON.stringify(updated.rows[0]),
-      ]
-    )
-    .catch(() => null);
+      await insertAuditLog(db, {
+        clientId: current.client_id,
+        userId: user.id,
+        action: 'UPDATE',
+        entity: 'Task',
+        entityId: id,
+        metadata: {
+          fromStatus: current.status,
+          toStatus: status ?? current.status,
+          assignedToUserId: assignedToUserId ?? current.assigned_to_user_id,
+        },
+        oldData: current,
+        newData: res.rows[0],
+      });
 
-  return NextResponse.json({ task: toEntity(updated.rows[0]) });
+      return res;
+    });
+
+    return NextResponse.json({ task: toEntity(updated.rows[0]) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }

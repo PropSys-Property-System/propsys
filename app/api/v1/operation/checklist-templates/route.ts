@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { ChecklistTemplate } from '@/lib/types';
 import { randomUUID } from 'node:crypto';
 
@@ -8,7 +11,7 @@ async function listBuildingIdsForUser(
   pool: ReturnType<typeof getPool>,
   user: { id: string; clientId: string | null; scope: string; internalRole: string }
 ) {
-  if (user.scope === 'platform' && (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER')) {
+  if (canBypassTenantScope(user)) {
     const all = await pool.query<{ id: string }>('SELECT id FROM buildings');
     return all.rows.map((r) => r.id);
   }
@@ -56,11 +59,12 @@ export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') return NextResponse.json({ templates: [] as ChecklistTemplate[] });
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ templates: [] as ChecklistTemplate[] });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ templates: [] as ChecklistTemplate[] });
 
   const pool = getPool();
-  const tenantWhere = user.scope === 'platform' ? '' : 'AND client_id = $1';
-  const tenantParams = user.scope === 'platform' ? [] : [user.clientId];
+  const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
+  const tenantParams = bypassTenant ? [] : [user.clientId];
 
   const buildingIds = await listBuildingIdsForUser(pool, user);
   if (buildingIds.length === 0) return NextResponse.json({ templates: [] as ChecklistTemplate[] });
@@ -93,7 +97,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const canCreate =
     user.internalRole === 'BUILDING_ADMIN' || user.internalRole === 'CLIENT_MANAGER' || user.internalRole === 'ROOT_ADMIN';
@@ -117,9 +122,9 @@ export async function POST(req: Request) {
   const building = buildingRes.rows[0];
   if (!building) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-  const clientId = user.scope === 'platform' ? building.client_id : user.clientId;
+  const clientId = bypassTenant ? building.client_id : user.clientId;
   if (!clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  if (user.scope !== 'platform' && building.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!bypassTenant && building.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   if (user.internalRole === 'BUILDING_ADMIN') {
     const ok = await pool.query<{ ok: boolean }>(
@@ -140,39 +145,40 @@ export async function POST(req: Request) {
     required: it.required,
   }));
 
-  const row = await pool.query<{
-    id: string;
-    client_id: string;
-    building_id: string;
-    name: string;
-    description: string | null;
-    items: unknown;
-    created_at: string;
-    updated_at: string;
-    deleted_at: string | null;
-  }>(
-    `INSERT INTO checklist_templates (id, client_id, building_id, name, description, items, status, created_by_user_id, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, NULL, $5::jsonb, 'ACTIVE', $6, $7, $7)
-     RETURNING id, client_id, building_id, name, description, items, created_at, updated_at, deleted_at`,
-    [templateId, clientId, buildingId, name, JSON.stringify(hydratedItems), user.id, now]
-  );
+  try {
+    const row = await withTransaction(pool, async (db) => {
+      const created = await db.query<{
+        id: string;
+        client_id: string;
+        building_id: string;
+        name: string;
+        description: string | null;
+        items: unknown;
+        created_at: string;
+        updated_at: string;
+        deleted_at: string | null;
+      }>(
+        `INSERT INTO checklist_templates (id, client_id, building_id, name, description, items, status, created_by_user_id, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NULL, $5::jsonb, 'ACTIVE', $6, $7, $7)
+         RETURNING id, client_id, building_id, name, description, items, created_at, updated_at, deleted_at`,
+        [templateId, clientId, buildingId, name, JSON.stringify(hydratedItems), user.id, now]
+      );
 
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
-       VALUES ($1, $2, $3, 'CREATE', 'ChecklistTemplate', $4, $5::jsonb, $6::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+      await insertAuditLog(db, {
         clientId,
-        user.id,
-        templateId,
-        JSON.stringify({ buildingId }),
-        JSON.stringify(row.rows[0]),
-      ]
-    )
-    .catch(() => null);
+        userId: user.id,
+        action: 'CREATE',
+        entity: 'ChecklistTemplate',
+        entityId: templateId,
+        metadata: { buildingId },
+        newData: created.rows[0],
+      });
 
-  return NextResponse.json({ template: toTemplate(row.rows[0]) });
+      return created;
+    });
+
+    return NextResponse.json({ template: toTemplate(row.rows[0]) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }
-
-

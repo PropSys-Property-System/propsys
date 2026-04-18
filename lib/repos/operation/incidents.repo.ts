@@ -38,8 +38,10 @@ export const incidentsRepo = {
       return tenantScoped.filter((i) => buildingIds.includes(i.buildingId));
     }
 
-    const unitIds = (await unitsRepo.listForUser(user)).map((u) => u.id);
-    return tenantScoped.filter((i) => !i.unitId || unitIds.includes(i.unitId));
+    const units = await unitsRepo.listForUser(user);
+    const unitIds = units.map((u) => u.id);
+    const buildingIds = Array.from(new Set(units.map((u) => u.buildingId)));
+    return tenantScoped.filter((i) => (i.unitId ? unitIds.includes(i.unitId) : buildingIds.includes(i.buildingId)));
   },
 
   async createSimpleForUser(
@@ -164,4 +166,3 @@ export const incidentsRepo = {
     return updated;
   },
 };
-

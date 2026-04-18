@@ -1,4 +1,4 @@
-﻿import argon2 from 'argon2';
+import argon2 from 'argon2';
 import { getPool } from '@/lib/server/db/client';
 import path from 'node:path';
 import { config as loadEnv } from 'dotenv';
@@ -23,8 +23,8 @@ async function main() {
     await client.query('DELETE FROM notices');
     await client.query('DELETE FROM evidence_attachments');
     await client.query('DELETE FROM checklist_executions');
-    await client.query('DELETE FROM checklist_templates');
     await client.query('DELETE FROM tasks');
+    await client.query('DELETE FROM checklist_templates');
     await client.query('DELETE FROM incidents');
     await client.query('DELETE FROM user_unit_assignments');
     await client.query('DELETE FROM user_building_assignments');
@@ -62,9 +62,9 @@ async function main() {
     await client.query(
       `INSERT INTO buildings (id, client_id, name, address, city, status)
        VALUES
-         ('b1', 'client_001', 'Edificio Central', 'Av. Principal 123', 'Santiago', 'ACTIVE'),
-         ('b2', 'client_001', 'Torre Norte', 'Calle Norte 45', 'Santiago', 'ACTIVE'),
-         ('b3', 'client_002', 'Condominio Sur', 'Camino Sur 500', 'Temuco', 'ACTIVE')`
+         ('b1', 'client_001', 'Edificio Central', 'Av. Principal 123', 'Lima', 'ACTIVE'),
+         ('b2', 'client_001', 'Torre Norte', 'Calle Norte 45', 'Lima', 'ACTIVE'),
+         ('b3', 'client_002', 'Condominio Sur', 'Camino Sur 500', 'Arequipa', 'ACTIVE')`
     );
 
     await client.query(
@@ -160,9 +160,9 @@ async function main() {
     await client.query(
       `INSERT INTO receipts (id, client_id, building_id, unit_id, number, description, amount, currency, issue_date, due_date, status, created_at, updated_at)
        VALUES
-         ('rcpt-qa-1', 'client_001', 'b1', 'unit-102', 'RC-2026-0001', 'Gastos comunes abril', 85000.00, 'CLP', '2026-04-01', '2026-04-10', 'PENDING', now(), now()),
-         ('rcpt-qa-2', 'client_001', 'b1', 'unit-101', 'RC-2026-0002', 'Gastos comunes abril', 92000.00, 'CLP', '2026-04-01', '2026-04-10', 'PAID', now(), now()),
-         ('rcpt-qa-3', 'client_002', 'b3', 'unit-301', 'RC-2026-1001', 'Gastos comunes abril', 78000.00, 'CLP', '2026-04-01', '2026-04-12', 'OVERDUE', now(), now())`
+         ('rcpt-qa-1', 'client_001', 'b1', 'unit-102', 'RC-2026-0001', 'Gastos comunes abril', 85000.00, 'PEN', '2026-04-01', '2026-04-10', 'PENDING', now(), now()),
+         ('rcpt-qa-2', 'client_001', 'b1', 'unit-101', 'RC-2026-0002', 'Gastos comunes abril', 92000.00, 'PEN', '2026-04-01', '2026-04-10', 'PAID', now(), now()),
+         ('rcpt-qa-3', 'client_002', 'b3', 'unit-301', 'RC-2026-1001', 'Gastos comunes abril', 78000.00, 'PEN', '2026-04-01', '2026-04-12', 'OVERDUE', now(), now())`
     );
 
     await client.query('COMMIT');
@@ -188,4 +188,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

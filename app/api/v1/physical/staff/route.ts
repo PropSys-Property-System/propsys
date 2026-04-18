@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { StaffMember } from '@/lib/types';
 
 function roleLabel(internalRole: string): string {
@@ -23,6 +24,8 @@ export async function GET(req: Request) {
   if (!buildingId) return NextResponse.json({ error: 'buildingId es requerido' }, { status: 400 });
 
   const pool = getPool();
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
@@ -40,7 +43,7 @@ export async function GET(req: Request) {
       [user.id, buildingId]
     );
     if (!assignment.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  } else if (user.scope !== 'platform') {
+  } else if (!bypassTenant) {
     const building = await pool.query<{ id: string }>(
       'SELECT id FROM buildings WHERE id = $1 AND client_id = $2 LIMIT 1',
       [buildingId, user.clientId]
@@ -63,9 +66,9 @@ export async function GET(req: Request) {
        AND uba.deleted_at IS NULL
        AND u.status IN ('ACTIVE', 'INACTIVE')
        AND u.internal_role IN ('BUILDING_ADMIN', 'STAFF')
-       ${user.scope === 'platform' ? '' : 'AND uba.client_id = $2 AND u.client_id = $2'}
+       ${bypassTenant ? '' : 'AND uba.client_id = $2 AND u.client_id = $2'}
      ORDER BY u.internal_role ASC, u.name ASC`,
-    user.scope === 'platform' ? [buildingId] : [buildingId, user.clientId]
+    bypassTenant ? [buildingId] : [buildingId, user.clientId]
   );
 
   const staff: StaffMember[] = rows.rows.map((row) => ({

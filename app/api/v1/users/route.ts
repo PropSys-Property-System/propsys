@@ -1,6 +1,7 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { User } from '@/lib/types';
 
 export async function GET(req: Request) {
@@ -12,6 +13,8 @@ export async function GET(req: Request) {
   }
 
   const pool = getPool();
+  const bypassTenant = canBypassTenantScope(sessionUser);
+  if (!bypassTenant && !sessionUser.clientId) return NextResponse.json({ users: [] as User[] });
   const rows = await pool.query<{
     id: string;
     email: string;
@@ -22,10 +25,10 @@ export async function GET(req: Request) {
     scope: string;
     status: string;
   }>(
-    sessionUser.scope === 'platform'
+    bypassTenant
       ? 'SELECT id, email, name, role, internal_role, client_id, scope, status FROM users ORDER BY name ASC'
       : 'SELECT id, email, name, role, internal_role, client_id, scope, status FROM users WHERE client_id = $1 ORDER BY name ASC',
-    sessionUser.scope === 'platform' ? [] : [sessionUser.clientId]
+    bypassTenant ? [] : [sessionUser.clientId]
   );
 
   const users: User[] = rows.rows.map((u) => ({

@@ -1,6 +1,7 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { Unit } from '@/lib/types';
 
 export async function GET(req: Request) {
@@ -8,9 +9,11 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const pool = getPool();
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ units: [] as Unit[] });
 
-  const tenantWhere = user.scope === 'platform' ? '' : 'AND u.client_id = $2';
-  const tenantParams = user.scope === 'platform' ? [user.id] : [user.id, user.clientId];
+  const tenantWhere = bypassTenant ? '' : 'AND u.client_id = $2';
+  const tenantParams = bypassTenant ? [user.id] : [user.id, user.clientId];
 
   if (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER') {
     const rows = await pool.query<{
@@ -29,9 +32,9 @@ export async function GET(req: Request) {
        FROM units u
        LEFT JOIN user_unit_assignments owner ON owner.unit_id = u.id AND owner.assignment_type = 'OWNER' AND owner.status = 'ACTIVE' AND owner.deleted_at IS NULL
        LEFT JOIN user_unit_assignments occupant ON occupant.unit_id = u.id AND occupant.assignment_type = 'OCCUPANT' AND occupant.status = 'ACTIVE' AND occupant.deleted_at IS NULL
-       ${user.scope === 'platform' ? '' : 'WHERE u.client_id = $1'}
+      ${bypassTenant ? '' : 'WHERE u.client_id = $1'}
        ORDER BY u.building_id ASC, u.number ASC`,
-      user.scope === 'platform' ? [] : [user.clientId]
+      bypassTenant ? [] : [user.clientId]
     );
 
     const units: Unit[] = rows.rows.map((u) => ({

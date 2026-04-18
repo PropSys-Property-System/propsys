@@ -1,7 +1,8 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import argon2 from 'argon2';
 import { getPool } from '@/lib/server/db/client';
 import { randomUUID } from 'node:crypto';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -47,24 +48,25 @@ export async function POST(req: Request) {
     expiresAt.toISOString(),
   ]);
 
+  let auditFailed = false;
   if (row.client_id) {
-    await pool
-      .query(
-        `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
-         VALUES ($1, $2, $3, 'LOGIN', 'AuthSession', $4, $5::jsonb, $6::jsonb)`,
-        [
-          `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-          row.client_id,
-          row.id,
-          sessionId,
-          JSON.stringify({ userAgent: req.headers.get('user-agent') ?? null }),
-          JSON.stringify({ sessionId, expiresAt: expiresAt.toISOString() }),
-        ]
-      )
-      .catch(() => null);
+    try {
+      await insertAuditLog(pool, {
+        clientId: row.client_id,
+        userId: row.id,
+        action: 'LOGIN',
+        entity: 'AuthSession',
+        entityId: sessionId,
+        metadata: { userAgent: req.headers.get('user-agent') ?? null },
+        newData: { sessionId, expiresAt: expiresAt.toISOString() },
+      });
+    } catch {
+      auditFailed = true;
+    }
   }
 
   const res = NextResponse.json({ ok: true });
+  if (auditFailed) res.headers.set('x-propsys-audit', 'failed');
   res.cookies.set('ps_session', sessionId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

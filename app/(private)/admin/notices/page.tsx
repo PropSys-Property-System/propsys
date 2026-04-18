@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
@@ -6,8 +6,9 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Megaphone, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { buildingsRepo, noticesRepo } from '@/lib/data';
+import { formatDateTime } from '@/lib/presentation/dates';
 import { Notice } from '@/lib/types';
-import { labelNoticeAudience } from '@/lib/presentation/labels';
+import { labelClient, labelNoticeAudience } from '@/lib/presentation/labels';
 
 export default function AdminNoticesPage() {
   const { user } = useAuth();
@@ -18,11 +19,12 @@ export default function AdminNoticesPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createClientId, setCreateClientId] = useState('');
   const [createAudience, setCreateAudience] = useState<Notice['audience']>('ALL_BUILDINGS');
   const [createBuildingId, setCreateBuildingId] = useState('');
   const [createTitle, setCreateTitle] = useState('');
   const [createBody, setCreateBody] = useState('');
-  const [buildings, setBuildings] = useState<{ id: string; name: string }[]>([]);
+  const [buildings, setBuildings] = useState<{ id: string; name: string; clientId?: string }[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -36,7 +38,7 @@ export default function AdminNoticesPage() {
         const b = await buildingsRepo.listForUser(user);
         if (!isMounted) return;
         setAllNotices(data);
-        setBuildings(b.map((x) => ({ id: x.id, name: x.name })));
+        setBuildings(b.map((x) => ({ id: x.id, name: x.name, clientId: x.clientId })));
         setCreateBuildingId((prev) => prev || b[0]?.id || '');
         if (user.internalRole === 'BUILDING_ADMIN') {
           setCreateAudience('BUILDING');
@@ -62,11 +64,32 @@ export default function AdminNoticesPage() {
     setAllNotices(data);
   };
 
-  const canCreate = user?.internalRole === 'CLIENT_MANAGER' || (user?.internalRole === 'BUILDING_ADMIN' && buildings.length > 0);
+  const isRootPlatform = user?.internalRole === 'ROOT_ADMIN' && user?.scope === 'platform';
+  const canCreate =
+    user?.internalRole === 'ROOT_ADMIN' ||
+    user?.internalRole === 'CLIENT_MANAGER' ||
+    (user?.internalRole === 'BUILDING_ADMIN' && buildings.length > 0);
+
+  const buildingById = useMemo(() => new Map(buildings.map((b) => [b.id, b.name])), [buildings]);
+
+  const clientOptions = useMemo(() => {
+    const ids = Array.from(new Set(buildings.map((b) => b.clientId).filter((x): x is string => Boolean(x))));
+    return ids.sort((a, b) => a.localeCompare(b));
+  }, [buildings]);
+
+  const visibleBuildings = useMemo(() => {
+    if (!isRootPlatform) return buildings;
+    if (!createClientId) return buildings;
+    return buildings.filter((b) => b.clientId === createClientId);
+  }, [buildings, createClientId, isRootPlatform]);
 
   const submitCreate = async () => {
     if (!user) return;
     const effectiveAudience: Notice['audience'] = user.internalRole === 'BUILDING_ADMIN' ? 'BUILDING' : createAudience;
+    if (isRootPlatform && !createClientId) {
+      setActionError('Selecciona un cliente.');
+      return;
+    }
     if (!createTitle.trim() || !createBody.trim()) {
       setActionError('Completa título y contenido.');
       return;
@@ -79,6 +102,7 @@ export default function AdminNoticesPage() {
       setIsSubmitting(true);
       setActionError(null);
       await noticesRepo.createAndPublishForUser(user, {
+        clientId: isRootPlatform ? createClientId : undefined,
         audience: effectiveAudience,
         buildingId: effectiveAudience === 'BUILDING' ? createBuildingId : undefined,
         title: createTitle.trim(),
@@ -108,6 +132,7 @@ export default function AdminNoticesPage() {
       onClick={() => {
         setActionError(null);
         if (user?.internalRole === 'BUILDING_ADMIN') setCreateAudience('BUILDING');
+        if (isRootPlatform) setCreateClientId((prev) => prev || clientOptions[0] || '');
         setIsCreateOpen(true);
       }}
       className="flex items-center px-4 py-2 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
@@ -146,11 +171,21 @@ export default function AdminNoticesPage() {
               <div key={n.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-start justify-between gap-6">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    {n.clientId && (
+                      <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest">
+                        {labelClient(n.clientId)}
+                      </span>
+                    )}
                     <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest">
                       {labelNoticeAudience(n.audience)}
                     </span>
+                    {n.audience === 'BUILDING' && (
+                      <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                        {buildingById.get(n.buildingId ?? '') ?? 'Edificio desconocido'}
+                      </span>
+                    )}
                     <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                      {new Date(n.createdAt).toLocaleString('es-CL')}
+                      {formatDateTime(n.createdAt)}
                     </span>
                   </div>
                   <p className="mt-3 text-sm font-black text-slate-900">{n.title}</p>
@@ -180,6 +215,30 @@ export default function AdminNoticesPage() {
             </div>
 
             <div className="mt-5 space-y-3">
+              {isRootPlatform && (
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Cliente</label>
+                  <select
+                    value={createClientId}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setCreateClientId(next);
+                      const nextBuildings = buildings.filter((b) => b.clientId === next);
+                      setCreateBuildingId(nextBuildings[0]?.id || '');
+                    }}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                  >
+                    <option value="" disabled>
+                      Selecciona...
+                    </option>
+                    {clientOptions.map((id) => (
+                      <option key={id} value={id}>
+                        {labelClient(id)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Alcance</label>
                 <select
@@ -204,7 +263,7 @@ export default function AdminNoticesPage() {
                     <option value="" disabled>
                       Selecciona...
                     </option>
-                    {buildings.map((b) => (
+                    {visibleBuildings.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.name}
                       </option>
@@ -255,4 +314,3 @@ export default function AdminNoticesPage() {
     </div>
   );
 }
-

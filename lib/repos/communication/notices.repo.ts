@@ -1,4 +1,4 @@
-﻿import { Notice, NoticeEntity, User } from '@/lib/types';
+import { Notice, NoticeEntity, User } from '@/lib/types';
 import { MOCK_NOTICE_ENTITIES } from '@/lib/mocks';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { assignmentsRepo } from '@/lib/repos/physical/assignments.repo';
@@ -11,6 +11,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 function toLegacyNotice(n: NoticeEntity): Notice {
   return {
     id: n.id,
+    clientId: n.clientId,
     audience: n.audience,
     buildingId: n.buildingId,
     title: n.title,
@@ -44,7 +45,7 @@ export const noticesRepo = {
 
   async createAndPublishForUser(
     user: User,
-    input: Pick<NoticeEntity, 'audience' | 'buildingId' | 'title' | 'body'>
+    input: Pick<NoticeEntity, 'audience' | 'buildingId' | 'title' | 'body'> & { clientId?: string }
   ): Promise<NoticeEntity> {
     if (isDbMode()) {
       const res = await fetch('/api/v1/notices', {
@@ -62,12 +63,23 @@ export const noticesRepo = {
     if (user.internalRole === 'STAFF' || user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
       throw new Error('No autorizado');
     }
-    if (user.scope !== 'platform' && !user.clientId) {
+    const isRootPlatform = user.internalRole === 'ROOT_ADMIN' && user.scope === 'platform';
+    if (!isRootPlatform && user.scope !== 'platform' && !user.clientId) {
       throw new Error('No autorizado');
+    }
+
+    const selectedClientId = isRootPlatform ? input.clientId : user.clientId;
+    if (!selectedClientId) {
+      throw new Error('Selecciona un cliente para publicar el aviso.');
     }
 
     if (input.audience === 'BUILDING') {
       if (!input.buildingId) throw new Error('No autorizado');
+
+      const building = (await buildingsRepo.listForUser(user)).find((b) => b.id === input.buildingId) ?? null;
+      if (!building || (building.clientId && building.clientId !== selectedClientId)) {
+        throw new Error('El edificio no pertenece al cliente seleccionado.');
+      }
 
       if (user.internalRole === 'BUILDING_ADMIN') {
         if (!assignmentsRepo.isAssignedToBuilding(user, input.buildingId)) {
@@ -83,7 +95,7 @@ export const noticesRepo = {
     const now = new Date().toISOString();
     const entity: NoticeEntity = {
       id: `notice_${Date.now()}`,
-      clientId: user.scope === 'platform' ? (user.clientId ?? 'client_001') : user.clientId!,
+      clientId: selectedClientId,
       audience: input.audience,
       buildingId: input.audience === 'BUILDING' ? input.buildingId : undefined,
       title: input.title,
@@ -110,4 +122,3 @@ export const noticesRepo = {
     return entity;
   },
 };
-

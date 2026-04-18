@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { StatusBadge } from '@/components/Receipts';
 import { buildingsRepo, checklistExecutionsRepo, checklistTemplatesRepo, incidentsRepo, receiptsRepo, reservationsRepo } from '@/lib/data';
+import { formatDateTime } from '@/lib/presentation/dates';
 import type { ChecklistExecution, ChecklistTemplate, Receipt as ReceiptType } from '@/lib/types';
 
 export default function AdminDashboard() {
@@ -242,7 +243,7 @@ export default function AdminDashboard() {
                         <div className="min-w-0">
                           <p className="text-xs font-black text-slate-900 truncate">{templateNameById[e.templateId] ?? e.templateId}</p>
                           <p className="mt-1 text-[10px] text-slate-500 font-semibold truncate">
-                            {buildingNameById[e.buildingId] ?? e.buildingId} · {new Date(e.completedAt ?? e.updatedAt).toLocaleString('es-CL')}
+                            {buildingNameById[e.buildingId] ?? e.buildingId} · {formatDateTime(e.completedAt ?? e.updatedAt)}
                           </p>
                         </div>
                         <button

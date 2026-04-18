@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { CalendarDays, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { buildingsRepo, commonAreasRepo, reservationsRepo, unitsRepo } from '@/lib/data';
+import { formatDateTime, formatTime } from '@/lib/presentation/dates';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
 import { labelReservationStatus } from '@/lib/presentation/labels';
 
@@ -172,8 +173,7 @@ export default function AdminReservationsPage() {
                   </div>
                   <p className="mt-3 text-sm font-black text-slate-900">{areaNameById.get(r.commonAreaId) ?? 'Área común'}</p>
                   <p className="mt-1 text-xs text-slate-500 font-medium">
-                    {buildingNameById.get(r.buildingId) ?? 'Edificio'} · {new Date(r.startAt).toLocaleString('es-CL')} -{' '}
-                    {new Date(r.endAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                    {buildingNameById.get(r.buildingId) ?? 'Edificio'} · {formatDateTime(r.startAt)} - {formatTime(r.endAt)}
                   </p>
 
                   {canManage && (

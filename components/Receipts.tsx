@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { ReceiptStatus } from '@/lib/types';
+import { formatReceiptAmount, formatReceiptDate } from '@/lib/presentation/receipts';
 import { cn } from '@/lib/utils';
 import { FileText } from 'lucide-react';
 
@@ -44,12 +45,14 @@ export interface ReceiptRowProps {
   number: string;
   date: string;
   amount: number;
+  currency: string;
   status: ReceiptStatus;
   description: string;
+  meta?: React.ReactNode;
   onView?: () => void;
 }
 
-export function ReceiptRow({ number, date, amount, status, description, onView }: ReceiptRowProps) {
+export function ReceiptRow({ number, date, amount, currency, status, description, meta, onView }: ReceiptRowProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (onView && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
@@ -59,9 +62,7 @@ export function ReceiptRow({ number, date, amount, status, description, onView }
 
   const formattedDate = React.useMemo(() => {
     try {
-      const d = new Date(date);
-      if (isNaN(d.getTime())) return 'Fecha inválida';
-      return d.toLocaleDateString('es-CL', { month: 'short', day: 'numeric', year: 'numeric' });
+      return formatReceiptDate(date, { month: 'short', day: 'numeric', year: 'numeric' });
     } catch {
       return 'Error fecha';
     }
@@ -69,13 +70,11 @@ export function ReceiptRow({ number, date, amount, status, description, onView }
 
   const formattedAmount = React.useMemo(() => {
     try {
-      return typeof amount === 'number' 
-        ? `$${amount.toLocaleString('es-CL')}`
-        : '---';
+      return formatReceiptAmount(amount, currency);
     } catch {
       return '---';
     }
-  }, [amount]);
+  }, [amount, currency]);
 
   return (
     <div 
@@ -98,6 +97,7 @@ export function ReceiptRow({ number, date, amount, status, description, onView }
             <StatusBadge status={status} />
           </div>
           <p className="text-xs text-slate-500 mt-0.5 truncate">{description}</p>
+          {meta ? <div className="mt-1.5">{meta}</div> : null}
         </div>
       </div>
       

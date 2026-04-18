@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { ChecklistExecution } from '@/lib/types';
 
 async function listBuildingIdsForUser(
   pool: ReturnType<typeof getPool>,
   user: { id: string; clientId: string | null; scope: string; internalRole: string }
 ) {
-  if (user.scope === 'platform' && (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER')) {
+  if (canBypassTenantScope(user)) {
     const all = await pool.query<{ id: string }>('SELECT id FROM buildings');
     return all.rows.map((r) => r.id);
   }
@@ -67,14 +70,15 @@ export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') return NextResponse.json({ executions: [] as ChecklistExecution[] });
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ executions: [] as ChecklistExecution[] });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ executions: [] as ChecklistExecution[] });
 
   const url = new URL(req.url);
   const taskId = url.searchParams.get('taskId');
 
   const pool = getPool();
-  const tenantWhere = user.scope === 'platform' ? '' : 'AND client_id = $1';
-  const tenantParams = user.scope === 'platform' ? [] : [user.clientId];
+  const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
+  const tenantParams = bypassTenant ? [] : [user.clientId];
 
   const buildingIds = await listBuildingIdsForUser(pool, user);
   if (buildingIds.length === 0) return NextResponse.json({ executions: [] as ChecklistExecution[] });
@@ -125,6 +129,8 @@ export async function POST(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole !== 'STAFF') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   const templateId = typeof body?.templateId === 'string' ? body.templateId : null;
@@ -143,9 +149,9 @@ export async function POST(req: Request) {
   const tpl = tplRes.rows[0];
   if (!tpl) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
 
-  const clientId = user.scope === 'platform' ? tpl.client_id : user.clientId;
+  const clientId = bypassTenant ? tpl.client_id : user.clientId;
   if (!clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  if (user.scope !== 'platform' && tpl.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!bypassTenant && tpl.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const assignmentOk = await pool.query<{ ok: boolean }>(
     `SELECT true as ok
@@ -174,46 +180,44 @@ export async function POST(req: Request) {
   const now = new Date().toISOString();
   const id = `chkexec_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
-  const created = await pool.query<{
-    id: string;
-    client_id: string;
-    building_id: string;
-    unit_id: string | null;
-    task_id: string | null;
-    template_id: string;
-    assigned_to_user_id: string;
-    status: string;
-    results: unknown;
-    created_at: string;
-    updated_at: string;
-    completed_at: string | null;
-    approved_at: string | null;
-    deleted_at: string | null;
-  }>(
-    `INSERT INTO checklist_executions (id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at)
-     VALUES ($1, $2, $3, NULL, $4, $5, $6, 'PENDING', '[]'::jsonb, $7, $7)
-     RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
-    [id, clientId, tpl.building_id, taskId, templateId, user.id, now]
-  );
-
-  const entity = toExecution(created.rows[0]);
-
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
-       VALUES ($1, $2, $3, 'CREATE', 'ChecklistExecution', $4, $5::jsonb, $6::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+  try {
+    const created = await withTransaction(pool, async (db) => {
+      const res = await db.query<{
+        id: string;
+        client_id: string;
+        building_id: string;
+        unit_id: string | null;
+        task_id: string | null;
+        template_id: string;
+        assigned_to_user_id: string;
+        status: string;
+        results: unknown;
+        created_at: string;
+        updated_at: string;
+        completed_at: string | null;
+        approved_at: string | null;
+        deleted_at: string | null;
+      }>(
+        `INSERT INTO checklist_executions (id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at)
+         VALUES ($1, $2, $3, NULL, $4, $5, $6, 'PENDING', '[]'::jsonb, $7, $7)
+         RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
+        [id, clientId, tpl.building_id, taskId, templateId, user.id, now]
+      );
+      const entity = toExecution(res.rows[0]);
+      await insertAuditLog(db, {
         clientId,
-        user.id,
-        entity.id,
-        JSON.stringify({ buildingId: entity.buildingId, templateId: entity.templateId, taskId: entity.taskId ?? null }),
-        JSON.stringify(entity),
-      ]
-    )
-    .catch(() => null);
+        userId: user.id,
+        action: 'CREATE',
+        entity: 'ChecklistExecution',
+        entityId: entity.id,
+        metadata: { buildingId: entity.buildingId, templateId: entity.templateId, taskId: entity.taskId ?? null },
+        newData: entity,
+      });
+      return res;
+    });
 
-  return NextResponse.json({ execution: entity });
+    return NextResponse.json({ execution: toExecution(created.rows[0]) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }
-
-

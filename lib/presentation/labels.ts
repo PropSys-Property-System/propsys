@@ -119,3 +119,32 @@ export function formatClientBadge(user: User | null): string | null {
   return `Cliente: ${labelClient(user.clientId)}`;
 }
 
+export function labelWorkspaceArea(user: User): string {
+  switch (user.internalRole) {
+    case 'ROOT_ADMIN':
+      return 'Plataforma';
+    case 'CLIENT_MANAGER':
+      return 'Administración';
+    case 'BUILDING_ADMIN':
+      return 'Edificio';
+    case 'STAFF':
+      return 'Operaciones';
+    case 'OWNER':
+    case 'OCCUPANT':
+      return 'Portal residente';
+    default: {
+      const _exhaustiveCheck: never = user.internalRole;
+      return _exhaustiveCheck;
+    }
+  }
+}
+
+export function labelAccessScope(user: User): string | null {
+  if (user.scope === 'platform') return 'Acceso global';
+  if (!user.clientId) return null;
+  const safeClientNameById: Record<string, string> = {
+    client_001: 'PropSys Administraciones Globales',
+    client_002: 'Gestión Residencial Sur',
+  };
+  return safeClientNameById[user.clientId] ?? labelClient(user.clientId);
+}

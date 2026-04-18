@@ -1,14 +1,16 @@
-﻿import { getPool } from '@/lib/server/db/client';
+import { getPool } from '@/lib/server/db/client';
+import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
+import type { AuthScope, InternalRole, UIRole, UserStatus } from '@/lib/types/auth';
 
 export type SessionUser = {
   id: string;
   clientId: string | null;
   email: string;
   name: string;
-  role: string;
-  internalRole: string;
-  scope: string;
-  status: string;
+  role: UIRole;
+  internalRole: InternalRole;
+  scope: AuthScope;
+  status: UserStatus;
 };
 
 function parseCookie(req: Request, name: string) {
@@ -50,15 +52,22 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
     return null;
   }
 
+  let role: UIRole;
+  try {
+    role = mapInternalRoleToUIRole(u.internal_role as InternalRole);
+  } catch {
+    return null;
+  }
+
   return {
     id: u.id,
     clientId: u.client_id,
     email: u.email,
     name: u.name,
-    role: u.role,
-    internalRole: u.internal_role,
-    scope: u.scope,
-    status: u.status,
+    role,
+    internalRole: u.internal_role as InternalRole,
+    scope: u.scope as AuthScope,
+    status: u.status as UserStatus,
   };
 }
 

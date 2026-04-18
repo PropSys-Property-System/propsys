@@ -1,15 +1,19 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { Building } from '@/lib/types';
 
 export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ buildings: [] as Building[] });
+
   const pool = getPool();
-  const tenantWhere = user.scope === 'platform' ? '' : 'WHERE b.client_id = $1';
-  const tenantParams = user.scope === 'platform' ? [] : [user.clientId];
+  const tenantWhere = bypassTenant ? '' : 'WHERE b.client_id = $1';
+  const tenantParams = bypassTenant ? [] : [user.clientId];
 
   if (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER') {
     const rows = await pool.query<{
@@ -43,9 +47,9 @@ export async function GET(req: Request) {
        FROM buildings b
        JOIN user_building_assignments uba ON uba.building_id = b.id
        WHERE uba.user_id = $1 AND uba.status = 'ACTIVE' AND uba.deleted_at IS NULL
-       ${user.scope === 'platform' ? '' : 'AND b.client_id = $2'}
+       ${bypassTenant ? '' : 'AND b.client_id = $2'}
        ORDER BY b.name ASC`,
-      user.scope === 'platform' ? [user.id] : [user.id, user.clientId]
+      bypassTenant ? [user.id] : [user.id, user.clientId]
     );
 
     const buildings: Building[] = rows.rows.map((b) => ({
@@ -75,9 +79,9 @@ export async function GET(req: Request) {
          AND uua.status = 'ACTIVE'
          AND uua.deleted_at IS NULL
          ${user.internalRole === 'OWNER' ? "AND uua.assignment_type = 'OWNER'" : "AND uua.assignment_type = 'OCCUPANT'"}
-         ${user.scope === 'platform' ? '' : 'AND b.client_id = $2'}
+         ${bypassTenant ? '' : 'AND b.client_id = $2'}
        ORDER BY b.name ASC`,
-      user.scope === 'platform' ? [user.id] : [user.id, user.clientId]
+      bypassTenant ? [user.id] : [user.id, user.clientId]
     );
 
     const buildings: Building[] = rows.rows.map((b) => ({

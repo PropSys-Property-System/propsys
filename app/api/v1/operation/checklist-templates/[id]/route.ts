@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { ChecklistTemplate } from '@/lib/types';
 
 function toTemplate(row: {
@@ -31,7 +34,7 @@ function toTemplate(row: {
 
 async function ensureCanManageTemplate(pool: ReturnType<typeof getPool>, user: Awaited<ReturnType<typeof getSessionUser>>, template: { building_id: string }) {
   if (!user) return false;
-  if (user.scope !== 'platform' && !user.clientId) return false;
+  if (!canBypassTenantScope(user) && !user.clientId) return false;
   if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') return false;
 
   if (user.internalRole === 'BUILDING_ADMIN') {
@@ -93,7 +96,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!canBypassTenantScope(user) && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { id } = await ctx.params;
   const pool = getPool();
@@ -118,7 +121,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   );
   const current = currentRes.rows[0];
   if (!current) return NextResponse.json({ template: null }, { status: 404 });
-  if (user.scope !== 'platform' && current.client_id !== user.clientId) return NextResponse.json({ template: null }, { status: 404 });
+  if (!canBypassTenantScope(user) && current.client_id !== user.clientId) return NextResponse.json({ template: null }, { status: 404 });
 
   if (!current.is_private) {
     if (user.internalRole === 'BUILDING_ADMIN' || user.internalRole === 'STAFF') {
@@ -165,7 +168,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!canBypassTenantScope(user) && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
@@ -201,7 +204,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   );
   const current = currentRes.rows[0];
   if (!current || current.deleted_at) return NextResponse.json({ template: null }, { status: 404 });
-  if (user.scope !== 'platform' && current.client_id !== user.clientId) return NextResponse.json({ template: null }, { status: 404 });
+  if (!canBypassTenantScope(user) && current.client_id !== user.clientId) return NextResponse.json({ template: null }, { status: 404 });
   if (current.is_private) return NextResponse.json({ error: 'No se puede editar un checklist manual por tarea.' }, { status: 403 });
 
   const canManage = await ensureCanManageTemplate(pool, user, { building_id: current.building_id });
@@ -219,75 +222,79 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     required: it.required,
   }));
 
-  let entity: ChecklistTemplate;
-  if (usage.hasHistoricalUse) {
-    const replacementId = `chk_tpl_${Date.now()}_${randomUUID().slice(0, 8)}`;
-    const insertedRes = await pool.query<{
-      id: string;
-      client_id: string;
-      building_id: string;
-      name: string;
-      description: string | null;
-      items: unknown;
-      created_at: string;
-      updated_at: string;
-      deleted_at: string | null;
-    }>(
-      `INSERT INTO checklist_templates (id, client_id, building_id, name, description, items, status, created_by_user_id, created_at, updated_at, is_private, task_id)
-       VALUES ($1, $2, $3, $4, NULL, $5::jsonb, 'ACTIVE', $6, $7, $7, false, NULL)
-       RETURNING id, client_id, building_id, name, description, items, created_at, updated_at, deleted_at`,
-      [replacementId, current.client_id, current.building_id, name, JSON.stringify(hydratedItems), user.id, now]
-    );
-    await pool.query(
-      `UPDATE checklist_templates
-       SET deleted_at = $2, updated_at = $2
-       WHERE id = $1`,
-      [id, now]
-    );
-    entity = toTemplate(insertedRes.rows[0]);
-  } else {
-    const updatedRes = await pool.query<{
-      id: string;
-      client_id: string;
-      building_id: string;
-      name: string;
-      description: string | null;
-      items: unknown;
-      created_at: string;
-      updated_at: string;
-      deleted_at: string | null;
-    }>(
-      `UPDATE checklist_templates
-       SET name = $2, items = $3::jsonb, updated_at = $4
-       WHERE id = $1
-       RETURNING id, client_id, building_id, name, description, items, created_at, updated_at, deleted_at`,
-      [id, name, JSON.stringify(hydratedItems), now]
-    );
-    entity = toTemplate(updatedRes.rows[0]);
-  }
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)
-       VALUES ($1, $2, $3, 'UPDATE', 'ChecklistTemplate', $4, $5::jsonb, $6::jsonb, $7::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-        current.client_id,
-        user.id,
-        entity.id,
-        JSON.stringify({ buildingId: entity.buildingId, replacedTemplateId: usage.hasHistoricalUse ? current.id : null }),
-        JSON.stringify(toTemplate(current)),
-        JSON.stringify(entity),
-      ]
-    )
-    .catch(() => null);
+  try {
+    const entity = await withTransaction(pool, async (db) => {
+      let entity: ChecklistTemplate;
+      if (usage.hasHistoricalUse) {
+        const replacementId = `chk_tpl_${Date.now()}_${randomUUID().slice(0, 8)}`;
+        const insertedRes = await db.query<{
+          id: string;
+          client_id: string;
+          building_id: string;
+          name: string;
+          description: string | null;
+          items: unknown;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        }>(
+          `INSERT INTO checklist_templates (id, client_id, building_id, name, description, items, status, created_by_user_id, created_at, updated_at, is_private, task_id)
+           VALUES ($1, $2, $3, $4, NULL, $5::jsonb, 'ACTIVE', $6, $7, $7, false, NULL)
+           RETURNING id, client_id, building_id, name, description, items, created_at, updated_at, deleted_at`,
+          [replacementId, current.client_id, current.building_id, name, JSON.stringify(hydratedItems), user.id, now]
+        );
+        await db.query(
+          `UPDATE checklist_templates
+           SET deleted_at = $2, updated_at = $2
+           WHERE id = $1`,
+          [id, now]
+        );
+        entity = toTemplate(insertedRes.rows[0]);
+      } else {
+        const updatedRes = await db.query<{
+          id: string;
+          client_id: string;
+          building_id: string;
+          name: string;
+          description: string | null;
+          items: unknown;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        }>(
+          `UPDATE checklist_templates
+           SET name = $2, items = $3::jsonb, updated_at = $4
+           WHERE id = $1
+           RETURNING id, client_id, building_id, name, description, items, created_at, updated_at, deleted_at`,
+          [id, name, JSON.stringify(hydratedItems), now]
+        );
+        entity = toTemplate(updatedRes.rows[0]);
+      }
 
-  return NextResponse.json({ template: entity });
+      await insertAuditLog(db, {
+        clientId: current.client_id,
+        userId: user.id,
+        action: 'UPDATE',
+        entity: 'ChecklistTemplate',
+        entityId: entity.id,
+        metadata: { buildingId: entity.buildingId, replacedTemplateId: usage.hasHistoricalUse ? current.id : null },
+        oldData: toTemplate(current),
+        newData: entity,
+      });
+
+      return entity;
+    });
+
+    return NextResponse.json({ template: entity });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!canBypassTenantScope(user) && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { id } = await ctx.params;
   const pool = getPool();
@@ -311,7 +318,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   );
   const current = currentRes.rows[0];
   if (!current || current.deleted_at) return NextResponse.json({ ok: false }, { status: 404 });
-  if (user.scope !== 'platform' && current.client_id !== user.clientId) return NextResponse.json({ ok: false }, { status: 404 });
+  if (!canBypassTenantScope(user) && current.client_id !== user.clientId) return NextResponse.json({ ok: false }, { status: 404 });
   if (current.is_private) return NextResponse.json({ error: 'No se puede eliminar un checklist manual por tarea.' }, { status: 403 });
 
   const canManage = await ensureCanManageTemplate(pool, user, { building_id: current.building_id });
@@ -323,22 +330,21 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   }
 
   const now = new Date().toISOString();
-  await pool.query(`UPDATE checklist_templates SET deleted_at = $2, updated_at = $2 WHERE id = $1`, [id, now]);
-
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data)
-       VALUES ($1, $2, $3, 'DELETE', 'ChecklistTemplate', $4, $5::jsonb, $6::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-        current.client_id,
-        user.id,
-        id,
-        JSON.stringify({ buildingId: current.building_id }),
-        JSON.stringify(toTemplate(current)),
-      ]
-    )
-    .catch(() => null);
-
-  return NextResponse.json({ ok: true });
+  try {
+    await withTransaction(pool, async (db) => {
+      await db.query(`UPDATE checklist_templates SET deleted_at = $2, updated_at = $2 WHERE id = $1`, [id, now]);
+      await insertAuditLog(db, {
+        clientId: current.client_id,
+        userId: user.id,
+        action: 'DELETE',
+        entity: 'ChecklistTemplate',
+        entityId: id,
+        metadata: { buildingId: current.building_id },
+        oldData: toTemplate(current),
+      });
+    });
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }

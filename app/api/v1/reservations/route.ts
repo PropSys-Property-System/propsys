@@ -1,11 +1,14 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { Reservation, ReservationEntity } from '@/lib/types';
 
 async function listBuildingIdsForUser(pool: ReturnType<typeof getPool>, user: { id: string; clientId: string | null; scope: string; internalRole: string }) {
-  if (user.scope === 'platform' && (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER')) {
+  if (canBypassTenantScope(user)) {
     const all = await pool.query<{ id: string }>('SELECT id FROM buildings');
     return all.rows.map((r) => r.id);
   }
@@ -111,10 +114,11 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const pool = getPool();
-  const tenantWhere = user.scope === 'platform' ? '' : 'AND client_id = $1';
-  const tenantParams = user.scope === 'platform' ? [] : [user.clientId];
+  const bypassTenant = canBypassTenantScope(user);
+  const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
+  const tenantParams = bypassTenant ? [] : [user.clientId];
 
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ reservations: [] });
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ reservations: [] });
 
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
     const unitIds = await listUnitIdsForUser(pool, user);
@@ -178,6 +182,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   if (user.internalRole !== 'OWNER' && user.internalRole !== 'OCCUPANT') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
@@ -209,9 +215,9 @@ export async function POST(req: Request) {
   if (!unitRow) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (unitRow.building_id !== buildingId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-  const clientId = user.scope === 'platform' ? unitRow.client_id : user.clientId;
+  const clientId = bypassTenant ? unitRow.client_id : user.clientId;
   if (!clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  if (user.scope !== 'platform' && unitRow.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!bypassTenant && unitRow.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const assignmentOk = await pool.query<{ ok: boolean }>(
     `SELECT true as ok
@@ -261,43 +267,42 @@ export async function POST(req: Request) {
   const status: ReservationEntity['status'] = area.requires_approval ? 'REQUESTED' : 'APPROVED';
   const id = `resv_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
-  const rowRes = await pool.query<{
-    id: string;
-    client_id: string;
-    building_id: string;
-    unit_id: string;
-    common_area_id: string;
-    created_by_user_id: string;
-    start_at: string;
-    end_at: string;
-    status: string;
-    cancelled_at: string | null;
-    deleted_at: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `INSERT INTO reservations (id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
-     RETURNING id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at`,
-    [id, clientId, buildingId, unitId, commonAreaId, user.id, start.toISOString(), end.toISOString(), status, now]
-  );
-
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
-       VALUES ($1, $2, $3, 'CREATE', 'Reservation', $4, $5::jsonb, $6::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+  try {
+    const rowRes = await withTransaction(pool, async (db) => {
+      const created = await db.query<{
+        id: string;
+        client_id: string;
+        building_id: string;
+        unit_id: string;
+        common_area_id: string;
+        created_by_user_id: string;
+        start_at: string;
+        end_at: string;
+        status: string;
+        cancelled_at: string | null;
+        deleted_at: string | null;
+        created_at: string;
+        updated_at: string;
+      }>(
+        `INSERT INTO reservations (id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+         RETURNING id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at`,
+        [id, clientId, buildingId, unitId, commonAreaId, user.id, start.toISOString(), end.toISOString(), status, now]
+      );
+      await insertAuditLog(db, {
         clientId,
-        user.id,
-        id,
-        JSON.stringify({ buildingId, unitId, commonAreaId, status }),
-        JSON.stringify(rowRes.rows[0]),
-      ]
-    )
-    .catch(() => null);
+        userId: user.id,
+        action: 'CREATE',
+        entity: 'Reservation',
+        entityId: id,
+        metadata: { buildingId, unitId, commonAreaId, status },
+        newData: created.rows[0],
+      });
+      return created;
+    });
 
-  const entity = toEntity(rowRes.rows[0]);
-  return NextResponse.json({ reservation: entity });
+    return NextResponse.json({ reservation: toEntity(rowRes.rows[0]) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }
-

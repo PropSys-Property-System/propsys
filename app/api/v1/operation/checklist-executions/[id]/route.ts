@@ -1,8 +1,38 @@
 import { NextResponse } from 'next/server';
-import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { ChecklistExecution } from '@/lib/types';
+
+function parseTemplateItems(raw: unknown): Array<{ id: string; required: boolean }> {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((it) => (it && typeof it === 'object' ? (it as { id?: unknown; required?: unknown }) : null))
+      .filter((it): it is { id?: unknown; required?: unknown } => Boolean(it))
+      .filter((it) => typeof it.id === 'string')
+      .map((it) => ({ id: it.id as string, required: it.required === true }));
+  }
+  if (typeof raw === 'string') {
+    try {
+      return parseTemplateItems(JSON.parse(raw) as unknown);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function canCompleteChecklist(params: {
+  templateItems: Array<{ id: string; required: boolean }>;
+  results: ChecklistExecution['results'];
+}): boolean {
+  const requiredIds = params.templateItems.filter((it) => it.required).map((it) => it.id);
+  if (requiredIds.length === 0) return true;
+  const resultByItemId = new Map(params.results.map((r) => [r.itemId, Boolean(r.value)]));
+  return requiredIds.every((id) => resultByItemId.get(id) === true);
+}
 
 function toExecution(row: {
   id: string;
@@ -74,7 +104,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   );
   const current = currentRes.rows[0];
   if (!current || current.deleted_at) return NextResponse.json({ execution: null }, { status: 404 });
-  if (user.scope !== 'platform' && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ execution: null }, { status: 404 });
+  if (!canBypassTenantScope(user) && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ execution: null }, { status: 404 });
 
   const now = new Date().toISOString();
 
@@ -95,147 +125,155 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const updatedRes = await pool.query<{
-      id: string;
-      client_id: string;
-      building_id: string;
-      unit_id: string | null;
-      task_id: string | null;
-      template_id: string;
-      assigned_to_user_id: string;
-      status: string;
-      results: unknown;
-      created_at: string;
-      updated_at: string;
-      completed_at: string | null;
-      approved_at: string | null;
-      deleted_at: string | null;
-    }>(
-      `UPDATE checklist_executions
-       SET status = 'APPROVED', approved_at = $2, updated_at = $2
-       WHERE id = $1
-       RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
-      [id, now]
-    );
+    try {
+      const entity = await withTransaction(pool, async (db) => {
+        const updatedRes = await db.query<{
+          id: string;
+          client_id: string;
+          building_id: string;
+          unit_id: string | null;
+          task_id: string | null;
+          template_id: string;
+          assigned_to_user_id: string;
+          status: string;
+          results: unknown;
+          created_at: string;
+          updated_at: string;
+          completed_at: string | null;
+          approved_at: string | null;
+          deleted_at: string | null;
+        }>(
+          `UPDATE checklist_executions
+           SET status = 'APPROVED', approved_at = $2, updated_at = $2
+           WHERE id = $1
+           RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
+          [id, now]
+        );
 
-    const entity = toExecution(updatedRes.rows[0]);
-    if (entity.taskId) {
-      await pool
-        .query(
-          `UPDATE tasks
-           SET status = 'APPROVED', updated_at = $2
-           WHERE id = $1 AND checklist_template_id IS NOT NULL`,
-          [entity.taskId, now]
-        )
-        .then(async () => {
-          await pool
-            .query(
-              `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata)
-               VALUES ($1, $2, $3, 'UPDATE', 'Task', $4, $5::jsonb)`,
-              [
-                `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-                current.client_id,
-                user.id,
-                entity.taskId,
-                JSON.stringify({ source: 'checklist_execution', executionId: entity.id, toStatus: 'APPROVED' }),
-              ]
-            )
-            .catch(() => null);
-        })
-        .catch(() => null);
+        const entity = toExecution(updatedRes.rows[0]);
+        if (entity.taskId) {
+          const taskUpdated = await db.query<{ id: string }>(
+            `UPDATE tasks
+             SET status = 'APPROVED', updated_at = $2
+             WHERE id = $1 AND checklist_template_id IS NOT NULL
+             RETURNING id`,
+            [entity.taskId, now]
+          );
+          if (taskUpdated.rows[0]) {
+            await insertAuditLog(db, {
+              clientId: current.client_id,
+              userId: user.id,
+              action: 'UPDATE',
+              entity: 'Task',
+              entityId: entity.taskId,
+              metadata: { source: 'checklist_execution', executionId: entity.id, toStatus: 'APPROVED' },
+            });
+          }
+        }
+
+        await insertAuditLog(db, {
+          clientId: current.client_id,
+          userId: user.id,
+          action: 'APPROVE',
+          entity: 'ChecklistExecution',
+          entityId: entity.id,
+          metadata: { buildingId: entity.buildingId, templateId: entity.templateId, taskId: entity.taskId ?? null },
+          oldData: toExecution(current),
+          newData: entity,
+        });
+
+        return entity;
+      });
+
+      return NextResponse.json({ execution: entity });
+    } catch {
+      return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
     }
-    await pool
-      .query(
-        `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)
-         VALUES ($1, $2, $3, 'APPROVE', 'ChecklistExecution', $4, $5::jsonb, $6::jsonb, $7::jsonb)`,
-        [
-          `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-          current.client_id,
-          user.id,
-          entity.id,
-          JSON.stringify({ buildingId: entity.buildingId, templateId: entity.templateId, taskId: entity.taskId ?? null }),
-          JSON.stringify(toExecution(current)),
-          JSON.stringify(entity),
-        ]
-      )
-      .catch(() => null);
-
-    return NextResponse.json({ execution: entity });
   }
 
   if (user.internalRole !== 'STAFF') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (current.assigned_to_user_id !== user.id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (!results) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
 
+  if (action === 'COMPLETE') {
+    const tplRes = await pool.query<{ items: unknown }>(
+      `SELECT items
+       FROM checklist_templates
+       WHERE id = $1 AND deleted_at IS NULL
+       LIMIT 1`,
+      [current.template_id]
+    );
+    const items = parseTemplateItems(tplRes.rows[0]?.items);
+    if (!canCompleteChecklist({ templateItems: items, results })) {
+      return NextResponse.json({ error: 'Marca todos los items requeridos para completar el checklist.' }, { status: 400 });
+    }
+  }
+
   const nextStatus = action === 'COMPLETE' ? 'COMPLETED' : current.status;
   const completedAt = action === 'COMPLETE' ? now : current.completed_at;
 
-  const updatedRes = await pool.query<{
-    id: string;
-    client_id: string;
-    building_id: string;
-    unit_id: string | null;
-    task_id: string | null;
-    template_id: string;
-    assigned_to_user_id: string;
-    status: string;
-    results: unknown;
-    created_at: string;
-    updated_at: string;
-    completed_at: string | null;
-    approved_at: string | null;
-    deleted_at: string | null;
-  }>(
-    `UPDATE checklist_executions
-     SET results = $2::jsonb, status = $3, completed_at = $4, updated_at = $5
-     WHERE id = $1
-     RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
-    [id, JSON.stringify(results), nextStatus, completedAt, now]
-  );
+  try {
+    const entity = await withTransaction(pool, async (db) => {
+      const updatedRes = await db.query<{
+        id: string;
+        client_id: string;
+        building_id: string;
+        unit_id: string | null;
+        task_id: string | null;
+        template_id: string;
+        assigned_to_user_id: string;
+        status: string;
+        results: unknown;
+        created_at: string;
+        updated_at: string;
+        completed_at: string | null;
+        approved_at: string | null;
+        deleted_at: string | null;
+      }>(
+        `UPDATE checklist_executions
+         SET results = $2::jsonb, status = $3, completed_at = $4, updated_at = $5
+         WHERE id = $1
+         RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
+        [id, JSON.stringify(results), nextStatus, completedAt, now]
+      );
 
-  const entity = toExecution(updatedRes.rows[0]);
-  if (action === 'COMPLETE' && entity.taskId) {
-    await pool
-      .query(
-        `UPDATE tasks
-         SET status = 'COMPLETED', updated_at = $2
-         WHERE id = $1 AND checklist_template_id IS NOT NULL AND status <> 'APPROVED'`,
-        [entity.taskId, now]
-      )
-      .then(async () => {
-        await pool
-          .query(
-            `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata)
-             VALUES ($1, $2, $3, 'UPDATE', 'Task', $4, $5::jsonb)`,
-            [
-              `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-              current.client_id,
-              user.id,
-              entity.taskId,
-              JSON.stringify({ source: 'checklist_execution', executionId: entity.id, toStatus: 'COMPLETED' }),
-            ]
-          )
-          .catch(() => null);
-      })
-      .catch(() => null);
+      const entity = toExecution(updatedRes.rows[0]);
+      if (action === 'COMPLETE' && entity.taskId) {
+        const taskUpdated = await db.query<{ id: string }>(
+          `UPDATE tasks
+           SET status = 'COMPLETED', updated_at = $2
+           WHERE id = $1 AND checklist_template_id IS NOT NULL AND status <> 'APPROVED'
+           RETURNING id`,
+          [entity.taskId, now]
+        );
+        if (taskUpdated.rows[0]) {
+          await insertAuditLog(db, {
+            clientId: current.client_id,
+            userId: user.id,
+            action: 'UPDATE',
+            entity: 'Task',
+            entityId: entity.taskId,
+            metadata: { source: 'checklist_execution', executionId: entity.id, toStatus: 'COMPLETED' },
+          });
+        }
+      }
+
+      await insertAuditLog(db, {
+        clientId: current.client_id,
+        userId: user.id,
+        action: 'UPDATE',
+        entity: 'ChecklistExecution',
+        entityId: entity.id,
+        metadata: { buildingId: entity.buildingId, templateId: entity.templateId, taskId: entity.taskId ?? null, action },
+        oldData: toExecution(current),
+        newData: entity,
+      });
+
+      return entity;
+    });
+
+    return NextResponse.json({ execution: entity });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
   }
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)
-       VALUES ($1, $2, $3, 'UPDATE', 'ChecklistExecution', $4, $5::jsonb, $6::jsonb, $7::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-        current.client_id,
-        user.id,
-        entity.id,
-        JSON.stringify({ buildingId: entity.buildingId, templateId: entity.templateId, taskId: entity.taskId ?? null, action }),
-        JSON.stringify(toExecution(current)),
-        JSON.stringify(entity),
-      ]
-    )
-    .catch(() => null);
-
-  return NextResponse.json({ execution: entity });
 }
-
-

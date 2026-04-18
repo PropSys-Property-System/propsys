@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getSessionUserFromCookieHeader } from './server-session';
 
 const query = vi.fn();
@@ -39,6 +39,30 @@ describe('server-session', () => {
     const user = await getSessionUserFromCookieHeader('ps_session=sess_00000000-0000-0000-0000-000000000000');
     expect(user?.id).toBe('u1');
     expect(user?.status).toBe('ACTIVE');
+  });
+
+  it('derives role from internal_role (does not trust persisted role)', async () => {
+    query.mockReset();
+
+    query.mockResolvedValueOnce({ rows: [{ user_id: 'u3', client_id: 'client_001' }] });
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'u3',
+          email: 'staff@propsys.com',
+          name: 'Staff Operativo',
+          role: 'MANAGER',
+          internal_role: 'STAFF',
+          client_id: 'client_001',
+          scope: 'client',
+          status: 'ACTIVE',
+        },
+      ],
+    });
+
+    const user = await getSessionUserFromCookieHeader('ps_session=sess_00000000-0000-0000-0000-000000000000');
+    expect(user?.internalRole).toBe('STAFF');
+    expect(user?.role).toBe('STAFF');
   });
 
   it('revokes session and returns null when user is not ACTIVE', async () => {

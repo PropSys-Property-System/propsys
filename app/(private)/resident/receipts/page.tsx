@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { receiptsRepo } from '@/lib/data';
 import { Receipt } from '@/lib/types';
+import { formatReceiptAmount, summarizeReceiptTotalsByCurrency } from '@/lib/presentation/receipts';
 
 export default function ResidentReceiptsPage() {
   const { user } = useAuth();
@@ -55,9 +56,15 @@ export default function ResidentReceiptsPage() {
     () =>
       receipts
         .filter((receipt) => receipt.status === 'PENDING' || receipt.status === 'OVERDUE')
-        .reduce((sum, receipt) => sum + receipt.amount, 0),
+        .map(({ amount, currency }) => ({ amount, currency })),
     [receipts]
   );
+
+  const pendingAmountLabel = useMemo(() => {
+    const totals = summarizeReceiptTotalsByCurrency(pendingAmount);
+    if (totals.length === 0) return formatReceiptAmount(0, 'PEN');
+    return totals.join(' · ');
+  }, [pendingAmount]);
 
   const latestPaidReceipt = useMemo(
     () =>
@@ -92,8 +99,8 @@ export default function ResidentReceiptsPage() {
           <div className="p-8 bg-white rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-primary/20 transition-all cursor-default">
             <div className="space-y-1">
               <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Deuda Pendiente</p>
-              <p className="text-4xl font-black text-slate-900 group-hover:text-primary transition-colors">
-                ${pendingAmount.toLocaleString('es-CL')} <span className="text-xs font-bold text-slate-400">CLP</span>
+              <p className="text-4xl font-black text-slate-900 group-hover:text-primary transition-colors leading-tight">
+                {pendingAmountLabel}
               </p>
             </div>
             <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center">
@@ -105,7 +112,7 @@ export default function ResidentReceiptsPage() {
             <div className="space-y-1">
               <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Último Pago</p>
               <p className="text-4xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
-                ${latestPaidReceipt ? latestPaidReceipt.amount.toLocaleString('es-CL') : '0'} <span className="text-xs font-bold text-slate-400">CLP</span>
+                {latestPaidReceipt ? formatReceiptAmount(latestPaidReceipt.amount, latestPaidReceipt.currency) : formatReceiptAmount(0, 'PEN')}
               </p>
             </div>
             <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
@@ -150,6 +157,7 @@ export default function ResidentReceiptsPage() {
                   number={receipt.number}
                   date={receipt.issueDate}
                   amount={receipt.amount}
+                  currency={receipt.currency}
                   status={receipt.status}
                   description={receipt.description}
                   onView={() => router.push(`/resident/receipts/${receipt.id}`)}

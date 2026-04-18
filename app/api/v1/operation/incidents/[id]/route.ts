@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { IncidentEntity } from '@/lib/types';
-import { randomUUID } from 'node:crypto';
 
 function toEntity(row: {
   id: string;
@@ -73,7 +75,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   );
   const current = currentRes.rows[0];
   if (!current) return NextResponse.json({ incident: null }, { status: 404 });
-  if (user.scope !== 'platform' && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ incident: null }, { status: 404 });
+  if (!canBypassTenantScope(user) && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ incident: null }, { status: 404 });
 
   if (user.internalRole === 'STAFF') {
     const canTouchIncident =
@@ -106,43 +108,44 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   const now = new Date().toISOString();
-  const updated = await pool.query<{
-    id: string;
-    client_id: string;
-    building_id: string;
-    unit_id: string | null;
-    title: string;
-    description: string;
-    status: string;
-    priority: string;
-    reported_by_user_id: string;
-    assigned_to_user_id: string | null;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `UPDATE incidents
-     SET status = $2, updated_at = $3
-     WHERE id = $1
-     RETURNING id, client_id, building_id, unit_id, title, description, status, priority, reported_by_user_id, assigned_to_user_id, created_at, updated_at`,
-    [id, status, now]
-  );
+  try {
+    const updated = await withTransaction(pool, async (db) => {
+      const res = await db.query<{
+        id: string;
+        client_id: string;
+        building_id: string;
+        unit_id: string | null;
+        title: string;
+        description: string;
+        status: string;
+        priority: string;
+        reported_by_user_id: string;
+        assigned_to_user_id: string | null;
+        created_at: string;
+        updated_at: string;
+      }>(
+        `UPDATE incidents
+         SET status = $2, updated_at = $3
+         WHERE id = $1
+         RETURNING id, client_id, building_id, unit_id, title, description, status, priority, reported_by_user_id, assigned_to_user_id, created_at, updated_at`,
+        [id, status, now]
+      );
 
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)
-       VALUES ($1, $2, $3, 'UPDATE', 'Incident', $4, $5::jsonb, $6::jsonb, $7::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-        current.client_id,
-        user.id,
-        id,
-        JSON.stringify({ fromStatus: current.status, toStatus: status }),
-        JSON.stringify(current),
-        JSON.stringify(updated.rows[0]),
-      ]
-    )
-    .catch(() => null);
+      await insertAuditLog(db, {
+        clientId: current.client_id,
+        userId: user.id,
+        action: 'UPDATE',
+        entity: 'Incident',
+        entityId: id,
+        metadata: { fromStatus: current.status, toStatus: status },
+        oldData: current,
+        newData: res.rows[0],
+      });
+      return res;
+    });
 
-  return NextResponse.json({ incident: toEntity(updated.rows[0]) });
+    return NextResponse.json({ incident: toEntity(updated.rows[0]) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }
-

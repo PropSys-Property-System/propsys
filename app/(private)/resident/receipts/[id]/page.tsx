@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-context';
 import { buildingsRepo, receiptsRepo, unitsRepo } from '@/lib/data';
 import { Building as BuildingType, Receipt, Unit as UnitType } from '@/lib/types';
+import { formatReceiptAmount, formatReceiptDate } from '@/lib/presentation/receipts';
 
 interface PageParams {
   id: string;
@@ -155,7 +156,7 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
                 <div className="flex flex-wrap gap-6">
                   <div className="flex items-center text-slate-500 font-medium">
                     <Calendar className="w-4 h-4 mr-2 text-primary" />
-                    {new Date(receipt.issueDate).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}
+                    {formatReceiptDate(receipt.issueDate, { month: 'long', year: 'numeric' })}
                   </div>
                   <div className="flex items-center text-slate-500 font-medium">
                     <Building className="w-4 h-4 mr-2 text-primary" />
@@ -169,8 +170,8 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
               </div>
               <div className="bg-slate-50 p-8 rounded-[1.5rem] border border-slate-100 text-center md:text-right min-w-[200px]">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total a Pagar</p>
-                <p className="text-4xl font-black text-primary">${receipt.amount.toLocaleString('es-CL')}</p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Vence el {new Date(receipt.dueDate).toLocaleDateString('es-CL')}</p>
+                <p className="text-4xl font-black text-primary">{formatReceiptAmount(receipt.amount, receipt.currency)}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Vence el {formatReceiptDate(receipt.dueDate)}</p>
               </div>
             </div>
 
@@ -185,14 +186,14 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
                       <p className="text-sm font-bold text-slate-700">Gasto Común Ordinario</p>
                       <p className="text-xs text-slate-400 font-medium">Administración, conserjería y servicios básicos</p>
                     </div>
-                    <p className="text-sm font-black text-slate-900">${(receipt.amount * 0.85).toLocaleString('es-CL')}</p>
+                    <p className="text-sm font-black text-slate-900">{formatReceiptAmount(receipt.amount * 0.85, receipt.currency)}</p>
                   </div>
                   <div className="flex justify-between items-center p-4 rounded-2xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
                     <div className="space-y-1">
                       <p className="text-sm font-bold text-slate-700">Fondo de Reserva</p>
                       <p className="text-xs text-slate-400 font-medium">Ahorro para mantenciones mayores</p>
                     </div>
-                    <p className="text-sm font-black text-slate-900">${(receipt.amount * 0.15).toLocaleString('es-CL')}</p>
+                    <p className="text-sm font-black text-slate-900">{formatReceiptAmount(receipt.amount * 0.15, receipt.currency)}</p>
                   </div>
                 </div>
               </div>
@@ -206,7 +207,7 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
                   </div>
                   <div>
                     <p className="text-sm font-bold text-emerald-900">Este recibo ya ha sido pagado</p>
-                    <p className="text-xs text-emerald-700 font-medium mt-0.5">Comprobante generado el {new Date(receipt.issueDate).toLocaleDateString('es-CL')}.</p>
+                    <p className="text-xs text-emerald-700 font-medium mt-0.5">Comprobante generado el {formatReceiptDate(receipt.issueDate)}.</p>
                   </div>
                 </div>
               )}

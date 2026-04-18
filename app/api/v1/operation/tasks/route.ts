@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { TaskEntity } from '@/lib/types';
 import { randomUUID } from 'node:crypto';
 
 async function listBuildingIdsForUser(pool: ReturnType<typeof getPool>, user: { id: string; clientId: string | null; scope: string; internalRole: string }) {
-  if (user.scope === 'platform' && (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER')) {
+  if (canBypassTenantScope(user)) {
     const all = await pool.query<{ id: string }>('SELECT id FROM buildings');
     return all.rows.map((r) => r.id);
   }
@@ -58,11 +61,12 @@ export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') return NextResponse.json({ tasks: [] });
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ tasks: [] });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ tasks: [] });
 
   const pool = getPool();
-  const tenantWhere = user.scope === 'platform' ? '' : 'AND client_id = $1';
-  const tenantParams = user.scope === 'platform' ? [] : [user.clientId];
+  const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
+  const tenantParams = bypassTenant ? [] : [user.clientId];
 
   const buildingIds = await listBuildingIdsForUser(pool, user);
   if (buildingIds.length === 0) return NextResponse.json({ tasks: [] });
@@ -101,7 +105,8 @@ export async function POST(req: Request) {
   if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
-  if (user.scope !== 'platform' && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   const buildingId = typeof body?.buildingId === 'string' ? body.buildingId : null;
@@ -134,9 +139,9 @@ export async function POST(req: Request) {
   const building = buildingRes.rows[0];
   if (!building) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
-  const clientId = user.scope === 'platform' ? building.client_id : user.clientId;
+  const clientId = bypassTenant ? building.client_id : user.clientId;
   if (!clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  if (user.scope !== 'platform' && building.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!bypassTenant && building.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   if (user.internalRole === 'BUILDING_ADMIN') {
     const ok = await pool.query<{ ok: boolean }>(
@@ -159,9 +164,9 @@ export async function POST(req: Request) {
        AND uba.building_id = $2
        AND uba.status = 'ACTIVE'
        AND uba.deleted_at IS NULL
-       ${user.scope === 'platform' ? '' : 'AND uba.client_id = $3 AND u.client_id = $3'}
+       ${bypassTenant ? '' : 'AND uba.client_id = $3 AND u.client_id = $3'}
      LIMIT 1`,
-    user.scope === 'platform' ? [assignedToUserId, buildingId] : [assignedToUserId, buildingId, clientId]
+    bypassTenant ? [assignedToUserId, buildingId] : [assignedToUserId, buildingId, clientId]
   );
   if (!canAssign.rows[0]) {
     return NextResponse.json({ error: 'La tarea solo se puede asignar a personal activo del mismo edificio.' }, { status: 400 });
@@ -175,9 +180,9 @@ export async function POST(req: Request) {
          AND building_id = $2
          AND is_private = false
          AND deleted_at IS NULL
-         ${user.scope === 'platform' ? '' : 'AND client_id = $3'}
+        ${bypassTenant ? '' : 'AND client_id = $3'}
        LIMIT 1`,
-      user.scope === 'platform' ? [checklistTemplateId, buildingId] : [checklistTemplateId, buildingId, clientId]
+      bypassTenant ? [checklistTemplateId, buildingId] : [checklistTemplateId, buildingId, clientId]
     );
     if (!tpl.rows[0]) return NextResponse.json({ error: 'Checklist inválido para el edificio.' }, { status: 400 });
   }
@@ -187,31 +192,70 @@ export async function POST(req: Request) {
   const id = `task_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
   if (manualChecklistItems) {
-    const client = await pool.connect();
     try {
-      await client.query('BEGIN');
-      await client.query(
-        `INSERT INTO tasks (id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at)
-         VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $9)
-         RETURNING id`,
-        [id, clientId, buildingId, assignedToUserId, user.id, title, description || null, status, now]
-      );
+      const updatedTask = await withTransaction(pool, async (db) => {
+        await db.query(
+          `INSERT INTO tasks (id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at)
+           VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9, $9)`,
+          [id, clientId, buildingId, assignedToUserId, user.id, title, description || null, status, now]
+        );
 
-      const templateId = `chk_tpl_${Date.now()}_${randomUUID().slice(0, 8)}`;
-      const templateName = manualChecklistName || 'Checklist manual';
-      const items = manualChecklistItems.map((it, idx) => ({
-        id: `chk_i_${idx + 1}_${randomUUID().slice(0, 8)}`,
-        label: it.label,
-        required: it.required,
-      }));
+        const templateId = `chk_tpl_${Date.now()}_${randomUUID().slice(0, 8)}`;
+        const templateName = manualChecklistName || 'Checklist manual';
+        const items = manualChecklistItems.map((it, idx) => ({
+          id: `chk_i_${idx + 1}_${randomUUID().slice(0, 8)}`,
+          label: it.label,
+          required: it.required,
+        }));
 
-      await client.query(
-        `INSERT INTO checklist_templates (id, client_id, building_id, name, description, items, status, created_by_user_id, deleted_at, created_at, updated_at, is_private, task_id)
-         VALUES ($1, $2, $3, $4, NULL, $5::jsonb, 'ACTIVE', $6, NULL, $7, $7, true, $8)`,
-        [templateId, clientId, buildingId, templateName, JSON.stringify(items), user.id, now, id]
-      );
+        await db.query(
+          `INSERT INTO checklist_templates (id, client_id, building_id, name, description, items, status, created_by_user_id, deleted_at, created_at, updated_at, is_private, task_id)
+           VALUES ($1, $2, $3, $4, NULL, $5::jsonb, 'ACTIVE', $6, NULL, $7, $7, true, $8)`,
+          [templateId, clientId, buildingId, templateName, JSON.stringify(items), user.id, now, id]
+        );
 
-      const updatedTask = await client.query<{
+        const res = await db.query<{
+          id: string;
+          client_id: string;
+          building_id: string;
+          checklist_template_id: string | null;
+          assigned_to_user_id: string;
+          created_by_user_id: string;
+          title: string;
+          description: string | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        }>(
+          `UPDATE tasks
+           SET checklist_template_id = $2, updated_at = $3
+           WHERE id = $1
+           RETURNING id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at`,
+          [id, templateId, now]
+        );
+
+        await insertAuditLog(db, {
+          clientId,
+          userId: user.id,
+          action: 'CREATE',
+          entity: 'Task',
+          entityId: id,
+          metadata: { buildingId, assignedToUserId, checklistTemplateId: templateId, status, manualChecklist: true },
+          newData: res.rows[0],
+        });
+
+        return res;
+      });
+
+      return NextResponse.json({ task: toEntity(updatedTask.rows[0]) });
+    } catch {
+      return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+    }
+  }
+
+  try {
+    const row = await withTransaction(pool, async (db) => {
+      const created = await db.query<{
         id: string;
         client_id: string;
         building_id: string;
@@ -224,72 +268,24 @@ export async function POST(req: Request) {
         created_at: string;
         updated_at: string;
       }>(
-        `UPDATE tasks
-         SET checklist_template_id = $2, updated_at = $3
-         WHERE id = $1
+        `INSERT INTO tasks (id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
          RETURNING id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at`,
-        [id, templateId, now]
+        [id, clientId, buildingId, checklistTemplateId, assignedToUserId, user.id, title, description || null, status, now]
       );
-
-      await client.query('COMMIT');
-
-      await pool
-        .query(
-          `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
-           VALUES ($1, $2, $3, 'CREATE', 'Task', $4, $5::jsonb, $6::jsonb)`,
-          [
-            `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-            clientId,
-            user.id,
-            id,
-            JSON.stringify({ buildingId, assignedToUserId, checklistTemplateId: templateId, status, manualChecklist: true }),
-            JSON.stringify(updatedTask.rows[0]),
-          ]
-        )
-        .catch(() => null);
-
-      return NextResponse.json({ task: toEntity(updatedTask.rows[0]) });
-    } catch {
-      await client.query('ROLLBACK');
-      return NextResponse.json({ error: 'No pudimos crear la tarea.' }, { status: 500 });
-    } finally {
-      client.release();
-    }
-  }
-
-  const row = await pool.query<{
-    id: string;
-    client_id: string;
-    building_id: string;
-    checklist_template_id: string | null;
-    assigned_to_user_id: string;
-    created_by_user_id: string;
-    title: string;
-    description: string | null;
-    status: string;
-    created_at: string;
-    updated_at: string;
-  }>(
-    `INSERT INTO tasks (id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
-     RETURNING id, client_id, building_id, checklist_template_id, assigned_to_user_id, created_by_user_id, title, description, status, created_at, updated_at`,
-    [id, clientId, buildingId, checklistTemplateId, assignedToUserId, user.id, title, description || null, status, now]
-  );
-
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
-       VALUES ($1, $2, $3, 'CREATE', 'Task', $4, $5::jsonb, $6::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
+      await insertAuditLog(db, {
         clientId,
-        user.id,
-        id,
-        JSON.stringify({ buildingId, assignedToUserId, checklistTemplateId, status }),
-        JSON.stringify(row.rows[0]),
-      ]
-    )
-    .catch(() => null);
-
-  return NextResponse.json({ task: toEntity(row.rows[0]) });
+        userId: user.id,
+        action: 'CREATE',
+        entity: 'Task',
+        entityId: id,
+        metadata: { buildingId, assignedToUserId, checklistTemplateId, status },
+        newData: created.rows[0],
+      });
+      return created;
+    });
+    return NextResponse.json({ task: toEntity(row.rows[0]) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }

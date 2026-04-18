@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Plus, Search, Wrench } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { buildingsRepo, incidentsRepo, unitsRepo } from '@/lib/data';
+import { formatDateTime } from '@/lib/presentation/dates';
 import { IncidentEntity } from '@/lib/types';
 import { formatClientBadge, labelIncidentPriority, labelIncidentStatus } from '@/lib/presentation/labels';
 
@@ -176,7 +177,7 @@ export default function ResidentTicketsPage() {
                   <p className="mt-3 text-sm font-black text-slate-900">{t.title}</p>
                   <p className="mt-2 text-xs text-slate-500 font-medium">{t.description}</p>
                   <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {new Date(t.createdAt).toLocaleString('es-CL')}
+                    {formatDateTime(t.createdAt)}
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">

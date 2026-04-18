@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Megaphone, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { noticesRepo } from '@/lib/data';
+import { formatDateTime } from '@/lib/presentation/dates';
 import { Notice } from '@/lib/types';
 import { labelNoticeAudience } from '@/lib/presentation/labels';
 
@@ -79,7 +80,7 @@ export default function ResidentNoticesPage() {
                       {n.audience === 'ALL_BUILDINGS' ? 'PropSys' : labelNoticeAudience(n.audience)}
                     </span>
                     <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                      {new Date(n.createdAt).toLocaleString('es-CL')}
+                      {formatDateTime(n.createdAt)}
                     </span>
                   </div>
                   <p className="mt-3 text-sm font-black text-slate-900">{n.title}</p>

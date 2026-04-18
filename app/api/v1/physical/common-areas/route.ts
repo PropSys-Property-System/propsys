@@ -1,7 +1,9 @@
-﻿import { NextResponse } from 'next/server';
-import { randomUUID } from 'node:crypto';
+import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import type { CommonArea } from '@/lib/types';
 
 type CommonAreaRow = {
@@ -37,11 +39,13 @@ export async function GET(req: Request) {
   if (!buildingId) return NextResponse.json({ error: 'buildingId requerido' }, { status: 400 });
 
   const pool = getPool();
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && !user.clientId) return NextResponse.json({ areas: [] as CommonArea[] });
 
   const buildingRes = await pool.query<{ id: string; client_id: string }>('SELECT id, client_id FROM buildings WHERE id = $1 LIMIT 1', [buildingId]);
   const building = buildingRes.rows[0];
   if (!building) return NextResponse.json({ areas: [] as CommonArea[] });
-  if (user.scope !== 'platform' && building.client_id !== user.clientId) return NextResponse.json({ areas: [] as CommonArea[] });
+  if (!bypassTenant && building.client_id !== user.clientId) return NextResponse.json({ areas: [] as CommonArea[] });
 
   if (user.internalRole === 'BUILDING_ADMIN' || user.internalRole === 'STAFF') {
     const ok = await pool.query<{ ok: boolean }>(
@@ -111,36 +115,37 @@ export async function PATCH(req: Request) {
   if (!current || current.deleted_at || current.status !== 'ACTIVE') {
     return NextResponse.json({ error: 'Área común no encontrada' }, { status: 404 });
   }
-  if (user.scope !== 'platform' && (!user.clientId || current.client_id !== user.clientId)) {
+  const bypassTenant = canBypassTenantScope(user);
+  if (!bypassTenant && (!user.clientId || current.client_id !== user.clientId)) {
     return NextResponse.json({ error: 'Área común no encontrada' }, { status: 404 });
   }
 
   const updatedAt = new Date().toISOString();
-  const updatedRes = await pool.query<CommonAreaRow>(
-    `UPDATE common_areas
-     SET requires_approval = $2, updated_at = $3
-     WHERE id = $1
-     RETURNING id, client_id, building_id, name, capacity, requires_approval, status, created_at, updated_at, deleted_at`,
-    [id, requiresApproval, updatedAt]
-  );
-  const updated = updatedRes.rows[0];
+  try {
+    const updated = await withTransaction(pool, async (db) => {
+      const updatedRes = await db.query<CommonAreaRow>(
+        `UPDATE common_areas
+         SET requires_approval = $2, updated_at = $3
+         WHERE id = $1
+         RETURNING id, client_id, building_id, name, capacity, requires_approval, status, created_at, updated_at, deleted_at`,
+        [id, requiresApproval, updatedAt]
+      );
+      const updated = updatedRes.rows[0];
+      await insertAuditLog(db, {
+        clientId: updated.client_id,
+        userId: user.id,
+        action: 'UPDATE',
+        entity: 'CommonArea',
+        entityId: updated.id,
+        metadata: { requiresApproval },
+        oldData: current,
+        newData: updated,
+      });
+      return updated;
+    });
 
-  await pool
-    .query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data, new_data)
-       VALUES ($1, $2, $3, 'UPDATE', 'CommonArea', $4, $5::jsonb, $6::jsonb, $7::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-        updated.client_id,
-        user.id,
-        updated.id,
-        JSON.stringify({ requiresApproval }),
-        JSON.stringify(current),
-        JSON.stringify(updated),
-      ]
-    )
-    .catch(() => null);
-
-  return NextResponse.json({ area: toCommonArea(updated) });
+    return NextResponse.json({ area: toCommonArea(updated) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 }
-
