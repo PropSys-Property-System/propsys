@@ -103,7 +103,11 @@ export async function GET(req: Request) {
   }));
 
   const visible = entities.filter((n) => {
-    if (n.audience === 'ALL_BUILDINGS') return true;
+    if (n.audience === 'ALL_BUILDINGS') {
+      if (bypassTenant) return true;
+      if (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER') return true;
+      return buildingIds.length > 0;
+    }
     if (!n.buildingId) return false;
     return buildingIds.includes(n.buildingId);
   });

@@ -144,6 +144,61 @@ describe('notices API (tenant/platform scope hardening)', () => {
     expect(ids.has('n2')).toBe(false);
   });
 
+  it('does not show ALL_BUILDINGS notices to a BUILDING_ADMIN without assignments', async () => {
+    poolQuery.mockReset();
+    (sessionUser as unknown as { internalRole: string }).internalRole = 'BUILDING_ADMIN';
+    (sessionUser as unknown as { scope: string }).scope = 'client';
+    (sessionUser as unknown as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as unknown as { id: string }).id = 'u_admin_empty';
+
+    const dataset = [
+      {
+        id: 'n1',
+        client_id: 'client_001',
+        audience: 'ALL_BUILDINGS',
+        building_id: null,
+        title: 'Aviso global',
+        body: 'b',
+        status: 'PUBLISHED',
+        created_by_user_id: 'u1',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        published_at: new Date().toISOString(),
+        deleted_at: null,
+      },
+      {
+        id: 'n2',
+        client_id: 'client_001',
+        audience: 'BUILDING',
+        building_id: 'b1',
+        title: 'Aviso edificio',
+        body: 'b',
+        status: 'PUBLISHED',
+        created_by_user_id: 'u2',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        published_at: new Date().toISOString(),
+        deleted_at: null,
+      },
+    ];
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM user_building_assignments')) {
+        return { rows: [] };
+      }
+      if (sql.includes('FROM notices')) {
+        return { rows: dataset };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/notices', { method: 'GET' });
+    const res = await listNotices(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { notices: Array<{ id: string }> };
+    expect(data.notices).toEqual([]);
+  });
+
   it('rejects ROOT_ADMIN + scope=platform notice creation without explicit clientId', async () => {
     poolQuery.mockReset();
     clientQuery.mockReset();

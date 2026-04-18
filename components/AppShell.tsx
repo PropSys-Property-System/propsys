@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { UserRole } from '@/lib/types';
-import { labelAccessScope, labelInternalRole, labelWorkspaceArea } from '@/lib/presentation/labels';
+import { labelInternalRole, labelWorkspaceArea } from '@/lib/presentation/labels';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -62,8 +62,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const filteredNav = NAV_ITEMS.filter((item) => user && item.roles.includes(user.role));
   const workspaceArea = user ? labelWorkspaceArea(user) : null;
-  const scopeLabel = user ? labelAccessScope(user) : null;
-
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {isSidebarOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setIsSidebarOpen(false)} />}
@@ -115,11 +113,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
                     {labelInternalRole(user.internalRole)}
                   </span>
-                  {scopeLabel && (
-                    <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      {scopeLabel}
-                    </span>
-                  )}
                 </div>
               )}
             </div>

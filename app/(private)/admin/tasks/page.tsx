@@ -145,6 +145,11 @@ export default function AdminTasksPage() {
     return allTasks.filter((x) => x.title.toLowerCase().includes(t) || (x.description ?? '').toLowerCase().includes(t));
   }, [allTasks, searchTerm]);
 
+  const buildingNameById = useMemo(
+    () => Object.fromEntries(buildings.map((building) => [building.id, building.name])),
+    [buildings]
+  );
+
   const canManage = user?.internalRole === 'BUILDING_ADMIN' || user?.internalRole === 'CLIENT_MANAGER' || user?.internalRole === 'ROOT_ADMIN';
 
   const submitCreate = async () => {
@@ -505,6 +510,7 @@ export default function AdminTasksPage() {
             {tasks.map((task) => {
               const staff = (staffByBuildingId[task.buildingId] ?? []).filter((m) => m.role === 'Personal' && m.status === 'ACTIVE');
               const canEditAssignee = canManage && task.status !== 'APPROVED';
+              const buildingName = buildingNameById[task.buildingId] ?? task.buildingId;
               return (
                 <div key={task.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-start justify-between gap-6">
                   <div className="min-w-0 flex-1">
@@ -513,11 +519,12 @@ export default function AdminTasksPage() {
                         {labelTaskStatus(task.status)}
                       </span>
                       <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                        {task.buildingId}
+                        {buildingName}
                       </span>
                     </div>
                     <p className="mt-3 text-sm font-black text-slate-900 truncate">{task.title}</p>
                     {task.description && <p className="mt-1 text-xs text-slate-500 font-medium line-clamp-2">{task.description}</p>}
+                    <p className="mt-2 text-[11px] font-semibold text-slate-500">Edificio: {buildingName}</p>
                     <p className="mt-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                           Creado {formatDateTime(task.createdAt)}
                     </p>

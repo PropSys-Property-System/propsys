@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { ClipboardList, CheckCircle2, Circle, ExternalLink, FileText, Link2, ListChecks, Search, Trash2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { checklistExecutionsRepo, checklistTemplatesRepo, evidenceRepo, tasksRepo } from '@/lib/data';
+import { buildingsRepo, checklistExecutionsRepo, checklistTemplatesRepo, evidenceRepo, tasksRepo } from '@/lib/data';
 import type { ChecklistExecution, ChecklistTemplate, EvidenceAttachment, TaskEntity } from '@/lib/types';
 
 export default function StaffTasksPage() {
@@ -15,6 +15,7 @@ export default function StaffTasksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allTasks, setAllTasks] = useState<TaskEntity[]>([]);
+  const [buildingNameById, setBuildingNameById] = useState<Record<string, string>>({});
   const [statusById, setStatusById] = useState<Record<string, TaskEntity['status']>>({});
   const [isChecklistOpen, setIsChecklistOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskEntity | null>(null);
@@ -37,9 +38,10 @@ export default function StaffTasksPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await tasksRepo.listForUser(user);
+        const [data, buildings] = await Promise.all([tasksRepo.listForUser(user), buildingsRepo.listForUser(user)]);
         if (!isMounted) return;
         setAllTasks(data);
+        setBuildingNameById(Object.fromEntries(buildings.map((building) => [building.id, building.name])));
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar tus tareas.');
@@ -349,8 +351,16 @@ export default function StaffTasksPage() {
             {tasks.map((task) => (
               <div key={task.id} className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between gap-6">
                 <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      {buildingNameById[task.buildingId] ?? task.buildingId}
+                    </span>
+                  </div>
                   <p className="text-sm font-black text-slate-900">{task.title}</p>
                   {task.description && <p className="mt-1 text-xs text-slate-500 font-medium">{task.description}</p>}
+                  <p className="mt-2 text-[11px] font-semibold text-slate-500">
+                    Edificio: {buildingNameById[task.buildingId] ?? task.buildingId}
+                  </p>
                   <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
                     {task.status === 'APPROVED'
                       ? 'Aprobada'
@@ -446,6 +456,9 @@ export default function StaffTasksPage() {
               <div className="min-w-0">
                 <p className="text-lg font-black text-slate-900 truncate">Checklist</p>
                 <p className="mt-1 text-xs text-slate-500 font-medium truncate">{selectedTask.title}</p>
+                <p className="mt-1 text-[11px] font-semibold text-slate-400 truncate">
+                  Edificio: {buildingNameById[selectedTask.buildingId] ?? selectedTask.buildingId}
+                </p>
                 {/* legacy upload copy removed
                   Adjunta imágenes o PDF (máx. 10 MB) como evidencia del checklist.
                 */}
