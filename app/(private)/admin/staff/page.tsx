@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Users, Phone, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, staffRepo } from '@/lib/data';
+import { listStaffForBuilding, loadAdminStaffPageData } from '@/lib/features/physical/physical-center.data';
 import { Building, StaffMember } from '@/lib/types';
 
 export default function AdminStaffPage() {
@@ -24,10 +24,10 @@ export default function AdminStaffPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await buildingsRepo.listForUser(user);
+        const data = await loadAdminStaffPageData(user);
         if (!isMounted) return;
-        setBuildings(data);
-        setSelectedBuildingId((prev) => prev || data[0]?.id || '');
+        setBuildings(data.buildings);
+        setSelectedBuildingId((prev) => prev || data.defaultBuildingId);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los edificios.');
@@ -50,7 +50,7 @@ export default function AdminStaffPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await staffRepo.listForBuilding(user, selectedBuildingId);
+        const data = await listStaffForBuilding(user, selectedBuildingId);
         if (!isMounted) return;
         setStaff(data);
       } catch {

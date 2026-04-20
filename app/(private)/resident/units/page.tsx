@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Building2, Home } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, unitsRepo } from '@/lib/data';
+import { loadResidentUnitsPageData } from '@/lib/features/physical/physical-center.data';
 import { Building, Unit } from '@/lib/types';
 
 export default function ResidentUnitsPage() {
@@ -22,10 +22,10 @@ export default function ResidentUnitsPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const [u, b] = await Promise.all([unitsRepo.listForUser(user), buildingsRepo.listForUser(user)]);
+        const data = await loadResidentUnitsPageData(user);
         if (!isMounted) return;
-        setUnits(u);
-        setBuildings(b);
+        setUnits(data.units);
+        setBuildings(data.buildings);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar tus unidades.');

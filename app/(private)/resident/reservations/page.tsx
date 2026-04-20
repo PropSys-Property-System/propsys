@@ -5,7 +5,12 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { CalendarDays, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, commonAreasRepo, reservationsRepo, unitsRepo } from '@/lib/data';
+import {
+  cancelReservationForUser,
+  createReservationForUser,
+  listReservationsForUser,
+  loadResidentReservationsPageData,
+} from '@/lib/features/reservations/reservations-center.data';
 import { formatDateTime, formatTime } from '@/lib/presentation/dates';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
 import { labelReservationStatus } from '@/lib/presentation/labels';
@@ -43,19 +48,13 @@ export default function ResidentReservationsPage() {
         setIsLoading(true);
         setError(null);
         setActionError(null);
-        const [r, u, b] = await Promise.all([
-          reservationsRepo.listForUser(user),
-          unitsRepo.listForUser(user),
-          buildingsRepo.listForUser(user),
-        ]);
-        const buildingIds = Array.from(new Set(b.map((x) => x.id)));
-        const areasByBuilding = await Promise.all(buildingIds.map((id) => commonAreasRepo.listForBuilding(user, id)));
+        const data = await loadResidentReservationsPageData(user);
         if (!isMounted) return;
-        setReservations(r);
-        setUnits(u);
-        setBuildings(b);
-        setAreas(areasByBuilding.flat());
-        setCreateUnitId((prev) => prev || u[0]?.id || '');
+        setReservations(data.reservations);
+        setUnits(data.units);
+        setBuildings(data.buildings);
+        setAreas(data.areas);
+        setCreateUnitId((prev) => prev || data.defaultCreateUnitId);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar tus reservas.');
@@ -73,7 +72,7 @@ export default function ResidentReservationsPage() {
   const reload = async () => {
     if (!user) return;
     setActionError(null);
-    const r = await reservationsRepo.listForUser(user);
+    const r = await listReservationsForUser(user);
     setReservations(r);
   };
 
@@ -134,7 +133,7 @@ export default function ResidentReservationsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await reservationsRepo.createForUser(user, {
+      await createReservationForUser(user, {
         buildingId: unit.buildingId,
         unitId: unit.id,
         commonAreaId: createAreaId,
@@ -158,7 +157,7 @@ export default function ResidentReservationsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await reservationsRepo.cancelForUser(user, id);
+      await cancelReservationForUser(user, id);
       await reload();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos cancelar la reserva.');

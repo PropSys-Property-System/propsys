@@ -1,5 +1,6 @@
-﻿import { StaffMember, User } from '@/lib/types';
+import { StaffMember, User } from '@/lib/types';
 import { MOCK_BUILDINGS, MOCK_STAFF_MEMBERS } from '@/lib/mocks';
+import { canAccessClientRecord } from '@/lib/auth/access-rules';
 import { assignmentsRepo } from '@/lib/repos/physical/assignments.repo';
 import { isDbMode } from '@/lib/config/data-mode';
 import { fetchJsonOrThrow } from '@/lib/repos/http';
@@ -16,11 +17,8 @@ export const staffRepo = {
     }
     await sleep(300);
 
-    if (user.scope === 'platform') return MOCK_STAFF_MEMBERS.filter((s) => s.buildingId === buildingId);
-    if (!user.clientId) return [];
-
     const building = MOCK_BUILDINGS.find((b) => b.id === buildingId);
-    if (!building?.clientId || building.clientId !== user.clientId) return [];
+    if (!building?.clientId || !canAccessClientRecord(user, building.clientId)) return [];
 
     if (user.internalRole === 'BUILDING_ADMIN' || user.internalRole === 'STAFF') {
       if (!assignmentsRepo.isAssignedToBuilding(user, buildingId)) return [];
@@ -29,4 +27,3 @@ export const staffRepo = {
     return MOCK_STAFF_MEMBERS.filter((s) => s.buildingId === buildingId);
   },
 };
-

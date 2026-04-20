@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/States";
 import { Search, Plus, Filter, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, receiptsRepo, unitsRepo } from '@/lib/data';
+import { loadAdminReceiptsPageData } from '@/lib/features/receipts/receipts-center.data';
 import { Receipt } from '@/lib/types';
 import { labelClient } from '@/lib/presentation/labels';
 
@@ -28,15 +28,11 @@ export default function AdminReceiptsPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const [data, b, u] = await Promise.all([
-          receiptsRepo.listForUser(user),
-          buildingsRepo.listForUser(user),
-          unitsRepo.listForUser(user),
-        ]);
+        const data = await loadAdminReceiptsPageData(user);
         if (!isMounted) return;
-        setAllReceipts(data);
-        setBuildings(b.map((x) => ({ id: x.id, name: x.name, clientId: x.clientId })));
-        setUnits(u.map((x) => ({ id: x.id, buildingId: x.buildingId, number: x.number })));
+        setAllReceipts(data.receipts);
+        setBuildings(data.buildings);
+        setUnits(data.units);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los recibos. Intenta nuevamente.');

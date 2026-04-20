@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import type { TaskEntity } from '@/lib/types';
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') return NextResponse.json({ tasks: [] });
   const bypassTenant = canBypassTenantScope(user);
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ tasks: [] });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ tasks: [] });
 
   const pool = getPool();
   const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
@@ -106,7 +106,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
   const bypassTenant = canBypassTenantScope(user);
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   const buildingId = typeof body?.buildingId === 'string' ? body.buildingId : null;

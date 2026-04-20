@@ -1,5 +1,6 @@
 import { EvidenceAttachment, User } from '@/lib/types';
 import { MOCK_EVIDENCE_ATTACHMENTS } from '@/lib/mocks';
+import { canAccessClientRecord, filterItemsByTenant, requireClientContext } from '@/lib/auth/access-rules';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { unitsRepo } from '@/lib/repos/physical/units.repo';
@@ -11,7 +12,9 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const evidenceRepo = {
   async listForUser(user: User): Promise<EvidenceAttachment[]> {
     if (isDbMode()) {
-      const data = await fetchJsonOrThrow<{ evidence: EvidenceAttachment[] }>('/api/v1/operation/evidence', { credentials: 'include' });
+      const data = await fetchJsonOrThrow<{ evidence: EvidenceAttachment[] }>('/api/v1/operation/evidence', {
+        credentials: 'include',
+      });
       return data.evidence;
     }
     await sleep(150);
@@ -20,24 +23,19 @@ export const evidenceRepo = {
       return [];
     }
 
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_EVIDENCE_ATTACHMENTS
-        : user.clientId
-          ? MOCK_EVIDENCE_ATTACHMENTS.filter((x) => x.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_EVIDENCE_ATTACHMENTS, user);
 
     if (accessScope(user) === 'PORTFOLIO') return tenantScoped;
 
     if (accessScope(user) === 'BUILDING') {
-      const buildingIds = (await buildingsRepo.listForUser(user)).map((b) => b.id);
+      const buildingIds = (await buildingsRepo.listForUser(user)).map((building) => building.id);
       if (buildingIds.length === 0) return [];
-      return tenantScoped.filter((x) => buildingIds.includes(x.buildingId));
+      return tenantScoped.filter((item) => buildingIds.includes(item.buildingId));
     }
 
-    const unitIds = (await unitsRepo.listForUser(user)).map((u) => u.id);
+    const unitIds = (await unitsRepo.listForUser(user)).map((unit) => unit.id);
     if (unitIds.length === 0) return [];
-    return tenantScoped.filter((x) => !x.unitId || unitIds.includes(x.unitId));
+    return tenantScoped.filter((item) => !item.unitId || unitIds.includes(item.unitId));
   },
 
   async listForChecklistExecution(user: User, checklistExecutionId: string): Promise<EvidenceAttachment[]> {
@@ -49,85 +47,58 @@ export const evidenceRepo = {
       return data.evidence;
     }
     await sleep(100);
-    return (await this.listForUser(user)).filter((x) => x.checklistExecutionId === checklistExecutionId);
+    return (await this.listForUser(user)).filter((item) => item.checklistExecutionId === checklistExecutionId);
   },
 
   async addForChecklistExecution(
-    user: User,
-    input: { checklistExecutionId: string; url: string; fileName?: string; mimeType?: string }
-  ): Promise<EvidenceAttachment> {
-    if (isDbMode()) {
-      const res = await fetch('/api/v1/operation/evidence', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(input),
-      });
-      const data = (await res.json().catch(() => null)) as { evidence?: EvidenceAttachment; error?: string } | null;
-      if (!res.ok) throw new Error(data?.error || 'No autorizado');
-      if (!data?.evidence) throw new Error('Respuesta inválida');
-      return data.evidence;
-    }
-    await sleep(150);
-    const now = new Date().toISOString();
-    const id = `ev_${Date.now()}`;
-    const ev: EvidenceAttachment = {
-      id,
-      clientId: user.clientId ?? 'client_001',
-      buildingId: 'b1',
-      checklistExecutionId: input.checklistExecutionId,
-      fileName: input.fileName?.trim() || 'evidence-link',
-      mimeType: input.mimeType?.trim() || 'text/uri-list',
-      url: input.url,
-      uploadedByUserId: user.id,
-      createdAt: now,
-    };
-    MOCK_EVIDENCE_ATTACHMENTS.unshift(ev);
-    return ev;
-  },
-
-  async uploadForChecklistExecution(
     _user: User,
-    _input: { checklistExecutionId: string; file: File }
+    _input: { checklistExecutionId: string; url: string; fileName?: string; mimeType?: string }
   ): Promise<EvidenceAttachment> {
     void _user;
     void _input;
-    throw new Error('V1 solo admite evidencias como enlaces URL.');
-    /* legacy
+    throw new Error('Adjunta una foto o un archivo PDF como evidencia.');
+  },
+
+  async uploadForChecklistExecution(
+    user: User,
+    input: { checklistExecutionId: string; file: File }
+  ): Promise<EvidenceAttachment> {
     if (isDbMode()) {
-      const fd = new FormData();
-      fd.set('checklistExecutionId', input.checklistExecutionId);
-      fd.set('file', input.file);
+      const formData = new FormData();
+      formData.set('checklistExecutionId', input.checklistExecutionId);
+      formData.set('file', input.file);
 
       const res = await fetch('/api/v1/operation/evidence', {
         method: 'POST',
         credentials: 'include',
-        body: fd,
+        body: formData,
       });
       const data = (await res.json().catch(() => null)) as { evidence?: EvidenceAttachment; error?: string } | null;
       if (!res.ok) throw new Error(data?.error || 'No autorizado');
-      if (!data?.evidence) throw new Error('Respuesta inválida');
+      if (!data?.evidence) throw new Error('Respuesta invalida');
       return data.evidence;
     }
+
     await sleep(150);
 
     const now = new Date().toISOString();
     const id = `ev_${Date.now()}`;
-    const ev: EvidenceAttachment = {
+    const previewUrl = URL.createObjectURL(input.file);
+    const evidence: EvidenceAttachment = {
       id,
-      clientId: user.clientId ?? 'client_001',
+      clientId: requireClientContext(user, 'Selecciona un cliente para continuar.'),
       buildingId: 'b1',
       checklistExecutionId: input.checklistExecutionId,
       fileName: input.file.name,
       mimeType: input.file.type || 'application/octet-stream',
       sizeBytes: input.file.size,
-      url: `/uploads/evidence/mock/${id}`,
+      publicPath: previewUrl,
+      url: previewUrl,
       uploadedByUserId: user.id,
       createdAt: now,
     };
-    MOCK_EVIDENCE_ATTACHMENTS.unshift(ev);
-    return ev;
-    */
+    MOCK_EVIDENCE_ATTACHMENTS.unshift(evidence);
+    return evidence;
   },
 
   async deleteForUser(user: User, id: string): Promise<boolean> {
@@ -140,14 +111,15 @@ export const evidenceRepo = {
       if (!res.ok) throw new Error(data?.error || 'No autorizado');
       return Boolean(data?.ok);
     }
+
     await sleep(100);
 
-    const idx = MOCK_EVIDENCE_ATTACHMENTS.findIndex((x) => x.id === id);
-    if (idx === -1) return false;
-    const current = MOCK_EVIDENCE_ATTACHMENTS[idx];
-    if (user.scope !== 'platform' && user.clientId && current.clientId !== user.clientId) return false;
+    const index = MOCK_EVIDENCE_ATTACHMENTS.findIndex((item) => item.id === id);
+    if (index === -1) return false;
+    const current = MOCK_EVIDENCE_ATTACHMENTS[index];
+    if (!canAccessClientRecord(user, current.clientId)) return false;
     if (user.internalRole === 'STAFF' && current.uploadedByUserId !== user.id) throw new Error('No autorizado');
-    MOCK_EVIDENCE_ATTACHMENTS.splice(idx, 1);
+    MOCK_EVIDENCE_ATTACHMENTS.splice(index, 1);
     return true;
   },
 };

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import type { ChecklistExecution } from '@/lib/types';
@@ -46,6 +46,10 @@ function toExecution(row: {
   updated_at: string;
   completed_at: string | null;
   approved_at: string | null;
+  last_review_action: string | null;
+  review_comment: string | null;
+  reviewed_at: string | null;
+  reviewed_by_user_id: string | null;
   deleted_at: string | null;
 }): ChecklistExecution {
   return {
@@ -62,6 +66,10 @@ function toExecution(row: {
     updatedAt: row.updated_at,
     completedAt: row.completed_at ?? undefined,
     approvedAt: row.approved_at ?? undefined,
+    lastReviewAction: (row.last_review_action as ChecklistExecution['lastReviewAction']) ?? undefined,
+    reviewComment: row.review_comment ?? undefined,
+    reviewedAt: row.reviewed_at ?? undefined,
+    reviewedByUserId: row.reviewed_by_user_id ?? undefined,
     deletedAt: row.deleted_at,
   };
 }
@@ -71,7 +79,7 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') return NextResponse.json({ executions: [] as ChecklistExecution[] });
   const bypassTenant = canBypassTenantScope(user);
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ executions: [] as ChecklistExecution[] });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ executions: [] as ChecklistExecution[] });
 
   const url = new URL(req.url);
   const taskId = url.searchParams.get('taskId');
@@ -109,9 +117,13 @@ export async function GET(req: Request) {
     updated_at: string;
     completed_at: string | null;
     approved_at: string | null;
+    last_review_action: string | null;
+    review_comment: string | null;
+    reviewed_at: string | null;
+    reviewed_by_user_id: string | null;
     deleted_at: string | null;
   }>(
-    `SELECT id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at
+    `SELECT id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, last_review_action, review_comment, reviewed_at, reviewed_by_user_id, deleted_at
      FROM checklist_executions
      WHERE deleted_at IS NULL
        ${tenantWhere}
@@ -130,7 +142,7 @@ export async function POST(req: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole !== 'STAFF') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   const bypassTenant = canBypassTenantScope(user);
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   const templateId = typeof body?.templateId === 'string' ? body.templateId : null;
@@ -196,11 +208,15 @@ export async function POST(req: Request) {
         updated_at: string;
         completed_at: string | null;
         approved_at: string | null;
+        last_review_action: string | null;
+        review_comment: string | null;
+        reviewed_at: string | null;
+        reviewed_by_user_id: string | null;
         deleted_at: string | null;
       }>(
         `INSERT INTO checklist_executions (id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at)
          VALUES ($1, $2, $3, NULL, $4, $5, $6, 'PENDING', '[]'::jsonb, $7, $7)
-         RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
+         RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, last_review_action, review_comment, reviewed_at, reviewed_by_user_id, deleted_at`,
         [id, clientId, tpl.building_id, taskId, templateId, user.id, now]
       );
       const entity = toExecution(res.rows[0]);

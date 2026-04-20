@@ -43,6 +43,24 @@ describe('checklistTemplatesRepo', () => {
     MOCK_CHECKLIST_TEMPLATES.shift();
   });
 
+  it('does not fall back to client_001 for ROOT_ADMIN without tenant context', async () => {
+    const root = userBase({
+      id: 'u_root',
+      role: 'MANAGER',
+      internalRole: 'ROOT_ADMIN',
+      scope: 'platform',
+      clientId: null,
+    });
+
+    await expect(
+      checklistTemplatesRepo.createForUser(root, {
+        buildingId: 'b1',
+        name: 'Checklist root sin tenant',
+        items: [{ label: 'Item A', required: true }],
+      })
+    ).rejects.toThrow('Selecciona un cliente para continuar.');
+  });
+
   it('updates and deletes a checklist template when it is not in use (mock mode)', async () => {
     const admin = userBase({ id: 'u2' });
 

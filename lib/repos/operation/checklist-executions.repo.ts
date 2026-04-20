@@ -1,5 +1,6 @@
 import { ChecklistExecution, User } from '@/lib/types';
 import { MOCK_CHECKLIST_EXECUTIONS, MOCK_CHECKLIST_TEMPLATES, MOCK_TASKS_V1 } from '@/lib/mocks';
+import { canAccessClientRecord, filterItemsByTenant } from '@/lib/auth/access-rules';
 import { auditService } from '@/lib/audit/audit-service';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
@@ -18,12 +19,7 @@ export const checklistExecutionsRepo = {
     }
     await sleep(200);
 
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_CHECKLIST_EXECUTIONS
-        : user.clientId
-          ? MOCK_CHECKLIST_EXECUTIONS.filter((x) => x.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_CHECKLIST_EXECUTIONS, user);
 
     if (accessScope(user) === 'PORTFOLIO') return tenantScoped;
 
@@ -103,7 +99,7 @@ export const checklistExecutionsRepo = {
     if (idx === -1) return null;
 
     const current = MOCK_CHECKLIST_EXECUTIONS[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
     if (user.internalRole !== 'STAFF') throw new Error('No autorizado');
     if (current.assignedToUserId !== user.id) throw new Error('No autorizado');
 
@@ -111,7 +107,7 @@ export const checklistExecutionsRepo = {
     const requiredIds = (template?.items ?? []).filter((it) => it.required).map((it) => it.id);
     if (requiredIds.length > 0) {
       const resultByItemId = new Map(results.map((r) => [r.itemId, Boolean(r.value)]));
-      const ok = requiredIds.every((id) => resultByItemId.get(id) === true);
+      const ok = requiredIds.every((itemId) => resultByItemId.get(itemId) === true);
       if (!ok) throw new Error('Marca todos los items requeridos para completar el checklist.');
     }
 
@@ -121,6 +117,10 @@ export const checklistExecutionsRepo = {
       status: 'COMPLETED',
       results,
       completedAt: now,
+      lastReviewAction: undefined,
+      reviewComment: undefined,
+      reviewedAt: undefined,
+      reviewedByUserId: undefined,
       updatedAt: now,
     };
 
@@ -164,14 +164,20 @@ export const checklistExecutionsRepo = {
     if (idx === -1) return null;
 
     const current = MOCK_CHECKLIST_EXECUTIONS[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
-    if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER') throw new Error('No autorizado');
+    if (!canAccessClientRecord(user, current.clientId)) return null;
+    if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
+      throw new Error('No autorizado');
+    }
 
     const now = new Date().toISOString();
     const updated: ChecklistExecution = {
       ...current,
       status: 'APPROVED',
       approvedAt: now,
+      lastReviewAction: 'APPROVE',
+      reviewComment: undefined,
+      reviewedAt: now,
+      reviewedByUserId: user.id,
       updatedAt: now,
     };
 
@@ -187,6 +193,68 @@ export const checklistExecutionsRepo = {
       userId: user.id,
       clientId: updated.clientId,
       action: 'APPROVE',
+      entity: 'ChecklistExecution',
+      entityId: updated.id,
+      oldData: current,
+      newData: updated,
+      metadata: { buildingId: updated.buildingId, unitId: updated.unitId, templateId: updated.templateId },
+    });
+
+    return updated;
+  },
+
+  async returnForUser(user: User, id: string, input?: { comment?: string }): Promise<ChecklistExecution | null> {
+    if (isDbMode()) {
+      const res = await fetch(`/api/v1/operation/checklist-executions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'RETURN', comment: input?.comment }),
+      });
+      if (res.status === 404) return null;
+      const data = (await res.json().catch(() => null)) as { execution?: ChecklistExecution | null; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || 'No autorizado');
+      return data?.execution ?? null;
+    }
+
+    await sleep(200);
+    const idx = MOCK_CHECKLIST_EXECUTIONS.findIndex((x) => x.id === id);
+    if (idx === -1) return null;
+
+    const current = MOCK_CHECKLIST_EXECUTIONS[idx];
+    if (!canAccessClientRecord(user, current.clientId)) return null;
+    if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
+      throw new Error('No autorizado');
+    }
+    if (current.status !== 'COMPLETED' && current.status !== 'APPROVED') {
+      throw new Error('Solo se puede devolver un checklist completado o aprobado.');
+    }
+
+    const now = new Date().toISOString();
+    const updated: ChecklistExecution = {
+      ...current,
+      status: 'PENDING',
+      completedAt: undefined,
+      approvedAt: undefined,
+      lastReviewAction: 'RETURN',
+      reviewComment: input?.comment?.trim() || undefined,
+      reviewedAt: now,
+      reviewedByUserId: user.id,
+      updatedAt: now,
+    };
+
+    MOCK_CHECKLIST_EXECUTIONS[idx] = updated;
+    if (updated.taskId) {
+      const taskIdx = MOCK_TASKS_V1.findIndex((t) => t.id === updated.taskId);
+      if (taskIdx !== -1 && MOCK_TASKS_V1[taskIdx].checklistTemplateId) {
+        MOCK_TASKS_V1[taskIdx] = { ...MOCK_TASKS_V1[taskIdx], status: 'IN_PROGRESS', updatedAt: now };
+      }
+    }
+
+    auditService.logAction({
+      userId: user.id,
+      clientId: updated.clientId,
+      action: 'RETURN',
       entity: 'ChecklistExecution',
       entityId: updated.id,
       oldData: current,

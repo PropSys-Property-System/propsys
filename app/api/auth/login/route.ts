@@ -3,6 +3,7 @@ import argon2 from 'argon2';
 import { getPool } from '@/lib/server/db/client';
 import { randomUUID } from 'node:crypto';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { setSessionCookie } from '@/lib/server/auth/session-cookie';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -67,13 +68,7 @@ export async function POST(req: Request) {
 
   const res = NextResponse.json({ ok: true });
   if (auditFailed) res.headers.set('x-propsys-audit', 'failed');
-  res.cookies.set('ps_session', sessionId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    expires: expiresAt,
-  });
+  setSessionCookie(res, sessionId, expiresAt);
   return res;
 }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import type { Notice, NoticeEntity } from '@/lib/types';
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
 
   const pool = getPool();
   const bypassTenant = canBypassTenantScope(user);
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ notices: [] as Notice[] });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ notices: [] as Notice[] });
   const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
   const tenantParams = bypassTenant ? [] : [user.clientId];
   const buildingIds = await listBuildingIdsForUser(pool, user);
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
   const bypassTenant = canBypassTenantScope(user);
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const body = await req.json().catch(() => null);
   const audience = body?.audience === 'BUILDING' || body?.audience === 'ALL_BUILDINGS' ? body.audience : null;

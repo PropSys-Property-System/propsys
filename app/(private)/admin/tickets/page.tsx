@@ -5,7 +5,12 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Filter, Plus, Search, Wrench } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, incidentsRepo, unitsRepo } from '@/lib/data';
+import {
+  createTicketForUser,
+  loadAdminTicketsPageData,
+  listTicketsForUser,
+  updateTicketStatusForUser,
+} from '@/lib/features/tickets/ticket-center.data';
 import { formatDateTime } from '@/lib/presentation/dates';
 import { IncidentEntity } from '@/lib/types';
 import { formatClientBadge, labelClient, labelIncidentPriority, labelIncidentStatus } from '@/lib/presentation/labels';
@@ -53,14 +58,12 @@ export default function AdminTicketsPage() {
         setIsLoading(true);
         setError(null);
         setActionError(null);
-        const data = await incidentsRepo.listForUser(user);
-        const b = await buildingsRepo.listForUser(user);
-        const u = await unitsRepo.listForUser(user);
+        const data = await loadAdminTicketsPageData(user);
         if (!isMounted) return;
-        setAllTickets(data);
-        setBuildings(b.map((x) => ({ id: x.id, name: x.name })));
-        setUnits(u.map((x) => ({ id: x.id, buildingId: x.buildingId, number: x.number })));
-        setCreateBuildingId((prev) => prev || b[0]?.id || '');
+        setAllTickets(data.tickets);
+        setBuildings(data.buildings);
+        setUnits(data.units);
+        setCreateBuildingId((prev) => prev || data.defaultCreateBuildingId);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar las incidencias.');
@@ -78,7 +81,7 @@ export default function AdminTicketsPage() {
   const reload = async () => {
     if (!user) return;
     setActionError(null);
-    const data = await incidentsRepo.listForUser(user);
+    const data = await listTicketsForUser(user);
     setAllTickets(data);
   };
 
@@ -111,7 +114,7 @@ export default function AdminTicketsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await incidentsRepo.createSimpleForUser(user, {
+      await createTicketForUser(user, {
         buildingId: createBuildingId,
         unitId: createUnitId || undefined,
         title: createTitle.trim(),
@@ -140,7 +143,7 @@ export default function AdminTicketsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await incidentsRepo.updateStatusForUser(user, id, next);
+      await updateTicketStatusForUser(user, id, next);
       await reload();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos actualizar la incidencia.');
@@ -154,7 +157,7 @@ export default function AdminTicketsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await incidentsRepo.updateStatusForUser(user, id, 'CLOSED');
+      await updateTicketStatusForUser(user, id, 'CLOSED');
       await reload();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos cerrar la incidencia.');

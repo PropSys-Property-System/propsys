@@ -53,6 +53,7 @@ export interface ChecklistTemplate {
 }
 
 export type ChecklistExecutionStatus = 'PENDING' | 'COMPLETED' | 'APPROVED';
+export type ChecklistReviewAction = 'RETURN' | 'APPROVE';
 
 export interface ChecklistExecutionItemResult {
   itemId: string;
@@ -74,6 +75,10 @@ export interface ChecklistExecution {
   updatedAt: string;
   completedAt?: string;
   approvedAt?: string;
+  lastReviewAction?: ChecklistReviewAction;
+  reviewComment?: string;
+  reviewedAt?: string;
+  reviewedByUserId?: string;
   deletedAt?: string | null;
 }
 

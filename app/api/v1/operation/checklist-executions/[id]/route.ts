@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canAccessTenantEntity } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import type { ChecklistExecution } from '@/lib/types';
@@ -48,6 +48,10 @@ function toExecution(row: {
   updated_at: string;
   completed_at: string | null;
   approved_at: string | null;
+  last_review_action: string | null;
+  review_comment: string | null;
+  reviewed_at: string | null;
+  reviewed_by_user_id: string | null;
   deleted_at: string | null;
 }): ChecklistExecution {
   return {
@@ -64,6 +68,10 @@ function toExecution(row: {
     updatedAt: row.updated_at,
     completedAt: row.completed_at ?? undefined,
     approvedAt: row.approved_at ?? undefined,
+    lastReviewAction: (row.last_review_action as ChecklistExecution['lastReviewAction']) ?? undefined,
+    reviewComment: row.review_comment ?? undefined,
+    reviewedAt: row.reviewed_at ?? undefined,
+    reviewedByUserId: row.reviewed_by_user_id ?? undefined,
     deletedAt: row.deleted_at,
   };
 }
@@ -75,8 +83,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
-  const action = body?.action === 'SAVE' || body?.action === 'COMPLETE' || body?.action === 'APPROVE' ? body.action : null;
+  const action =
+    body?.action === 'SAVE' || body?.action === 'COMPLETE' || body?.action === 'APPROVE' || body?.action === 'RETURN'
+      ? body.action
+      : null;
   const results = Array.isArray(body?.results) ? (body.results as ChecklistExecution['results']) : null;
+  const comment = typeof body?.comment === 'string' ? body.comment.trim() : '';
   if (!action) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
 
   const pool = getPool();
@@ -94,9 +106,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     updated_at: string;
     completed_at: string | null;
     approved_at: string | null;
+    last_review_action: string | null;
+    review_comment: string | null;
+    reviewed_at: string | null;
+    reviewed_by_user_id: string | null;
     deleted_at: string | null;
   }>(
-    `SELECT id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at
+    `SELECT id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, last_review_action, review_comment, reviewed_at, reviewed_by_user_id, deleted_at
      FROM checklist_executions
      WHERE id = $1
      LIMIT 1`,
@@ -104,12 +120,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   );
   const current = currentRes.rows[0];
   if (!current || current.deleted_at) return NextResponse.json({ execution: null }, { status: 404 });
-  if (!canBypassTenantScope(user) && (!user.clientId || current.client_id !== user.clientId)) return NextResponse.json({ execution: null }, { status: 404 });
+  if (!canAccessTenantEntity(user, current.client_id)) return NextResponse.json({ execution: null }, { status: 404 });
 
   const now = new Date().toISOString();
 
-  if (action === 'APPROVE') {
-    if (current.status !== 'COMPLETED') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (action === 'APPROVE' || action === 'RETURN') {
+    if (action === 'APPROVE' && current.status !== 'COMPLETED') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    if (action === 'RETURN' && current.status !== 'COMPLETED' && current.status !== 'APPROVED') {
+      return NextResponse.json({ error: 'Solo se puede devolver un checklist completado o aprobado.' }, { status: 403 });
+    }
     if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
@@ -141,23 +162,44 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           updated_at: string;
           completed_at: string | null;
           approved_at: string | null;
+          last_review_action: string | null;
+          review_comment: string | null;
+          reviewed_at: string | null;
+          reviewed_by_user_id: string | null;
           deleted_at: string | null;
         }>(
           `UPDATE checklist_executions
-           SET status = 'APPROVED', approved_at = $2, updated_at = $2
+           SET status = $2,
+               approved_at = $3,
+               completed_at = $4,
+               last_review_action = $5,
+               review_comment = $6,
+               reviewed_at = $7,
+               reviewed_by_user_id = $8,
+               updated_at = $9
            WHERE id = $1
-           RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
-          [id, now]
+           RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, last_review_action, review_comment, reviewed_at, reviewed_by_user_id, deleted_at`,
+          [
+            id,
+            action === 'APPROVE' ? 'APPROVED' : 'PENDING',
+            action === 'APPROVE' ? now : null,
+            action === 'RETURN' ? null : current.completed_at,
+            action,
+            action === 'RETURN' ? comment || null : null,
+            now,
+            user.id,
+            now,
+          ]
         );
 
         const entity = toExecution(updatedRes.rows[0]);
         if (entity.taskId) {
           const taskUpdated = await db.query<{ id: string }>(
             `UPDATE tasks
-             SET status = 'APPROVED', updated_at = $2
+             SET status = $2, updated_at = $3
              WHERE id = $1 AND checklist_template_id IS NOT NULL
              RETURNING id`,
-            [entity.taskId, now]
+            [entity.taskId, action === 'APPROVE' ? 'APPROVED' : 'IN_PROGRESS', now]
           );
           if (taskUpdated.rows[0]) {
             await insertAuditLog(db, {
@@ -166,7 +208,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
               action: 'UPDATE',
               entity: 'Task',
               entityId: entity.taskId,
-              metadata: { source: 'checklist_execution', executionId: entity.id, toStatus: 'APPROVED' },
+              metadata: {
+                source: 'checklist_execution',
+                executionId: entity.id,
+                toStatus: action === 'APPROVE' ? 'APPROVED' : 'IN_PROGRESS',
+              },
             });
           }
         }
@@ -174,10 +220,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         await insertAuditLog(db, {
           clientId: current.client_id,
           userId: user.id,
-          action: 'APPROVE',
+          action,
           entity: 'ChecklistExecution',
           entityId: entity.id,
-          metadata: { buildingId: entity.buildingId, templateId: entity.templateId, taskId: entity.taskId ?? null },
+          metadata: { buildingId: entity.buildingId, templateId: entity.templateId, taskId: entity.taskId ?? null, comment: action === 'RETURN' ? comment || null : null },
           oldData: toExecution(current),
           newData: entity,
         });
@@ -228,13 +274,34 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         updated_at: string;
         completed_at: string | null;
         approved_at: string | null;
+        last_review_action: string | null;
+        review_comment: string | null;
+        reviewed_at: string | null;
+        reviewed_by_user_id: string | null;
         deleted_at: string | null;
       }>(
         `UPDATE checklist_executions
-         SET results = $2::jsonb, status = $3, completed_at = $4, updated_at = $5
+         SET results = $2::jsonb,
+             status = $3,
+             completed_at = $4,
+             last_review_action = $5,
+             review_comment = $6,
+             reviewed_at = $7,
+             reviewed_by_user_id = $8,
+             updated_at = $9
          WHERE id = $1
-         RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, deleted_at`,
-        [id, JSON.stringify(results), nextStatus, completedAt, now]
+         RETURNING id, client_id, building_id, unit_id, task_id, template_id, assigned_to_user_id, status, results, created_at, updated_at, completed_at, approved_at, last_review_action, review_comment, reviewed_at, reviewed_by_user_id, deleted_at`,
+        [
+          id,
+          JSON.stringify(results),
+          nextStatus,
+          completedAt,
+          action === 'COMPLETE' ? null : current.last_review_action,
+          action === 'COMPLETE' ? null : current.review_comment,
+          action === 'COMPLETE' ? null : current.reviewed_at,
+          action === 'COMPLETE' ? null : current.reviewed_by_user_id,
+          now,
+        ]
       );
 
       const entity = toExecution(updatedRes.rows[0]);
@@ -277,3 +344,4 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
   }
 }
+

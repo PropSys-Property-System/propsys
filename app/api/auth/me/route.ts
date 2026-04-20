@@ -3,6 +3,7 @@ import { getPool } from '@/lib/server/db/client';
 import type { User } from '@/lib/types';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
+import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { InternalRole } from '@/lib/types/auth';
 
 export async function GET(req: Request) {
@@ -18,8 +19,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ user: null }, { status: 500 });
   }
 
-  const tenantWhere = sessionUser.scope === 'platform' ? '' : 'AND client_id = $2';
-  const tenantParams = sessionUser.scope === 'platform' ? [sessionUser.id] : [sessionUser.id, sessionUser.clientId];
+  const bypassTenant = canBypassTenantScope(sessionUser);
+  const tenantWhere = bypassTenant ? '' : 'AND client_id = $2';
+  const tenantParams = bypassTenant ? [sessionUser.id] : [sessionUser.id, sessionUser.clientId];
 
   const buildingAssignmentsRes = await pool.query<{
     id: string;

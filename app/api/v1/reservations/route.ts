@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import type { Reservation, ReservationEntity } from '@/lib/types';
@@ -118,7 +118,7 @@ export async function GET(req: Request) {
   const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
   const tenantParams = bypassTenant ? [] : [user.clientId];
 
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ reservations: [] });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ reservations: [] });
 
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
     const unitIds = await listUnitIdsForUser(pool, user);
@@ -183,7 +183,7 @@ export async function POST(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   const bypassTenant = canBypassTenantScope(user);
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   if (user.internalRole !== 'OWNER' && user.internalRole !== 'OCCUPANT') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });

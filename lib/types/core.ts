@@ -11,12 +11,16 @@ export interface Client {
 }
 
 export type AuditAction = 
+  | 'LOGIN'
+  | 'LOGOUT'
   | 'CREATE' 
   | 'UPDATE' 
+  | 'DELETE'
   | 'DEACTIVATE' 
   | 'RESTORE' 
   | 'APPROVE' 
   | 'REJECT' 
+  | 'RETURN'
   | 'ARCHIVE';
 
 export interface AuditLog {

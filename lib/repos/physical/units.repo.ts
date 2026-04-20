@@ -1,5 +1,6 @@
-﻿import { Unit, User } from '@/lib/types';
+import { Unit, User } from '@/lib/types';
 import { MOCK_PHYSICAL_UNITS, MOCK_USER_UNIT_ASSIGNMENTS } from '@/lib/mocks';
+import { canAccessClientRecord, filterItemsByTenant } from '@/lib/auth/access-rules';
 import { accessScope } from '@/lib/access/access-scope';
 import { assignmentsRepo } from '@/lib/repos/physical/assignments.repo';
 import { isDbMode } from '@/lib/config/data-mode';
@@ -15,12 +16,7 @@ export const unitsRepo = {
     }
     await sleep(300);
 
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_PHYSICAL_UNITS
-        : user.clientId
-          ? MOCK_PHYSICAL_UNITS.filter((u) => u.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_PHYSICAL_UNITS, user);
 
     const isActiveAssignment = (a: { status: string; deletedAt?: string | null }) => a.status === 'ACTIVE' && !a.deletedAt;
 
@@ -28,7 +24,7 @@ export const unitsRepo = {
     const residentByUnitId = new Map<string, string>();
     for (const a of MOCK_USER_UNIT_ASSIGNMENTS) {
       if (!isActiveAssignment(a)) continue;
-      if (user.scope !== 'platform' && user.clientId && a.clientId !== user.clientId) continue;
+      if (!canAccessClientRecord(user, a.clientId)) continue;
       if (a.assignmentType === 'OWNER') ownerByUnitId.set(a.unitId, a.userId);
       if (a.assignmentType === 'OCCUPANT') residentByUnitId.set(a.unitId, a.userId);
     }
@@ -67,4 +63,3 @@ export const unitsRepo = {
     return [];
   },
 };
-

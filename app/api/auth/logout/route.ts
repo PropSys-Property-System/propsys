@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { clearSessionCookie, getSessionIdFromRequest } from '@/lib/server/auth/session-cookie';
 
 export async function POST(req: Request) {
-  const cookie = req.headers.get('cookie') ?? '';
-  const sessionId = cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith('ps_session='))
-    ?.split('=')[1];
+  const sessionId = getSessionIdFromRequest(req);
 
   let auditFailed = false;
   try {
@@ -38,13 +34,13 @@ export async function POST(req: Request) {
   } catch {
     const res = NextResponse.json({ ok: false, error: 'No pudimos cerrar la sesión.' }, { status: 500 });
     if (auditFailed) res.headers.set('x-propsys-audit', 'failed');
-    res.cookies.set('ps_session', '', { path: '/', expires: new Date(0) });
+    clearSessionCookie(res);
     return res;
   }
 
   const res = NextResponse.json({ ok: true });
   if (auditFailed) res.headers.set('x-propsys-audit', 'failed');
-  res.cookies.set('ps_session', '', { path: '/', expires: new Date(0) });
+  clearSessionCookie(res);
   return res;
 }
 

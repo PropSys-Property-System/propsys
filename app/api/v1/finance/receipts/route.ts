@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import type { Receipt } from '@/lib/types';
 
 async function listBuildingIdsForUser(pool: ReturnType<typeof getPool>, user: { id: string; clientId: string | null; scope: string; internalRole: string }) {
@@ -74,7 +74,7 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
   const bypassTenant = canBypassTenantScope(user);
-  if (!bypassTenant && !user.clientId) return NextResponse.json({ receipts: [] });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ receipts: [] });
 
   const pool = getPool();
   const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';

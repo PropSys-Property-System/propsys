@@ -8,7 +8,7 @@ import { ArrowLeft, Download, CreditCard, Calendar, Building, Home, FileText, In
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, receiptsRepo, unitsRepo } from '@/lib/data';
+import { loadResidentReceiptDetailData } from '@/lib/features/receipts/receipts-center.data';
 import { Building as BuildingType, Receipt, Unit as UnitType } from '@/lib/types';
 import { formatReceiptAmount, formatReceiptDate } from '@/lib/presentation/receipts';
 
@@ -33,18 +33,11 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
       try {
         setIsLoading(true);
         setLoadError(null);
-        const r = await receiptsRepo.getByIdForUser(user, resolvedParams.id);
+        const data = await loadResidentReceiptDetailData(user, resolvedParams.id);
         if (!isMounted) return;
-        setReceipt(r);
-        if (!r) {
-          setBuilding(null);
-          setUnit(null);
-          return;
-        }
-        const [buildings, units] = await Promise.all([buildingsRepo.listForUser(user), unitsRepo.listForUser(user)]);
-        if (!isMounted) return;
-        setBuilding(buildings.find((b) => b.id === r.buildingId) ?? null);
-        setUnit(units.find((u) => u.id === r.unitId) ?? null);
+        setReceipt(data.receipt);
+        setBuilding(data.building);
+        setUnit(data.unit);
       } catch {
         if (!isMounted) return;
         setLoadError('No pudimos cargar el recibo.');

@@ -1,5 +1,6 @@
-﻿import { Reservation, ReservationEntity, User } from '@/lib/types';
+import { Reservation, ReservationEntity, User } from '@/lib/types';
 import { MOCK_RESERVATION_ENTITIES } from '@/lib/mocks';
+import { canAccessClientRecord, filterItemsByTenant, requireClientContext } from '@/lib/auth/access-rules';
 import { accessScope } from '@/lib/access/access-scope';
 import { auditService } from '@/lib/audit/audit-service';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
@@ -41,15 +42,9 @@ export const reservationsRepo = {
     await sleep(350);
 
     const buildingIds = (await buildingsRepo.listForUser(user)).map((b) => b.id);
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_RESERVATION_ENTITIES
-        : user.clientId
-          ? MOCK_RESERVATION_ENTITIES.filter((r) => r.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_RESERVATION_ENTITIES, user);
 
     if (accessScope(user) === 'PORTFOLIO') {
-      if (user.scope === 'platform') return tenantScoped.map(toLegacyReservation);
       return tenantScoped.filter((r) => buildingIds.includes(r.buildingId)).map(toLegacyReservation);
     }
 
@@ -82,14 +77,13 @@ export const reservationsRepo = {
     if (user.internalRole !== 'OWNER' && user.internalRole !== 'OCCUPANT') {
       throw new Error('No autorizado');
     }
-    if (user.scope !== 'platform' && !user.clientId) {
-      throw new Error('No autorizado');
-    }
+
+    const clientId = requireClientContext(user, 'No autorizado');
 
     if (user.internalRole === 'OWNER') {
       if (!assignmentsRepo.isOwnerOfUnit(user, input.unitId)) throw new Error('No autorizado');
-    } else {
-      if (!isOccupantOfUnit(user, input.unitId)) throw new Error('No autorizado');
+    } else if (!isOccupantOfUnit(user, input.unitId)) {
+      throw new Error('No autorizado');
     }
 
     const units = await unitsRepo.listForUser(user);
@@ -106,14 +100,10 @@ export const reservationsRepo = {
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new Error('Fecha inválida');
     if (start >= end) throw new Error('La hora de inicio debe ser anterior al término.');
 
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_RESERVATION_ENTITIES
-        : user.clientId
-          ? MOCK_RESERVATION_ENTITIES.filter((r) => r.clientId === user.clientId)
-          : [];
-
-    const active = tenantScoped.filter((r) => r.buildingId === input.buildingId && r.commonAreaId === input.commonAreaId && r.status !== 'CANCELLED' && r.status !== 'REJECTED' && !r.deletedAt);
+    const tenantScoped = filterItemsByTenant(MOCK_RESERVATION_ENTITIES, user);
+    const active = tenantScoped.filter(
+      (r) => r.buildingId === input.buildingId && r.commonAreaId === input.commonAreaId && r.status !== 'CANCELLED' && r.status !== 'REJECTED' && !r.deletedAt
+    );
     const hasOverlap = active.some((r) => overlaps(start, end, new Date(r.startAt), new Date(r.endAt)));
     if (hasOverlap) throw new Error('Ese horario ya está reservado.');
 
@@ -121,7 +111,7 @@ export const reservationsRepo = {
     const status: ReservationEntity['status'] = area.requiresApproval ? 'REQUESTED' : 'APPROVED';
     const entity: ReservationEntity = {
       id: `resv_${Date.now()}`,
-      clientId: user.scope === 'platform' ? (user.clientId ?? 'client_001') : user.clientId!,
+      clientId,
       buildingId: input.buildingId,
       unitId: input.unitId,
       commonAreaId: input.commonAreaId,
@@ -165,14 +155,14 @@ export const reservationsRepo = {
     if (idx === -1) return null;
 
     const current = MOCK_RESERVATION_ENTITIES[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
 
     if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
       if (current.createdByUserId !== user.id) throw new Error('No autorizado');
       if (user.internalRole === 'OWNER') {
         if (!assignmentsRepo.isOwnerOfUnit(user, current.unitId)) throw new Error('No autorizado');
-      } else {
-        if (!isOccupantOfUnit(user, current.unitId)) throw new Error('No autorizado');
+      } else if (!isOccupantOfUnit(user, current.unitId)) {
+        throw new Error('No autorizado');
       }
     } else if (user.internalRole === 'BUILDING_ADMIN') {
       if (!assignmentsRepo.isAssignedToBuilding(user, current.buildingId)) throw new Error('No autorizado');
@@ -217,7 +207,7 @@ export const reservationsRepo = {
     const idx = MOCK_RESERVATION_ENTITIES.findIndex((x) => x.id === id);
     if (idx === -1) return null;
     const current = MOCK_RESERVATION_ENTITIES[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
     if (user.internalRole !== 'BUILDING_ADMIN') throw new Error('No autorizado');
     if (!assignmentsRepo.isAssignedToBuilding(user, current.buildingId)) throw new Error('No autorizado');
     if (current.status !== 'REQUESTED') throw new Error('No autorizado');
@@ -257,7 +247,7 @@ export const reservationsRepo = {
     const idx = MOCK_RESERVATION_ENTITIES.findIndex((x) => x.id === id);
     if (idx === -1) return null;
     const current = MOCK_RESERVATION_ENTITIES[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
     if (user.internalRole !== 'BUILDING_ADMIN') throw new Error('No autorizado');
     if (!assignmentsRepo.isAssignedToBuilding(user, current.buildingId)) throw new Error('No autorizado');
     if (current.status !== 'REQUESTED') throw new Error('No autorizado');
@@ -280,4 +270,3 @@ export const reservationsRepo = {
     return updated;
   },
 };
-

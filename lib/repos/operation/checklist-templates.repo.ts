@@ -1,5 +1,6 @@
 import { ChecklistTemplate, User } from '@/lib/types';
 import { MOCK_CHECKLIST_EXECUTIONS, MOCK_CHECKLIST_TEMPLATES, MOCK_TASKS_V1 } from '@/lib/mocks';
+import { canAccessClientRecord, filterItemsByTenant, requireClientContext } from '@/lib/auth/access-rules';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { isDbMode } from '@/lib/config/data-mode';
@@ -17,12 +18,7 @@ export const checklistTemplatesRepo = {
     }
     await sleep(200);
 
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_CHECKLIST_TEMPLATES
-        : user.clientId
-          ? MOCK_CHECKLIST_TEMPLATES.filter((t) => t.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_CHECKLIST_TEMPLATES, user);
     const publicOnly = tenantScoped.filter((t) => !t.isPrivate && !t.deletedAt);
 
     if (accessScope(user) === 'PORTFOLIO') return publicOnly;
@@ -47,7 +43,7 @@ export const checklistTemplatesRepo = {
 
     const tpl = MOCK_CHECKLIST_TEMPLATES.find((t) => t.id === id) ?? null;
     if (!tpl) return null;
-    if (user.scope !== 'platform' && user.clientId && tpl.clientId !== user.clientId) return null;
+    if (!canAccessClientRecord(user, tpl.clientId)) return null;
 
     if (!tpl.isPrivate) return tpl;
 
@@ -87,7 +83,8 @@ export const checklistTemplatesRepo = {
     if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
       throw new Error('No autorizado');
     }
-    if (user.scope !== 'platform' && !user.clientId) throw new Error('No autorizado');
+
+    const clientId = requireClientContext(user, 'Selecciona un cliente para continuar.');
     if (!input.buildingId || !input.name.trim() || input.items.length === 0 || input.items.some((it) => !it.label.trim())) {
       throw new Error('Datos inválidos');
     }
@@ -95,7 +92,7 @@ export const checklistTemplatesRepo = {
     const now = new Date().toISOString();
     const template: ChecklistTemplate = {
       id: `chk_tpl_${Date.now()}`,
-      clientId: user.scope === 'platform' ? (user.clientId ?? 'client_001') : user.clientId!,
+      clientId,
       buildingId: input.buildingId,
       isPrivate: false,
       name: input.name.trim(),
@@ -135,13 +132,13 @@ export const checklistTemplatesRepo = {
     if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
       throw new Error('No autorizado');
     }
-    if (user.scope !== 'platform' && !user.clientId) throw new Error('No autorizado');
+    requireClientContext(user, 'Selecciona un cliente para continuar.');
     if (!input.name.trim() || input.items.length === 0 || input.items.some((it) => !it.label.trim())) throw new Error('Datos inválidos');
 
     const idx = MOCK_CHECKLIST_TEMPLATES.findIndex((t) => t.id === id);
     if (idx === -1) return null;
     const current = MOCK_CHECKLIST_TEMPLATES[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
     if (current.isPrivate) throw new Error('No se puede editar un checklist manual por tarea.');
 
     const hasActiveTaskUse = MOCK_TASKS_V1.some((t) => t.checklistTemplateId === id && t.status !== 'APPROVED');
@@ -206,12 +203,12 @@ export const checklistTemplatesRepo = {
     if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
       throw new Error('No autorizado');
     }
-    if (user.scope !== 'platform' && !user.clientId) throw new Error('No autorizado');
+    requireClientContext(user, 'Selecciona un cliente para continuar.');
 
     const idx = MOCK_CHECKLIST_TEMPLATES.findIndex((t) => t.id === id);
     if (idx === -1) return false;
     const current = MOCK_CHECKLIST_TEMPLATES[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return false;
+    if (!canAccessClientRecord(user, current.clientId)) return false;
     if (current.isPrivate) throw new Error('No se puede eliminar un checklist manual por tarea.');
 
     const hasActiveTaskUse = MOCK_TASKS_V1.some((t) => t.checklistTemplateId === id && t.status !== 'APPROVED');

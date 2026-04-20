@@ -1,5 +1,6 @@
 import { getPool } from '@/lib/server/db/client';
 import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
+import { getSessionIdFromRequest } from '@/lib/server/auth/session-cookie';
 import type { AuthScope, InternalRole, UIRole, UserStatus } from '@/lib/types/auth';
 
 export type SessionUser = {
@@ -13,17 +14,8 @@ export type SessionUser = {
   status: UserStatus;
 };
 
-function parseCookie(req: Request, name: string) {
-  const cookie = req.headers.get('cookie') ?? '';
-  return cookie
-    .split(';')
-    .map((x) => x.trim())
-    .find((x) => x.startsWith(`${name}=`))
-    ?.split('=')[1];
-}
-
 export async function getSessionUser(req: Request): Promise<SessionUser | null> {
-  const sessionId = parseCookie(req, 'ps_session');
+  const sessionId = getSessionIdFromRequest(req);
   if (!sessionId) return null;
 
   const pool = getPool();

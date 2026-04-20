@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Megaphone, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { noticesRepo } from '@/lib/data';
+import { loadResidentNoticesPageData } from '@/lib/features/notices/notices-center.data';
 import { formatDateTime } from '@/lib/presentation/dates';
 import { Notice } from '@/lib/types';
 import { labelNoticeAudience } from '@/lib/presentation/labels';
@@ -24,9 +24,9 @@ export default function ResidentNoticesPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await noticesRepo.listForUser(user);
+        const data = await loadResidentNoticesPageData(user);
         if (!isMounted) return;
-        setAllNotices(data);
+        setAllNotices(data.notices);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los avisos.');

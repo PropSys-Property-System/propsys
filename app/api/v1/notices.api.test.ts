@@ -251,7 +251,7 @@ describe('notices API (tenant/platform scope hardening)', () => {
     const data = (await res.json()) as { notice?: { clientId: string } };
     expect(data.notice?.clientId).toBe('client_002');
     expect(Array.isArray(insertParams)).toBe(true);
-    expect((insertParams as unknown[])[1]).toBe('client_002');
+    expect(insertParams?.[1]).toBe('client_002');
   });
 
   it('keeps tenant-scoped creation for CLIENT_MANAGER (ignores platform bypass)', async () => {
@@ -282,7 +282,7 @@ describe('notices API (tenant/platform scope hardening)', () => {
     const res = await createNotice(req);
     expect(res.status).toBe(200);
     expect(Array.isArray(insertParams)).toBe(true);
-    expect((insertParams as unknown[])[1]).toBe('client_001');
+    expect(insertParams?.[1]).toBe('client_001');
   });
 
   it('does not ignore audit failure silently when creating a notice', async () => {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canAccessTenantEntity } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import type { ReservationEntity } from '@/lib/types';
@@ -71,7 +71,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   );
   const current = currentRes.rows[0];
   if (!current || current.deleted_at) return NextResponse.json({ reservation: null }, { status: 404 });
-  if (!canBypassTenantScope(user) && (!user.clientId || current.client_id !== user.clientId)) {
+  if (!canAccessTenantEntity(user, current.client_id)) {
     return NextResponse.json({ reservation: null }, { status: 404 });
   }
 

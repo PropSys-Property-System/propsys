@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Megaphone, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, noticesRepo } from '@/lib/data';
+import { createNoticeForUser, listNoticesForUser, loadAdminNoticesPageData, type NoticeBuildingOption } from '@/lib/features/notices/notices-center.data';
 import { formatDateTime } from '@/lib/presentation/dates';
 import { Notice } from '@/lib/types';
 import { labelClient, labelNoticeAudience } from '@/lib/presentation/labels';
@@ -24,7 +24,7 @@ export default function AdminNoticesPage() {
   const [createBuildingId, setCreateBuildingId] = useState('');
   const [createTitle, setCreateTitle] = useState('');
   const [createBody, setCreateBody] = useState('');
-  const [buildings, setBuildings] = useState<{ id: string; name: string; clientId?: string }[]>([]);
+  const [buildings, setBuildings] = useState<NoticeBuildingOption[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -34,15 +34,12 @@ export default function AdminNoticesPage() {
         setIsLoading(true);
         setError(null);
         setActionError(null);
-        const data = await noticesRepo.listForUser(user);
-        const b = await buildingsRepo.listForUser(user);
+        const data = await loadAdminNoticesPageData(user);
         if (!isMounted) return;
-        setAllNotices(data);
-        setBuildings(b.map((x) => ({ id: x.id, name: x.name, clientId: x.clientId })));
-        setCreateBuildingId((prev) => prev || b[0]?.id || '');
-        if (user.internalRole === 'BUILDING_ADMIN') {
-          setCreateAudience('BUILDING');
-        }
+        setAllNotices(data.notices);
+        setBuildings(data.buildings);
+        setCreateBuildingId((prev) => prev || data.defaultBuildingId);
+        setCreateAudience(data.defaultAudience);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los avisos.');
@@ -60,7 +57,7 @@ export default function AdminNoticesPage() {
   const reload = async () => {
     if (!user) return;
     setActionError(null);
-    const data = await noticesRepo.listForUser(user);
+    const data = await listNoticesForUser(user);
     setAllNotices(data);
   };
 
@@ -101,7 +98,7 @@ export default function AdminNoticesPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await noticesRepo.createAndPublishForUser(user, {
+      await createNoticeForUser(user, {
         clientId: isRootPlatform ? createClientId : undefined,
         audience: effectiveAudience,
         buildingId: effectiveAudience === 'BUILDING' ? createBuildingId : undefined,

@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import { Plus, Search, Building2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo } from '@/lib/data';
+import { loadAdminBuildingsPageData } from '@/lib/features/physical/physical-center.data';
 import { Building } from '@/lib/types';
 
 export default function BuildingsPage() {
@@ -22,9 +22,9 @@ export default function BuildingsPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await buildingsRepo.listForUser(user);
+        const data = await loadAdminBuildingsPageData(user);
         if (!isMounted) return;
-        setAllBuildings(data);
+        setAllBuildings(data.buildings);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los edificios.');

@@ -5,7 +5,11 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Home, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, commonAreasRepo } from '@/lib/data';
+import {
+  listCommonAreasForBuilding,
+  loadAdminCommonAreasPageData,
+  updateCommonAreaApprovalForUser,
+} from '@/lib/features/physical/physical-center.data';
 import { Building, CommonArea } from '@/lib/types';
 
 export default function AdminCommonAreasPage() {
@@ -27,10 +31,10 @@ export default function AdminCommonAreasPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await buildingsRepo.listForUser(user);
+        const data = await loadAdminCommonAreasPageData(user);
         if (!isMounted) return;
-        setBuildings(data);
-        setSelectedBuildingId((prev) => prev || data[0]?.id || '');
+        setBuildings(data.buildings);
+        setSelectedBuildingId((prev) => prev || data.defaultBuildingId);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los edificios.');
@@ -54,7 +58,7 @@ export default function AdminCommonAreasPage() {
         setIsLoading(true);
         setError(null);
         setActionError(null);
-        const data = await commonAreasRepo.listForBuilding(user, selectedBuildingId);
+        const data = await listCommonAreasForBuilding(user, selectedBuildingId);
         if (!isMounted) return;
         setAreas(data);
       } catch {
@@ -81,7 +85,7 @@ export default function AdminCommonAreasPage() {
     try {
       setSavingAreaId(area.id);
       setActionError(null);
-      const updated = await commonAreasRepo.updateRequiresApprovalForUser(user, area.id, nextRequiresApproval);
+      const updated = await updateCommonAreaApprovalForUser(user, area.id, nextRequiresApproval);
       setAreas((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos actualizar el área común.');

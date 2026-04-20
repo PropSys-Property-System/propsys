@@ -3,6 +3,7 @@
 import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
+import { getDefaultRouteForUser } from '@/lib/auth/access-rules';
 import { Loader2 } from 'lucide-react';
 
 function isValidNextPath(nextPath: string | null) {
@@ -59,16 +60,7 @@ function RouterPageContent() {
           return;
         }
 
-        // Redirección inteligente basada en rol
-        if (user.role === 'MANAGER' || user.role === 'BUILDING_ADMIN') {
-          router.push('/admin/dashboard');
-        } else if (user.role === 'STAFF') {
-          router.push('/staff/tasks');
-        } else if (user.role === 'OWNER' || user.role === 'TENANT') {
-          router.push('/resident/receipts');
-        } else {
-          router.push('/');
-        }
+        router.push(getDefaultRouteForUser(user));
       }
     }, 1500);
 

@@ -1,5 +1,6 @@
 import { TaskEntity, User } from '@/lib/types';
 import { MOCK_CHECKLIST_TEMPLATES, MOCK_TASKS_V1 } from '@/lib/mocks';
+import { canAccessClientRecord, filterItemsByTenant, requireClientContext } from '@/lib/auth/access-rules';
 import { auditService } from '@/lib/audit/audit-service';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
@@ -16,19 +17,16 @@ export const tasksRepo = {
     }
     await sleep(250);
 
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_TASKS_V1
-        : user.clientId
-          ? MOCK_TASKS_V1.filter((t) => t.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_TASKS_V1, user);
 
     if (accessScope(user) === 'PORTFOLIO') return tenantScoped;
 
     if (accessScope(user) === 'BUILDING') {
       const buildingIds = (await buildingsRepo.listForUser(user)).map((b) => b.id);
       if (buildingIds.length === 0) return [];
-      if (user.internalRole === 'STAFF') return tenantScoped.filter((t) => buildingIds.includes(t.buildingId) && t.assignedToUserId === user.id);
+      if (user.internalRole === 'STAFF') {
+        return tenantScoped.filter((t) => buildingIds.includes(t.buildingId) && t.assignedToUserId === user.id);
+      }
       return tenantScoped.filter((t) => buildingIds.includes(t.buildingId));
     }
 
@@ -63,7 +61,7 @@ export const tasksRepo = {
     if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
       throw new Error('No autorizado');
     }
-    if (user.scope !== 'platform' && !user.clientId) throw new Error('No autorizado');
+    const clientId = requireClientContext(user, 'Selecciona un cliente para continuar.');
     if (!input.buildingId || !input.assignedToUserId || !input.title.trim()) throw new Error('Datos inválidos');
     if (input.manualChecklistItems && input.checklistTemplateId) throw new Error('Datos inválidos');
 
@@ -71,7 +69,7 @@ export const tasksRepo = {
     const checklistTemplateId = input.checklistTemplateId;
     const task: TaskEntity = {
       id: `task_${Date.now()}`,
-      clientId: user.scope === 'platform' ? (user.clientId ?? 'client_001') : user.clientId!,
+      clientId,
       buildingId: input.buildingId,
       checklistTemplateId,
       assignedToUserId: input.assignedToUserId,
@@ -146,7 +144,7 @@ export const tasksRepo = {
     if (idx === -1) return null;
 
     const current = MOCK_TASKS_V1[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
 
     if (user.internalRole === 'STAFF') {
       if (input.assignedToUserId) throw new Error('El personal no puede reasignar tareas.');
@@ -225,7 +223,7 @@ export const tasksRepo = {
     if (idx === -1) return null;
 
     const current = MOCK_TASKS_V1[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
 
     if (user.internalRole === 'STAFF') {
       if (current.assignedToUserId !== user.id) throw new Error('No autorizado');

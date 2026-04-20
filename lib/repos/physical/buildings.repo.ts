@@ -1,5 +1,6 @@
-﻿import { Building, User } from '@/lib/types';
+import { Building, User } from '@/lib/types';
 import { MOCK_PHYSICAL_BUILDINGS, MOCK_PHYSICAL_UNITS } from '@/lib/mocks';
+import { filterItemsByTenant } from '@/lib/auth/access-rules';
 import { accessScope } from '@/lib/access/access-scope';
 import { assignmentsRepo } from '@/lib/repos/physical/assignments.repo';
 import { isDbMode } from '@/lib/config/data-mode';
@@ -15,12 +16,8 @@ export const buildingsRepo = {
     }
     await sleep(300);
 
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_PHYSICAL_BUILDINGS
-        : user.clientId
-          ? MOCK_PHYSICAL_BUILDINGS.filter((b) => b.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_PHYSICAL_BUILDINGS, user);
+    const tenantScopedUnits = filterItemsByTenant(MOCK_PHYSICAL_UNITS, user);
 
     const toLegacy = (b: (typeof MOCK_PHYSICAL_BUILDINGS)[number]): Building => ({
       id: b.id,
@@ -39,9 +36,7 @@ export const buildingsRepo = {
 
     if (user.internalRole === 'OWNER') {
       const unitIds = assignmentsRepo.listUnitIdsForOwner(user);
-      const buildingIds = new Set(
-        MOCK_PHYSICAL_UNITS.filter((u) => unitIds.includes(u.id) && (user.scope === 'platform' || u.clientId === user.clientId)).map((u) => u.buildingId)
-      );
+      const buildingIds = new Set(tenantScopedUnits.filter((u) => unitIds.includes(u.id)).map((u) => u.buildingId));
       return tenantScoped.filter((b) => buildingIds.has(b.id)).map(toLegacy);
     }
 
@@ -50,13 +45,10 @@ export const buildingsRepo = {
         .listUnitAssignmentsForUser(user)
         .filter((a) => a.assignmentType === 'OCCUPANT')
         .map((a) => a.unitId);
-      const buildingIds = new Set(
-        MOCK_PHYSICAL_UNITS.filter((u) => unitIds.includes(u.id) && (user.scope === 'platform' || u.clientId === user.clientId)).map((u) => u.buildingId)
-      );
+      const buildingIds = new Set(tenantScopedUnits.filter((u) => unitIds.includes(u.id)).map((u) => u.buildingId));
       return tenantScoped.filter((b) => buildingIds.has(b.id)).map(toLegacy);
     }
 
     return [];
   },
 };
-

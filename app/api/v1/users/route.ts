@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
 import type { User } from '@/lib/types';
 
 export async function GET(req: Request) {
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
     id: u.id,
     email: u.email,
     name: u.name,
-    role: u.role as User['role'],
+    role: mapInternalRoleToUIRole(u.internal_role as User['internalRole']),
     internalRole: u.internal_role as User['internalRole'],
     clientId: u.client_id,
     scope: u.scope as User['scope'],

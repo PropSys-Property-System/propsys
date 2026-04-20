@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from './auth-context';
+import { getDefaultRouteForUser } from './access-rules';
 import { UserRole } from '../types';
 
 interface RouteGuardProps {
@@ -19,22 +20,11 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
     if (isLoading) return;
 
     if (!isAuthenticated) {
-      // Redirigir a login si no está autenticado y no está en una página pública
       if (pathname !== '/' && pathname !== '/reset-password') {
         router.push('/');
       }
-    } else if (user) {
-      // Si está autenticado, verificar roles
-      if (allowedRoles && !allowedRoles.includes(user.role)) {
-        // Redirigir al dashboard correspondiente si no tiene permiso para la ruta actual
-        if (user.role === 'MANAGER' || user.role === 'BUILDING_ADMIN') {
-          router.push('/admin/dashboard');
-        } else if (user.role === 'STAFF') {
-          router.push('/staff/tasks');
-        } else {
-          router.push('/resident/receipts');
-        }
-      }
+    } else if (user && allowedRoles && !allowedRoles.includes(user.role)) {
+      router.push(getDefaultRouteForUser(user));
     }
   }, [user, isAuthenticated, isLoading, router, pathname, allowedRoles]);
 
@@ -46,16 +36,13 @@ export function RouteGuard({ children, allowedRoles }: RouteGuardProps) {
     );
   }
 
-  // Si no está autenticado y no es una ruta pública, no mostrar nada mientras redirige
   if (!isAuthenticated && pathname !== '/' && pathname !== '/reset-password') {
     return null;
   }
 
-  // Si el rol no es permitido, no mostrar nada mientras redirige
   if (isAuthenticated && user && allowedRoles && !allowedRoles.includes(user.role)) {
     return null;
   }
 
   return <>{children}</>;
 }
-

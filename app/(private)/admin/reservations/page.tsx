@@ -5,7 +5,13 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { CalendarDays, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, commonAreasRepo, reservationsRepo, unitsRepo } from '@/lib/data';
+import {
+  approveReservationForUser,
+  cancelReservationForUser,
+  listReservationsForUser,
+  loadAdminReservationsPageData,
+  rejectReservationForUser,
+} from '@/lib/features/reservations/reservations-center.data';
 import { formatDateTime, formatTime } from '@/lib/presentation/dates';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
 import { labelReservationStatus } from '@/lib/presentation/labels';
@@ -38,18 +44,12 @@ export default function AdminReservationsPage() {
         setIsLoading(true);
         setError(null);
         setActionError(null);
-        const [r, u, b] = await Promise.all([
-          reservationsRepo.listForUser(user),
-          unitsRepo.listForUser(user),
-          buildingsRepo.listForUser(user),
-        ]);
-        const buildingIds = Array.from(new Set(b.map((x) => x.id)));
-        const areasByBuilding = await Promise.all(buildingIds.map((id) => commonAreasRepo.listForBuilding(user, id)));
+        const data = await loadAdminReservationsPageData(user);
         if (!isMounted) return;
-        setReservations(r);
-        setUnits(u);
-        setBuildings(b);
-        setAreas(areasByBuilding.flat());
+        setReservations(data.reservations);
+        setUnits(data.units);
+        setBuildings(data.buildings);
+        setAreas(data.areas);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar las reservas.');
@@ -67,7 +67,7 @@ export default function AdminReservationsPage() {
   const reload = async () => {
     if (!user) return;
     setActionError(null);
-    const r = await reservationsRepo.listForUser(user);
+    const r = await listReservationsForUser(user);
     setReservations(r);
   };
 
@@ -99,7 +99,7 @@ export default function AdminReservationsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await reservationsRepo.approveForUser(user, id);
+      await approveReservationForUser(user, id);
       await reload();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos aprobar la reserva.');
@@ -113,7 +113,7 @@ export default function AdminReservationsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await reservationsRepo.rejectForUser(user, id);
+      await rejectReservationForUser(user, id);
       await reload();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos rechazar la reserva.');
@@ -127,7 +127,7 @@ export default function AdminReservationsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await reservationsRepo.cancelForUser(user, id);
+      await cancelReservationForUser(user, id);
       await reload();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos cancelar la reserva.');

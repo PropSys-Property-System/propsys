@@ -102,5 +102,27 @@ describe('/api/auth/me', () => {
     expect(data.buildingAssignments.every((a) => a.client_id === 'client_001')).toBe(true);
     expect(data.unitAssignments.every((a) => a.client_id === 'client_001')).toBe(true);
   });
+
+  it('keeps tenant filter for CLIENT_MANAGER even if scope is platform', async () => {
+    query.mockReset();
+    (sessionUser as unknown as { id: string }).id = 'u_manager';
+    (sessionUser as unknown as { scope: string }).scope = 'platform';
+    (sessionUser as unknown as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as unknown as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as unknown as { role: string }).role = 'MANAGER';
+
+    query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM user_building_assignments') || sql.includes('FROM user_unit_assignments')) {
+        expect(sql).toContain('client_id = $2');
+        expect(params?.[0]).toBe('u_manager');
+        expect(params?.[1]).toBe('client_001');
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/auth/me', { method: 'GET' });
+    const res = await me(req);
+    expect(res.status).toBe(200);
+  });
 });
 

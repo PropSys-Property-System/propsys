@@ -29,6 +29,7 @@ export type ReceiptStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED';
 
 export interface Receipt {
   id: string;
+  clientId?: string;
   number: string;
   issueDate: string;
   dueDate: string;

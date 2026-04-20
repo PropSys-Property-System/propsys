@@ -1,13 +1,17 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
-import { ChevronDown, Plus, Search } from 'lucide-react';
+import { ChevronDown, ExternalLink, FileText, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, checklistExecutionsRepo, checklistTemplatesRepo, staffRepo, tasksRepo } from '@/lib/data';
+import { checklistExecutionsRepo } from '@/lib/repos/operation/checklist-executions.repo';
+import { checklistTemplatesRepo } from '@/lib/repos/operation/checklist-templates.repo';
+import { tasksRepo } from '@/lib/repos/operation/tasks.repo';
+import { loadAdminTaskReviewData, loadAdminTasksPageData } from '@/lib/features/tasks/task-center.data';
 import { formatDateTime } from '@/lib/presentation/dates';
-import type { ChecklistTemplate, StaffMember, TaskEntity } from '@/lib/types';
+import type { ChecklistExecution, ChecklistTemplate, EvidenceAttachment, StaffMember, TaskEntity } from '@/lib/types';
 
 function labelTaskStatus(status: TaskEntity['status']) {
   if (status === 'APPROVED') return 'Aprobada';
@@ -18,8 +22,11 @@ function labelTaskStatus(status: TaskEntity['status']) {
 
 export default function AdminTasksPage() {
   const { user } = useAuth();
+  const imageLoader = ({ src }: { src: string }) => src;
   const [allTasks, setAllTasks] = useState<TaskEntity[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [buildingFilter, setBuildingFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | TaskEntity['status']>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -51,6 +58,13 @@ export default function AdminTasksPage() {
   const [isTemplatesExpanded, setIsTemplatesExpanded] = useState(false);
 
   const [assigneeByTaskId, setAssigneeByTaskId] = useState<Record<string, string>>({});
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isReviewLoading, setIsReviewLoading] = useState(false);
+  const [reviewTask, setReviewTask] = useState<TaskEntity | null>(null);
+  const [reviewTemplate, setReviewTemplate] = useState<ChecklistTemplate | null>(null);
+  const [reviewExecution, setReviewExecution] = useState<ChecklistExecution | null>(null);
+  const [reviewEvidence, setReviewEvidence] = useState<EvidenceAttachment[]>([]);
+  const [reviewCommentDraft, setReviewCommentDraft] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -60,42 +74,15 @@ export default function AdminTasksPage() {
         setIsLoading(true);
         setError(null);
         setActionError(null);
-        setTemplatesError(null);
-
-        const [tasks, b] = await Promise.all([
-          tasksRepo.listForUser(user),
-          buildingsRepo.listForUser(user),
-        ]);
+        const data = await loadAdminTasksPageData(user);
         if (!isMounted) return;
-        setAllTasks(tasks);
-        setBuildings(b.map((x) => ({ id: x.id, name: x.name })));
-        setCreateBuildingId((prev) => prev || b[0]?.id || '');
-        setTemplatesBuildingId((prev) => prev || b[0]?.id || '');
-
-        const staffLists = await Promise.allSettled(b.map((x) => staffRepo.listForBuilding(user, x.id)));
-        if (!isMounted) return;
-        const next: Record<string, StaffMember[]> = {};
-        for (let i = 0; i < b.length; i += 1) {
-          const staffList = staffLists[i];
-          next[b[i].id] = staffList.status === 'fulfilled' ? staffList.value : [];
-        }
-        setStaffByBuildingId(next);
-
-        try {
-          const templates = await checklistTemplatesRepo.listForUser(user);
-          if (!isMounted) return;
-          const templatesGrouped: Record<string, ChecklistTemplate[]> = {};
-          for (const t of templates) {
-            if (!templatesGrouped[t.buildingId]) templatesGrouped[t.buildingId] = [];
-            templatesGrouped[t.buildingId].push(t);
-          }
-          setTemplatesByBuildingId(templatesGrouped);
-          setTemplatesError(null);
-        } catch {
-          if (!isMounted) return;
-          setTemplatesByBuildingId({});
-          setTemplatesError('No pudimos cargar los checklists reutilizables.');
-        }
+        setAllTasks(data.tasks);
+        setBuildings(data.buildings);
+        setCreateBuildingId((prev) => prev || data.buildings[0]?.id || '');
+        setTemplatesBuildingId((prev) => prev || data.buildings[0]?.id || '');
+        setStaffByBuildingId(data.staffByBuildingId);
+        setTemplatesByBuildingId(data.templatesByBuildingId);
+        setTemplatesError(data.templatesError);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar las tareas.');
@@ -133,24 +120,80 @@ export default function AdminTasksPage() {
     setTemplatesBuildingId((prev) => prev || createBuildingId);
   }, [createBuildingId]);
 
+  useEffect(() => {
+    if (buildingFilter === 'ALL') return;
+    const buildingExists = buildings.some((building) => building.id === buildingFilter);
+    if (!buildingExists) setBuildingFilter('ALL');
+  }, [buildingFilter, buildings]);
+
   const reload = async () => {
     if (!user) return;
     setActionError(null);
     const data = await tasksRepo.listForUser(user);
     setAllTasks(data);
+    return data;
   };
 
   const tasks = useMemo(() => {
     const t = searchTerm.toLowerCase();
-    return allTasks.filter((x) => x.title.toLowerCase().includes(t) || (x.description ?? '').toLowerCase().includes(t));
-  }, [allTasks, searchTerm]);
+    return allTasks.filter((task) => {
+      const matchesSearch = task.title.toLowerCase().includes(t) || (task.description ?? '').toLowerCase().includes(t);
+      const matchesBuilding = buildingFilter === 'ALL' || task.buildingId === buildingFilter;
+      const matchesStatus = statusFilter === 'ALL' || task.status === statusFilter;
+      return matchesSearch && matchesBuilding && matchesStatus;
+    });
+  }, [allTasks, buildingFilter, searchTerm, statusFilter]);
 
   const buildingNameById = useMemo(
     () => Object.fromEntries(buildings.map((building) => [building.id, building.name])),
     [buildings]
   );
+  const reviewResultsByItemId = useMemo(
+    () => new Map((reviewExecution?.results ?? []).map((result) => [result.itemId, Boolean(result.value)])),
+    [reviewExecution]
+  );
 
   const canManage = user?.internalRole === 'BUILDING_ADMIN' || user?.internalRole === 'CLIENT_MANAGER' || user?.internalRole === 'ROOT_ADMIN';
+
+  const closeReview = () => {
+    setActionError(null);
+    setIsReviewOpen(false);
+    setIsReviewLoading(false);
+    setReviewTask(null);
+    setReviewTemplate(null);
+    setReviewExecution(null);
+    setReviewEvidence([]);
+    setReviewCommentDraft('');
+  };
+
+  const openReview = async (task: TaskEntity) => {
+    if (!user || !task.checklistTemplateId) return;
+
+    setActionError(null);
+    setReviewTask(task);
+    setReviewTemplate(null);
+    setReviewExecution(null);
+    setReviewEvidence([]);
+    setReviewCommentDraft('');
+    setIsReviewOpen(true);
+    setIsReviewLoading(true);
+
+    try {
+      const data = await loadAdminTaskReviewData(user, task);
+      setReviewTemplate(data.template);
+      setReviewExecution(data.execution);
+      setReviewEvidence(data.evidence);
+      setReviewCommentDraft(data.reviewCommentDraft);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'No pudimos cargar la revision de la tarea.');
+    } finally {
+      setIsReviewLoading(false);
+    }
+  };
+
+  const refreshReview = async (task: TaskEntity) => {
+    await openReview(task);
+  };
 
   const submitCreate = async () => {
     if (!user) return;
@@ -319,25 +362,33 @@ export default function AdminTasksPage() {
     }
   };
 
-  const approveChecklistForTask = async (taskId: string) => {
-    if (!user) return;
+  const approveChecklistFromReview = async () => {
+    if (!user || !reviewTask || !reviewExecution) return;
     try {
       setIsSubmitting(true);
       setActionError(null);
-      const executions = await checklistExecutionsRepo.listForTask(user, taskId);
-      const current = executions[0] ?? null;
-      if (!current) {
-        setActionError('Esta tarea no tiene checklist iniciado.');
-        return;
-      }
-      if (current.status !== 'COMPLETED') {
-        setActionError('Solo se puede aprobar cuando el checklist esté completado.');
-        return;
-      }
-      await checklistExecutionsRepo.approveForUser(user, current.id);
-      await reload();
+      await checklistExecutionsRepo.approveForUser(user, reviewExecution.id);
+      const tasks = await reload();
+      const updatedTask = tasks?.find((task) => task.id === reviewTask.id) ?? reviewTask;
+      await refreshReview(updatedTask);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos aprobar el checklist.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const returnChecklistFromReview = async () => {
+    if (!user || !reviewTask || !reviewExecution) return;
+    try {
+      setIsSubmitting(true);
+      setActionError(null);
+      await checklistExecutionsRepo.returnForUser(user, reviewExecution.id, { comment: reviewCommentDraft });
+      const tasks = await reload();
+      const updatedTask = tasks?.find((task) => task.id === reviewTask.id) ?? reviewTask;
+      await refreshReview(updatedTask);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'No pudimos devolver el checklist al staff.');
     } finally {
       setIsSubmitting(false);
     }
@@ -409,15 +460,40 @@ export default function AdminTasksPage() {
           </div>
         )}
 
-        <div className="relative group max-w-2xl">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar tareas..."
-            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-          />
+        <div className="flex max-w-4xl flex-col gap-3 lg:flex-row">
+          <div className="relative group lg:flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar tareas..."
+              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            />
+          </div>
+          <select
+            value={buildingFilter}
+            onChange={(e) => setBuildingFilter(e.target.value)}
+            className="w-full lg:w-64 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+          >
+            <option value="ALL">Todos los edificios</option>
+            {buildings.map((building) => (
+              <option key={building.id} value={building.id}>
+                {building.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as 'ALL' | TaskEntity['status'])}
+            className="w-full lg:w-56 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+          >
+            <option value="ALL">Todos los estados</option>
+            <option value="PENDING">Pendiente</option>
+            <option value="IN_PROGRESS">En progreso</option>
+            <option value="COMPLETED">Completada</option>
+            <option value="APPROVED">Aprobada</option>
+          </select>
         </div>
 
         {canManage && (
@@ -504,7 +580,14 @@ export default function AdminTasksPage() {
         ) : isLoading ? (
           <LoadingState title="Cargando tareas..." />
         ) : tasks.length === 0 ? (
-          <EmptyState title="Sin tareas" description={searchTerm ? `No hay resultados para "${searchTerm}".` : 'Aún no hay tareas registradas.'} />
+          <EmptyState
+            title="Sin tareas"
+            description={
+              searchTerm || buildingFilter !== 'ALL' || statusFilter !== 'ALL'
+                ? 'No hay tareas que coincidan con los filtros actuales.'
+                : 'Aún no hay tareas registradas.'
+            }
+          />
         ) : (
           <div className="space-y-3 max-w-4xl">
             {tasks.map((task) => {
@@ -556,16 +639,31 @@ export default function AdminTasksPage() {
                       </div>
                     )}
 
-                    {canManage && task.status === 'COMPLETED' && (
-                      <div className="mt-4">
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {task.checklistTemplateId && (
+                        <button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => openReview(task)}
+                          className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
+                        >
+                          Revisar checklist
+                        </button>
+                      )}
+                      {canManage && task.status === 'COMPLETED' && !task.checklistTemplateId && (
                         <button
                           disabled={isSubmitting}
-                          onClick={() => (task.checklistTemplateId ? approveChecklistForTask(task.id) : approveTask(task.id))}
+                          onClick={() => approveTask(task.id)}
                           className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all disabled:opacity-60"
                         >
-                          {task.checklistTemplateId ? 'Aprobar checklist' : 'Aprobar'}
+                          Aprobar
                         </button>
-                      </div>
+                      )}
+                    </div>
+                    {task.checklistTemplateId && (
+                      <p className="mt-2 text-[11px] font-semibold text-slate-400">
+                        Revisa checklist y evidencias antes de aprobar o devolver la tarea.
+                      </p>
                     )}
                   </div>
                 </div>
@@ -574,6 +672,229 @@ export default function AdminTasksPage() {
           </div>
         )}
       </div>
+
+      {isReviewOpen && reviewTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={closeReview} type="button" />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative flex min-h-0 max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-lg font-black text-slate-900 truncate">Revision del checklist</p>
+                <p className="mt-1 text-xs text-slate-500 font-medium truncate">{reviewTask.title}</p>
+                <p className="mt-1 text-[11px] font-semibold text-slate-400 truncate">
+                  Edificio: {buildingNameById[reviewTask.buildingId] ?? reviewTask.buildingId}
+                </p>
+              </div>
+              <button type="button" onClick={closeReview} className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700">
+                Cerrar
+              </button>
+            </div>
+
+            {actionError && <div className="mt-4"><ErrorState title="Accion no disponible" description={actionError} /></div>}
+
+            <div className="mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
+              {isReviewLoading ? (
+                <LoadingState title="Cargando revision..." />
+              ) : (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                        {reviewTemplate?.name ?? 'Checklist no disponible'}
+                      </span>
+                      {reviewExecution && (
+                        <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                          {reviewExecution.status === 'APPROVED'
+                            ? 'Aprobado'
+                            : reviewExecution.status === 'COMPLETED'
+                              ? 'Completado'
+                              : 'Pendiente'}
+                        </span>
+                      )}
+                    </div>
+                    {reviewExecution ? (
+                      <p className="mt-3 text-[11px] font-semibold text-slate-500">
+                        Ultima actualizacion {formatDateTime(reviewExecution.updatedAt)}
+                      </p>
+                    ) : (
+                      <p className="mt-3 text-[11px] font-semibold text-slate-500">
+                        El staff todavia no inicio este checklist.
+                      </p>
+                    )}
+                  </div>
+
+                  {reviewExecution?.lastReviewAction === 'RETURN' && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-xs font-black uppercase tracking-widest text-amber-800">Ultima devolucion</p>
+                      <p className="mt-2 text-[11px] font-semibold text-amber-900">
+                        {reviewExecution.reviewedAt ? `Registrada ${formatDateTime(reviewExecution.reviewedAt)}` : 'Registrada por administracion'}
+                      </p>
+                      <p className="mt-2 text-sm font-medium text-amber-900">
+                        {reviewExecution.reviewComment?.trim() || 'Sin comentario adicional.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {!reviewExecution ? (
+                    <EmptyState
+                      title="Checklist sin iniciar"
+                      description="Todavia no hay respuestas ni evidencias para revisar en esta tarea."
+                    />
+                  ) : (
+                    <>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400">Items</p>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            {reviewExecution.results.length} respuestas
+                          </span>
+                        </div>
+                        {reviewTemplate ? (
+                          <div className="space-y-2">
+                            {reviewTemplate.items.map((item) => (
+                              <div key={item.id} className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(reviewResultsByItemId.get(item.id))}
+                                  readOnly
+                                  disabled
+                                  className="mt-1 h-4 w-4"
+                                />
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-black text-slate-900">{item.label}</span>
+                                  <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                    {item.required ? 'Requerido' : 'Opcional'}
+                                  </span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 font-semibold">
+                            No pudimos cargar el template asociado a esta ejecucion.
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-400">Evidencias</p>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            {reviewEvidence.length} adjuntos
+                          </span>
+                        </div>
+                        {reviewEvidence.length === 0 ? (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 font-semibold">
+                            Sin evidencias adjuntas.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {reviewEvidence.map((ev) => {
+                              const isImage = ev.mimeType.startsWith('image/') || /\.(png|jpg|jpeg|webp)$/i.test(ev.fileName);
+                              const isPdf = ev.mimeType === 'application/pdf' || /\.pdf$/i.test(ev.fileName);
+                              return (
+                                <div key={ev.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                                  <div className="flex items-start gap-4">
+                                    <a href={ev.url} target="_blank" rel="noreferrer" className="block">
+                                      {isImage ? (
+                                        <Image
+                                          loader={imageLoader}
+                                          unoptimized
+                                          src={ev.url}
+                                          alt={ev.fileName}
+                                          width={56}
+                                          height={56}
+                                          className="h-14 w-14 rounded-xl object-cover border border-slate-200"
+                                        />
+                                      ) : (
+                                        <div className="h-14 w-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
+                                          <FileText className="h-6 w-6 text-slate-500" />
+                                        </div>
+                                      )}
+                                    </a>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-black text-slate-900 truncate">{ev.fileName}</p>
+                                      <p className="mt-1 text-xs text-slate-500 font-medium truncate">
+                                        {isPdf ? 'PDF' : isImage ? 'Imagen' : ev.mimeType}
+                                        {typeof ev.sizeBytes === 'number' ? ` · ${Math.ceil(ev.sizeBytes / 1024)} KB` : ''}
+                                      </p>
+                                      <p className="mt-1 text-[11px] font-semibold text-slate-400 truncate">
+                                        Subido {formatDateTime(ev.createdAt)}
+                                      </p>
+                                      <div className="mt-3">
+                                        <a
+                                          href={ev.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-all"
+                                        >
+                                          <ExternalLink className="w-4 h-4 mr-2" />
+                                          Abrir
+                                        </a>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                          Comentario al devolver (opcional)
+                        </label>
+                        <textarea
+                          value={reviewCommentDraft}
+                          onChange={(event) => setReviewCommentDraft(event.target.value)}
+                          disabled={isSubmitting || isReviewLoading}
+                          placeholder="Indica qué debe corregir el staff antes de volver a enviarlo."
+                          className="min-h-[110px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/5 disabled:opacity-70"
+                        />
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeReview}
+                className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all"
+              >
+                Cerrar
+              </button>
+              {reviewExecution && (reviewExecution.status === 'COMPLETED' || reviewExecution.status === 'APPROVED') && (
+                <button
+                  type="button"
+                  disabled={isSubmitting || isReviewLoading}
+                  onClick={returnChecklistFromReview}
+                  className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-amber-700 font-black text-sm hover:bg-amber-50 transition-all disabled:opacity-70"
+                >
+                  {reviewExecution.status === 'APPROVED' ? 'Quitar aprobacion y devolver' : 'Devolver al staff'}
+                </button>
+              )}
+              {reviewExecution?.status === 'COMPLETED' && (
+                <button
+                  type="button"
+                  disabled={isSubmitting || isReviewLoading}
+                  onClick={approveChecklistFromReview}
+                  className="px-5 py-3 rounded-xl bg-slate-900 text-white font-black text-sm hover:bg-slate-800 transition-all disabled:opacity-70"
+                >
+                  Aprobar checklist
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -929,3 +1250,4 @@ export default function AdminTasksPage() {
     </div>
   );
 }
+

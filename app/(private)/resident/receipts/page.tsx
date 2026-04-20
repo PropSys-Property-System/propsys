@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import { CreditCard, Search, Filter } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
-import { receiptsRepo } from '@/lib/data';
+import { loadResidentReceiptsPageData } from '@/lib/features/receipts/receipts-center.data';
 import { Receipt } from '@/lib/types';
 import { formatReceiptAmount, summarizeReceiptTotalsByCurrency } from '@/lib/presentation/receipts';
 
@@ -26,9 +26,9 @@ export default function ResidentReceiptsPage() {
       try {
         setIsLoading(true);
         setLoadError(null);
-        const data = await receiptsRepo.listForUser(user);
+        const data = await loadResidentReceiptsPageData(user);
         if (!isMounted) return;
-        setReceipts(data);
+        setReceipts(data.receipts);
       } catch {
         if (!isMounted) return;
         setLoadError('No pudimos cargar tus recibos.');

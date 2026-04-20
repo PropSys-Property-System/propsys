@@ -40,6 +40,23 @@ export function labelInternalRole(role: User['internalRole']): string {
   }
 }
 
+export function labelUserStatus(status: User['status']): string {
+  switch (status) {
+    case 'ACTIVE':
+      return 'Activo';
+    case 'SUSPENDED':
+      return 'Suspendido';
+    case 'INACTIVE':
+      return 'Inactivo';
+    case 'ARCHIVED':
+      return 'Archivado';
+    default: {
+      const _exhaustiveCheck: never = status;
+      return _exhaustiveCheck;
+    }
+  }
+}
+
 export function labelIncidentStatus(status: IncidentEntity['status']): string {
   switch (status) {
     case 'REPORTED':

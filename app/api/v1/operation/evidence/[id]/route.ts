@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { deleteEvidenceFile } from '@/lib/server/operation/evidence-storage';
 
 export const runtime = 'nodejs';
 
@@ -48,10 +49,11 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     client_id: string;
     building_id: string;
     checklist_execution_id: string | null;
+    storage_path: string | null;
     uploaded_by_user_id: string;
     deleted_at: string | null;
   }>(
-    `SELECT id, client_id, building_id, checklist_execution_id, uploaded_by_user_id, deleted_at
+    `SELECT id, client_id, building_id, checklist_execution_id, storage_path, uploaded_by_user_id, deleted_at
      FROM evidence_attachments
      WHERE id = $1
      LIMIT 1`,
@@ -112,6 +114,10 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
       ]
     );
   });
+
+  try {
+    await deleteEvidenceFile(evidence.storage_path);
+  } catch {}
 
   return NextResponse.json({ ok: true });
 }

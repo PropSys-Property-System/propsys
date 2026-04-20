@@ -1,5 +1,6 @@
 import { Notice, NoticeEntity, User } from '@/lib/types';
 import { MOCK_NOTICE_ENTITIES } from '@/lib/mocks';
+import { canBypassTenantScope, filterItemsByTenant } from '@/lib/auth/access-rules';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { assignmentsRepo } from '@/lib/repos/physical/assignments.repo';
 import { auditService } from '@/lib/audit/audit-service';
@@ -29,12 +30,7 @@ export const noticesRepo = {
     await sleep(250);
 
     const buildingIds = (await buildingsRepo.listForUser(user)).map((b) => b.id);
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_NOTICE_ENTITIES
-        : user.clientId
-          ? MOCK_NOTICE_ENTITIES.filter((n) => n.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_NOTICE_ENTITIES, user);
 
     const published = tenantScoped.filter((n) => n.status === 'PUBLISHED' && !n.deletedAt);
     const forAll = published.filter((n) => n.audience === 'ALL_BUILDINGS');
@@ -63,8 +59,9 @@ export const noticesRepo = {
     if (user.internalRole === 'STAFF' || user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
       throw new Error('No autorizado');
     }
-    const isRootPlatform = user.internalRole === 'ROOT_ADMIN' && user.scope === 'platform';
-    if (!isRootPlatform && user.scope !== 'platform' && !user.clientId) {
+
+    const isRootPlatform = canBypassTenantScope(user);
+    if (!isRootPlatform && !user.clientId) {
       throw new Error('No autorizado');
     }
 
@@ -81,10 +78,8 @@ export const noticesRepo = {
         throw new Error('El edificio no pertenece al cliente seleccionado.');
       }
 
-      if (user.internalRole === 'BUILDING_ADMIN') {
-        if (!assignmentsRepo.isAssignedToBuilding(user, input.buildingId)) {
-          throw new Error('No autorizado: no estás asignado a ese edificio.');
-        }
+      if (user.internalRole === 'BUILDING_ADMIN' && !assignmentsRepo.isAssignedToBuilding(user, input.buildingId)) {
+        throw new Error('No autorizado: no estás asignado a ese edificio.');
       }
     }
 

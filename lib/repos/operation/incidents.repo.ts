@@ -1,5 +1,6 @@
 import { IncidentEntity, User } from '@/lib/types';
 import { MOCK_INCIDENTS, MOCK_UNITS } from '@/lib/mocks';
+import { canAccessClientRecord, filterItemsByTenant, requireClientContext } from '@/lib/auth/access-rules';
 import { auditService } from '@/lib/audit/audit-service';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
@@ -18,12 +19,7 @@ export const incidentsRepo = {
     }
     await sleep(350);
 
-    const tenantScoped =
-      user.scope === 'platform'
-        ? MOCK_INCIDENTS
-        : user.clientId
-          ? MOCK_INCIDENTS.filter((i) => i.clientId === user.clientId)
-          : [];
+    const tenantScoped = filterItemsByTenant(MOCK_INCIDENTS, user);
 
     if (accessScope(user) === 'PORTFOLIO') return tenantScoped;
 
@@ -62,20 +58,14 @@ export const incidentsRepo = {
     await sleep(250);
 
     if (user.internalRole === 'OCCUPANT') throw new Error('No autorizado');
-    if (user.scope !== 'platform' && !user.clientId) throw new Error('No autorizado');
+
+    const clientId = requireClientContext(user, 'Selecciona un cliente para continuar.');
 
     if (user.internalRole === 'OWNER') {
       if (!input.unitId) throw new Error('No autorizado');
-
       if (!assignmentsRepo.isOwnerOfUnit(user, input.unitId)) throw new Error('No autorizado');
 
-      const tenantUnits =
-        user.scope === 'platform'
-          ? MOCK_UNITS
-          : user.clientId
-            ? MOCK_UNITS.filter((u) => u.clientId === user.clientId)
-            : [];
-
+      const tenantUnits = filterItemsByTenant(MOCK_UNITS, user);
       const unit = tenantUnits.find((u) => u.id === input.unitId);
       if (!unit) throw new Error('No autorizado');
       if (unit.buildingId !== input.buildingId) throw new Error('No autorizado');
@@ -84,7 +74,7 @@ export const incidentsRepo = {
     const now = new Date().toISOString();
     const incident: IncidentEntity = {
       id: `inc_${Date.now()}`,
-      clientId: user.scope === 'platform' ? (user.clientId ?? 'client_001') : user.clientId!,
+      clientId,
       buildingId: input.buildingId,
       unitId: input.unitId,
       title: input.title,
@@ -130,7 +120,7 @@ export const incidentsRepo = {
     if (idx === -1) return null;
 
     const current = MOCK_INCIDENTS[idx];
-    if (user.scope !== 'platform' && user.clientId !== current.clientId) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
 
     if (user.internalRole === 'STAFF') {
       const canTouchIncident = current.assignedToUserId === user.id || current.reportedByUserId === user.id;

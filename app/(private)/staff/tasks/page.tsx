@@ -4,9 +4,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
-import { ClipboardList, CheckCircle2, Circle, ExternalLink, FileText, Link2, ListChecks, Search, Trash2 } from 'lucide-react';
+import { Camera, ClipboardList, CheckCircle2, Circle, ExternalLink, FileText, ListChecks, Search, Trash2, Upload } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { buildingsRepo, checklistExecutionsRepo, checklistTemplatesRepo, evidenceRepo, tasksRepo } from '@/lib/data';
+import { checklistExecutionsRepo } from '@/lib/repos/operation/checklist-executions.repo';
+import { evidenceRepo } from '@/lib/repos/operation/evidence.repo';
+import { tasksRepo } from '@/lib/repos/operation/tasks.repo';
+import { loadStaffTaskChecklistData, loadStaffTasksPageData } from '@/lib/features/tasks/task-center.data';
 import type { ChecklistExecution, ChecklistTemplate, EvidenceAttachment, TaskEntity } from '@/lib/types';
 
 export default function StaffTasksPage() {
@@ -24,12 +27,53 @@ export default function StaffTasksPage() {
   const [execution, setExecution] = useState<ChecklistExecution | null>(null);
   const [resultsByItemId, setResultsByItemId] = useState<Record<string, boolean>>({});
   const [evidence, setEvidence] = useState<EvidenceAttachment[]>([]);
-  const [evidenceUrlInput, setEvidenceUrlInput] = useState('');
-  const [evidenceLabelInput, setEvidenceLabelInput] = useState('');
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidencePreviewUrl, setEvidencePreviewUrl] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const imageLoader = ({ src }: { src: string }) => src;
+  const uploadInputRef = React.useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const clearEvidenceDraft = React.useCallback(() => {
+    setEvidenceFile(null);
+    setEvidencePreviewUrl((current) => {
+      if (current?.startsWith('blob:')) {
+        URL.revokeObjectURL(current);
+      }
+      return null;
+    });
+  }, []);
+
+  const selectEvidenceFile = React.useCallback(
+    (file: File | null) => {
+      if (!file) return;
+
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      const isImage = file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp)$/i.test(file.name);
+      if (!isPdf && !isImage) {
+        clearEvidenceDraft();
+        setActionError('Tipo de archivo no permitido. Solo imagenes o PDF.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        clearEvidenceDraft();
+        setActionError('El archivo supera el limite de 10 MB.');
+        return;
+      }
+
+      setActionError(null);
+      setEvidenceFile(file);
+      setEvidencePreviewUrl((current) => {
+        if (current?.startsWith('blob:')) {
+          URL.revokeObjectURL(current);
+        }
+        return isImage ? URL.createObjectURL(file) : null;
+      });
+    },
+    [clearEvidenceDraft]
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -38,10 +82,10 @@ export default function StaffTasksPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const [data, buildings] = await Promise.all([tasksRepo.listForUser(user), buildingsRepo.listForUser(user)]);
+        const data = await loadStaffTasksPageData(user);
         if (!isMounted) return;
-        setAllTasks(data);
-        setBuildingNameById(Object.fromEntries(buildings.map((building) => [building.id, building.name])));
+        setAllTasks(data.tasks);
+        setBuildingNameById(data.buildingNameById);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar tus tareas.');
@@ -55,6 +99,12 @@ export default function StaffTasksPage() {
       isMounted = false;
     };
   }, [user]);
+
+  useEffect(() => () => {
+    if (evidencePreviewUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(evidencePreviewUrl);
+    }
+  }, [evidencePreviewUrl]);
 
   const tasks = useMemo(() => {
     const t = searchTerm.toLowerCase();
@@ -104,8 +154,7 @@ export default function StaffTasksPage() {
     setIsChecklistOpen(true);
     setActionError(null);
     setIsSubmitting(false);
-    setEvidenceUrlInput('');
-    setEvidenceLabelInput('');
+    clearEvidenceDraft();
     setTemplates([]);
     setSelectedTemplateId('');
     setExecution(null);
@@ -113,27 +162,19 @@ export default function StaffTasksPage() {
     setEvidence([]);
 
     try {
-      const tpl = await checklistTemplatesRepo.getByIdForUser(user, task.checklistTemplateId);
-      if (!tpl) {
+      const data = await loadStaffTaskChecklistData(user, task);
+      if (!data.template) {
         setActionError('El checklist asignado ya no está disponible.');
         return;
       }
-      setTemplates([tpl]);
-      setSelectedTemplateId(tpl.id);
+      setTemplates([data.template]);
+      setSelectedTemplateId(data.template.id);
 
-      const execs = await checklistExecutionsRepo.listForTask(user, task.id);
-      const current = execs[0] ?? null;
-      setExecution(current);
-      if (current) {
-        const initial: Record<string, boolean> = {};
-        for (const r of current.results) initial[r.itemId] = Boolean(r.value);
-        setResultsByItemId(initial);
-        try {
-          const ev = await evidenceRepo.listForChecklistExecution(user, current.id);
-          setEvidence(ev);
-        } catch {
-          setActionError('No pudimos cargar las evidencias de esta tarea.');
-        }
+      setExecution(data.execution);
+      setResultsByItemId(data.resultsByItemId);
+      setEvidence(data.evidence);
+      if (data.evidenceError) {
+        setActionError(data.evidenceError);
       }
     } catch {
       setActionError('No pudimos cargar el estado del checklist de esta tarea.');
@@ -260,7 +301,7 @@ export default function StaffTasksPage() {
 
   */
 
-  const addEvidenceLink = async () => {
+  const uploadEvidence = async () => {
     if (!user) return;
     const exec = await ensureExecution();
     if (!exec) return;
@@ -268,37 +309,22 @@ export default function StaffTasksPage() {
       setActionError('No puedes adjuntar evidencias a un checklist aprobado.');
       return;
     }
-
-    const trimmedUrl = evidenceUrlInput.trim();
-    const trimmedLabel = evidenceLabelInput.trim();
-    if (!trimmedUrl) {
-      setActionError('Ingresa una URL para la evidencia.');
-      return;
-    }
-
-    try {
-      const parsed = new URL(trimmedUrl);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error('invalid-protocol');
-      }
-    } catch {
-      setActionError('Ingresa una URL valida para la evidencia.');
+    if (!evidenceFile) {
+      setActionError('Selecciona una foto o un archivo PDF.');
       return;
     }
 
     try {
       setIsSubmitting(true);
       setActionError(null);
-      const created = await evidenceRepo.addForChecklistExecution(user, {
+      const created = await evidenceRepo.uploadForChecklistExecution(user, {
         checklistExecutionId: exec.id,
-        url: trimmedUrl,
-        fileName: trimmedLabel || undefined,
+        file: evidenceFile,
       });
-      setEvidenceUrlInput('');
-      setEvidenceLabelInput('');
+      clearEvidenceDraft();
       setEvidence((prev) => [created, ...prev]);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'No pudimos registrar la evidencia.');
+      setActionError(e instanceof Error ? e.message : 'No pudimos adjuntar la evidencia.');
     } finally {
       setIsSubmitting(false);
     }
@@ -444,7 +470,7 @@ export default function StaffTasksPage() {
           <button
             aria-label="Cerrar"
             className="absolute inset-0 bg-black/30"
-            onClick={() => setIsChecklistOpen(false)}
+            onClick={() => { clearEvidenceDraft(); setActionError(null); setIsChecklistOpen(false); }}
             type="button"
           />
           <div
@@ -462,11 +488,13 @@ export default function StaffTasksPage() {
                 {/* legacy upload copy removed
                   Adjunta imágenes o PDF (máx. 10 MB) como evidencia del checklist.
                 */}
-                <p className="mt-3 text-[11px] text-slate-400 font-semibold">Registra enlaces URL como evidencia del checklist.</p>
+                <p className="mt-3 text-[11px] text-slate-400 font-semibold">
+                  Adjunta una foto o un archivo PDF como evidencia del checklist.
+                </p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsChecklistOpen(false)}
+                onClick={() => { clearEvidenceDraft(); setActionError(null); setIsChecklistOpen(false); }}
                 className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700"
               >
                 Cerrar
@@ -476,6 +504,18 @@ export default function StaffTasksPage() {
             {actionError && <div className="mt-4"><ErrorState title="Acción no disponible" description={actionError} /></div>}
 
             <div className="mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
+              {execution?.lastReviewAction === 'RETURN' && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-800">Devuelto por administracion</p>
+                  <p className="mt-2 text-[11px] font-semibold text-amber-900">
+                    {execution.reviewedAt ? `Revisado ${new Date(execution.reviewedAt).toLocaleString('es-PE')}` : 'Pendiente de correccion'}
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-amber-900">
+                    {execution.reviewComment?.trim() || 'Corrige el checklist y vuelve a enviarlo.'}
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Checklist</label>
                 {activeTemplate ? (
@@ -549,35 +589,59 @@ export default function StaffTasksPage() {
               <div className="space-y-3">
                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">Evidencias</p>
                 <div className="flex flex-col gap-3">
-                  <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_16rem_auto] sm:items-center">
-                    <input
-                      type="url"
-                      inputMode="url"
-                      value={evidenceUrlInput}
-                      onChange={(e) => setEvidenceUrlInput(e.target.value)}
-                      placeholder="https://..."
-                      className="flex-1 px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                      disabled={Boolean(isEvidenceLocked) || !activeTemplate}
-                    />
-                    <input
-                      type="text"
-                      value={evidenceLabelInput}
-                      onChange={(e) => setEvidenceLabelInput(e.target.value)}
-                      placeholder="Nombre opcional"
-                      className="px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                      disabled={Boolean(isEvidenceLocked) || !activeTemplate}
-                    />
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(event) => {
+                      selectEvidenceFile(event.target.files?.[0] ?? null);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={(event) => {
+                      selectEvidenceFile(event.target.files?.[0] ?? null);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                     <button
                       type="button"
-                      onClick={addEvidenceLink}
+                      onClick={() => cameraInputRef.current?.click()}
                       disabled={isSubmitting || Boolean(isEvidenceLocked) || !activeTemplate}
-                      className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
+                      className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
                     >
-                      <Link2 className="w-4 h-4 inline-block mr-2" />
-                      Registrar
+                      <Camera className="w-4 h-4 mr-2" />
+                      Tomar foto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => uploadInputRef.current?.click()}
+                      disabled={isSubmitting || Boolean(isEvidenceLocked) || !activeTemplate}
+                      className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Adjuntar archivo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={uploadEvidence}
+                      disabled={isSubmitting || Boolean(isEvidenceLocked) || !activeTemplate || !evidenceFile}
+                      className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
+                    >
+                      Guardar evidencia
                     </button>
                   </div>
-                  {/* legacy preview removed
+                  <p className="text-[11px] text-slate-400 font-semibold">
+                    Puedes tomar una foto o adjuntar una imagen JPG/PNG/WEBP o un PDF de hasta 10 MB.
+                  </p>
+                  {evidenceFile && (
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-4">
                       {evidencePreviewUrl ? (
                         <Image
@@ -594,12 +658,20 @@ export default function StaffTasksPage() {
                           <FileText className="h-6 w-6 text-slate-500" />
                         </div>
                       )}
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-black text-slate-900 truncate">{evidenceFile.name}</p>
                         <p className="mt-1 text-xs text-slate-500 font-medium">{Math.ceil(evidenceFile.size / 1024)} KB</p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={clearEvidenceDraft}
+                        disabled={isSubmitting}
+                        className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700 disabled:opacity-60"
+                      >
+                        Quitar
+                      </button>
                     </div>
-                  */}
+                  )}
                   {isEvidenceLocked && (
                     <p className="text-[11px] text-slate-400 font-semibold">No se pueden adjuntar evidencias cuando el checklist ya está aprobado.</p>
                   )}

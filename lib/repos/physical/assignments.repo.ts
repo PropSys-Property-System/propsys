@@ -1,5 +1,6 @@
-﻿import { User, UserBuildingAssignment, UserUnitAssignment } from '@/lib/types';
+import { User, UserBuildingAssignment, UserUnitAssignment } from '@/lib/types';
 import { MOCK_USER_BUILDING_ASSIGNMENTS, MOCK_USER_UNIT_ASSIGNMENTS } from '@/lib/mocks';
+import { canAccessClientRecord, canBypassTenantScope } from '@/lib/auth/access-rules';
 import { isDbMode } from '@/lib/config/data-mode';
 import { getBuildingAssignments, getUnitAssignments } from '@/lib/access/assignments-cache';
 
@@ -13,7 +14,7 @@ export const assignmentsRepo = {
       const cached = getUnitAssignments(user.id);
       if (!cached) return [];
       return cached
-        .filter((a) => isActiveAssignment({ status: a.status, deletedAt: a.deleted_at }) && (user.scope === 'platform' || !user.clientId || a.client_id === user.clientId))
+        .filter((a) => isActiveAssignment({ status: a.status, deletedAt: a.deleted_at }) && canAccessClientRecord(user, a.client_id))
         .map((a) => ({
           id: a.id,
           clientId: a.client_id,
@@ -26,7 +27,7 @@ export const assignmentsRepo = {
           deletedAt: a.deleted_at,
         }));
     }
-    if (user.scope === 'platform') {
+    if (canBypassTenantScope(user)) {
       return MOCK_USER_UNIT_ASSIGNMENTS.filter((a) => isActiveAssignment(a) && a.userId === user.id);
     }
     if (!user.clientId) return [];
@@ -38,7 +39,7 @@ export const assignmentsRepo = {
       const cached = getBuildingAssignments(user.id);
       if (!cached) return [];
       return cached
-        .filter((a) => isActiveAssignment({ status: a.status, deletedAt: a.deleted_at }) && (user.scope === 'platform' || !user.clientId || a.client_id === user.clientId))
+        .filter((a) => isActiveAssignment({ status: a.status, deletedAt: a.deleted_at }) && canAccessClientRecord(user, a.client_id))
         .map((a) => ({
           id: a.id,
           clientId: a.client_id,
@@ -50,7 +51,7 @@ export const assignmentsRepo = {
           deletedAt: a.deleted_at,
         }));
     }
-    if (user.scope === 'platform') {
+    if (canBypassTenantScope(user)) {
       return MOCK_USER_BUILDING_ASSIGNMENTS.filter((a) => isActiveAssignment(a) && a.userId === user.id);
     }
     if (!user.clientId) return [];
@@ -71,4 +72,3 @@ export const assignmentsRepo = {
     return this.listBuildingAssignmentsForUser(user).some((a) => a.buildingId === buildingId);
   },
 };
-

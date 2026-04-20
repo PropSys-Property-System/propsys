@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { usersRepo } from '@/lib/repos/users/users.repo';
 import { MOCK_USERS } from '@/lib/mocks';
 import type { User } from '@/lib/types';
@@ -26,11 +26,24 @@ describe('usersRepo', () => {
     expect(list.some((u) => u.clientId === 'client_002')).toBe(false);
   });
 
-  it('platform scope can see all users', async () => {
+  it('allows ROOT_ADMIN platform scope to see all users', async () => {
     const root = userBase({ id: 'u0', internalRole: 'ROOT_ADMIN', role: 'MANAGER', clientId: null, scope: 'platform' });
     const list = await usersRepo.listForUser(root);
     expect(list.length).toBe(MOCK_USERS.length);
   });
+
+  it('does not treat platform scope alone as cross-tenant bypass for CLIENT_MANAGER', async () => {
+    const platformManager = userBase({
+      id: 'u1',
+      internalRole: 'CLIENT_MANAGER',
+      role: 'MANAGER',
+      clientId: 'client_001',
+      scope: 'platform',
+    });
+
+    const list = await usersRepo.listForUser(platformManager);
+    expect(list.length).toBeGreaterThan(0);
+    expect(list.every((u) => u.clientId === 'client_001')).toBe(true);
+    expect(list.some((u) => u.clientId === 'client_002')).toBe(false);
+  });
 });
-
-

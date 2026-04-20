@@ -1,5 +1,6 @@
-﻿import { Receipt, User } from '@/lib/types';
+import { Receipt, User } from '@/lib/types';
 import { MOCK_RECEIPTS } from '@/lib/mocks';
+import { filterItemsByTenant } from '@/lib/auth/access-rules';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { unitsRepo } from '@/lib/repos/physical/units.repo';
@@ -16,20 +17,20 @@ export const receiptsRepo = {
     }
     await sleep(350);
 
+    const tenantScoped = filterItemsByTenant(MOCK_RECEIPTS, user);
     const buildingIds = (await buildingsRepo.listForUser(user)).map((b) => b.id);
 
     if (accessScope(user) === 'PORTFOLIO') {
-      if (user.scope === 'platform') return MOCK_RECEIPTS;
-      return MOCK_RECEIPTS.filter((r) => buildingIds.includes(r.buildingId));
+      return tenantScoped.filter((r) => buildingIds.includes(r.buildingId));
     }
 
     if (accessScope(user) === 'BUILDING') {
       if (buildingIds.length === 0) return [];
-      return MOCK_RECEIPTS.filter((r) => buildingIds.includes(r.buildingId));
+      return tenantScoped.filter((r) => buildingIds.includes(r.buildingId));
     }
 
     const unitIds = (await unitsRepo.listForUser(user)).map((u) => u.id);
-    return MOCK_RECEIPTS.filter((r) => unitIds.includes(r.unitId));
+    return tenantScoped.filter((r) => unitIds.includes(r.unitId));
   },
 
   async getByIdForUser(user: User, id: string): Promise<Receipt | null> {
@@ -51,4 +52,3 @@ export const receiptsRepo = {
     return list.find((r) => r.id === id) ?? null;
   },
 };
-

@@ -5,7 +5,12 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Plus, Search, Wrench } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
-import { incidentsRepo, unitsRepo } from '@/lib/data';
+import {
+  createTicketForUser,
+  listTicketsForUser,
+  loadStaffTicketsPageData,
+  updateTicketStatusForUser,
+} from '@/lib/features/tickets/ticket-center.data';
 import { IncidentEntity } from '@/lib/types';
 import { labelIncidentPriority, labelIncidentStatus } from '@/lib/presentation/labels';
 
@@ -42,11 +47,10 @@ export default function StaffTicketsPage() {
         setIsLoading(true);
         setError(null);
         setActionError(null);
-        const data = await incidentsRepo.listForUser(user);
-        const u = await unitsRepo.listForUser(user);
+        const data = await loadStaffTicketsPageData(user);
         if (!isMounted) return;
-        setAllTickets(data);
-        setUnits(u.map((x) => ({ id: x.id, buildingId: x.buildingId, number: x.number })));
+        setAllTickets(data.tickets);
+        setUnits(data.units);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar las incidencias.');
@@ -64,7 +68,7 @@ export default function StaffTicketsPage() {
   const reload = async () => {
     if (!user) return;
     setActionError(null);
-    const data = await incidentsRepo.listForUser(user);
+    const data = await listTicketsForUser(user);
     setAllTickets(data);
   };
 
@@ -90,7 +94,7 @@ export default function StaffTicketsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await incidentsRepo.createSimpleForUser(user, {
+      await createTicketForUser(user, {
         buildingId,
         unitId: createUnitId || undefined,
         title: createTitle.trim(),
@@ -119,7 +123,7 @@ export default function StaffTicketsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await incidentsRepo.updateStatusForUser(user, id, next);
+      await updateTicketStatusForUser(user, id, next);
       await reload();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos actualizar la incidencia.');

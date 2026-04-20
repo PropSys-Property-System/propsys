@@ -29,7 +29,25 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 
 ## 5. Auditoría (audit_logs)
 - **Tabla:** `audit_logs` para trazabilidad por tenant.
-- **Escrituras mínimas:** acciones de creación/actualización desde rutas DB y eventos de auth (login/logout).
+- **Regla actual en escrituras de dominio:** si una mutación DB debe auditar y el insert en `audit_logs` falla, la request falla. La auditoría es bloqueante en operación/comunicación.
+- **Excepción actual:** `login/logout` son best-effort; no bloquean autenticación. Si la auditoría falla, la respuesta expone `x-propsys-audit=failed`.
+
+### 5.1 Matriz mínima de acciones críticas (estado real 2026-04-19)
+
+| Acción crítica | Estado actual | Auditoría | Nota |
+|---|---|---|---|
+| Login / logout | Implementado | Sí, best-effort | Hoy solo tenant-scoped; `ROOT_ADMIN` con `client_id = NULL` queda diferido. |
+| Crear incidencia / actualizar incidencia | Implementado | Sí | `CREATE` / `UPDATE` en rutas DB. |
+| Crear tarea / reasignar / cambiar estado / aprobar tarea | Implementado | Sí | Incluye sync desde checklist cuando corresponde. |
+| Crear checklist template / editar / eliminar | Implementado | Sí | Soft delete del template con auditoría. |
+| Crear checklist execution / guardar / completar / aprobar / devolver | Implementado | Sí | Devuelve feedback de revisión y lo limpia al recompletar. |
+| Subir evidencia / eliminar evidencia | Implementado | Sí | Auditoría existe hoy con helper SQL local a Evidence. |
+| Crear reserva / aprobar o rechazar / cancelar | Implementado | Sí | Flujo V1 cubierto en rutas DB. |
+| Crear y publicar aviso | Implementado | Sí | Publicación queda tenant-scoped o client-scoped explícita para root. |
+| Listar / suspender / reactivar usuario | Implementado (mínimo) | Sí | `ROOT_ADMIN` y `CLIENT_MANAGER` con reglas conservadoras; suspender revoca sesiones activas. |
+| Crear / editar usuario | No implementado | N/A | Sigue fuera de alcance en este bloque. |
+| Crear / editar edificio o unidad | No implementado | N/A | Hoy físico expone lectura; `common_areas` sí tiene mutación parcial con auditoría. |
+| Crear / editar / anular recibo | No implementado | N/A | Financiero sigue en lectura. |
 
 ## 6. Cobertura DB vs Mock (estado actual)
 - **DB (canónico):**
@@ -46,7 +64,7 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 | Módulo | UI (privado) | API DB (`/api/v1`) | DB schema | Seeds QA | Estado V1 | Observación |
 |---|---|---:|---:|---:|---|---|
 | Físico | Admin: Buildings/Common Areas/Staff + Resident: Units | Sí | Sí | Sí | Cerrado | Listados tenant-scoped + asignaciones por edificio/unidad (fuente de verdad). |
-| Usuarios | Admin: Users | Sí | Sí | Sí | Cerrado | Listado para `ROOT_ADMIN`/`CLIENT_MANAGER` (platform o tenant). |
+| Usuarios | Admin: Users | Sí | Sí | Sí | Cerrado (mínimo) | Listado + suspensión/reactivación con revocación de sesiones; sin creación/edición/papelera todavía. |
 | Avisos | Admin: Notices + Resident: Notices | Sí | Sí | Sí | Cerrado | Lectura para todos (scoped por edificio/audience) + publicación para `CLIENT_MANAGER`/`BUILDING_ADMIN`. |
 | Reservas | Admin: Reservations + Resident: Reservations | Sí | Sí | Sí | Cerrado | Crear (owner/occupant), aprobar/rechazar (building admin), cancelar (owner/occupant o building admin). |
 | Operación | Staff: Tasks/Tickets + Admin/Resident: Tickets | Sí (Incidents/Tasks/Checklists/Evidence) | Sí | Sí | Cerrado (mínimo) | Checklist/Evidence DB mínimo: templates + ejecuciones + evidencias como enlaces. |
@@ -54,7 +72,8 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 
 ### 7.2 Checklist/Evidence (decisión explícita V1)
 - **Decisión V1:** implementar soporte DB mínimo para checklist/evidence con permisos por assignments y audit_logs.
-- **Alcance mínimo:** templates + ejecuciones (guardar/completar/aprobar) + evidencias como enlaces (URL). No hay subida de archivos ni storage.
+- **Alcance mínimo actual:** templates + ejecuciones (guardar/completar/aprobar/devolver) + evidencias adjuntas como imagen/PDF.
+- **Storage actual:** filesystem local del servidor en DB-mode. No hay storage externo, CDN, versionado ni política de retención avanzada.
 - **Estado técnico:** DB-mode usa endpoints `app/api/v1/operation/*` y repos `lib/repos/operation/*`. Mock-mode queda como fallback solo para desarrollo.
 
 ### 7.3 Qué queda explícitamente cerrado/parcial/fuera de alcance
@@ -103,10 +122,34 @@ En PowerShell (Windows):
 ## 10. Riesgos remanentes (V1)
 - Middleware edge solo valida forma de cookie; la validación real depende de API routes (riesgo asumido V1).
 - No hay rate limiting real por IP (solo mitigación mínima en login).
-- Evidencias en Operación son enlaces (URL): no hay subida de archivos ni storage propio.
+- Evidencias en Operación ya aceptan imagen/PDF, pero el storage sigue siendo local al servidor. Falta resolver storage productivo y políticas de retención.
 - Financiero solo lectura: no hay ciclo completo (emisión/pago/reconciliación) ni integraciones.
 
-## 11. Recomendación de siguiente paso (post-cierre V1)
-- **Siguiente paso recomendado:** abrir Financiero simple en DB-mode (gestión mínima de receipts: creación manual + cambio de estado) manteniendo el mismo modelo tenant-scoped y audit_logs.
-- **No siguiente paso todavía:** Planes, Root Admin, pagos/reconciliación e integraciones externas.
+## 11. Lifecycle de usuarios y soft delete (estado real)
+- **Regla implementada hoy:** solo `ACTIVE` puede iniciar sesión o mantener sesión válida.
+- **Estados tipados hoy:** `ACTIVE`, `INACTIVE`, `SUSPENDED`, `ARCHIVED`.
+- **Enforcement real hoy:** backend trata cualquier estado distinto de `ACTIVE` como bloqueado.
+- **Cobertura actual:**
+  - login bloquea `status !== 'ACTIVE'`
+  - `getSessionUser()` revoca la sesión si el usuario deja de estar `ACTIVE`
+  - `/api/v1/users/[id]` permite `SUSPENDED <-> ACTIVE`
+  - suspender revoca sesiones activas del usuario afectado
+- **Regla actual de gestión:**
+  - `ROOT_ADMIN` puede suspender/reactivar usuarios client-scoped, excepto a sí mismo
+  - `CLIENT_MANAGER` solo puede suspender/reactivar usuarios de su tenant y de rango inferior
+  - no se permite tocar cuentas `scope='platform'` en este bloque
+- **Gap actual:** no existe creación/edición server-side de usuarios, no existe `deleted_at` en `users`, no hay papelera de 30 días ni hard delete diferido.
+- **Decisión actual:** la papelera/soft delete de usuarios queda diferida; no se cierra en este bloque.
+
+## 12. Recomendación de siguiente paso
+- **Siguiente paso recomendado:** cerrar el cleanup estructural y dejar documentado lo diferido de V1.
+- **Bloque recomendado ahora:** consolidar helpers/guards repetidos de API y bajar aún más el costo de mantenimiento.
+- **Diferido explícito:** papelera de usuarios, creación/edición de usuarios, financiero completo, reservas avanzadas y planes/límites.
+
+## 13. Cleanup estructural (estado 2026-04-20)
+- `lib/data.ts` deja de existir como fachada de páginas privadas.
+- `lib/repos/index.ts` deja de existir como barrel de consumo general.
+- Las páginas privadas consumen fachadas de `lib/features/**`.
+- Los repos se importan por ruta directa desde `lib/repos/**`.
+- `lib/features/README.md` fija el patrón mínimo para nuevas pantallas y reduce el costo de agregar módulos sin reintroducir un barrel engañoso.
 
