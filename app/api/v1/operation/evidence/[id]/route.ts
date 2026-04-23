@@ -1,36 +1,12 @@
 import { NextResponse } from 'next/server';
-import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canAccessTenantEntity, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import { deleteEvidenceFile } from '@/lib/server/operation/evidence-storage';
 
 export const runtime = 'nodejs';
-
-type Queryable = {
-  query: <T>(sql: string, params?: unknown[]) => Promise<{ rows: T[] }>;
-  release?: () => void;
-};
-
-async function withWriteTransaction<T>(pool: ReturnType<typeof getPool>, fn: (db: Queryable) => Promise<T>) {
-  const maybeConnect = (pool as ReturnType<typeof getPool> & { connect?: () => Promise<Queryable> }).connect;
-  if (typeof maybeConnect !== 'function') {
-    return fn(pool as unknown as Queryable);
-  }
-
-  const client = await maybeConnect.call(pool);
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => null);
-    throw error;
-  } finally {
-    client.release?.();
-  }
-}
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req);
@@ -38,7 +14,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   if (user.internalRole !== 'STAFF' && user.internalRole !== 'BUILDING_ADMIN') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
-  if (!canBypassTenantScope(user) && !user.clientId) {
+  if (!hasTenantClientContext(user)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
@@ -61,7 +37,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   );
   const evidence = rowRes.rows[0];
   if (!evidence || evidence.deleted_at) return NextResponse.json({ ok: false }, { status: 404 });
-  if (!canBypassTenantScope(user) && evidence.client_id !== user.clientId) {
+  if (!canAccessTenantEntity(user, evidence.client_id)) {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
   if (!evidence.checklist_execution_id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
@@ -96,23 +72,20 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   }
 
   const now = new Date().toISOString();
-  await withWriteTransaction(pool, async (db) => {
+  await withTransaction(pool, async (db) => {
     await db.query(`UPDATE evidence_attachments SET deleted_at = $2 WHERE id = $1`, [id, now]);
-    await db.query(
-      `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, old_data)
-       VALUES ($1, $2, $3, 'DELETE', 'EvidenceAttachment', $4, $5::jsonb, $6::jsonb)`,
-      [
-        `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-        evidence.client_id,
-        user.id,
-        evidence.id,
-        JSON.stringify({
-          buildingId: evidence.building_id,
-          checklistExecutionId: evidence.checklist_execution_id,
-        }),
-        JSON.stringify(evidence),
-      ]
-    );
+    await insertAuditLog(db, {
+      clientId: evidence.client_id,
+      userId: user.id,
+      action: 'DELETE',
+      entity: 'EvidenceAttachment',
+      entityId: evidence.id,
+      metadata: {
+        buildingId: evidence.building_id,
+        checklistExecutionId: evidence.checklist_execution_id,
+      },
+      oldData: evidence,
+    });
   });
 
   try {

@@ -3,12 +3,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
-import { Megaphone, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { loadResidentNoticesPageData } from '@/lib/features/notices/notices-center.data';
-import { formatDateTime } from '@/lib/presentation/dates';
+import { ResidentNoticeCard } from '@/lib/features/notices/notices-center.ui';
 import { Notice } from '@/lib/types';
-import { labelNoticeAudience } from '@/lib/presentation/labels';
 
 export default function ResidentNoticesPage() {
   const { user } = useAuth();
@@ -73,23 +72,7 @@ export default function ResidentNoticesPage() {
         ) : (
           <div className="space-y-3 max-w-4xl">
             {notices.map((n) => (
-              <div key={n.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-start justify-between gap-6">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest">
-                      {n.audience === 'ALL_BUILDINGS' ? 'PropSys' : labelNoticeAudience(n.audience)}
-                    </span>
-                    <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                      {formatDateTime(n.createdAt)}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm font-black text-slate-900">{n.title}</p>
-                  <p className="mt-2 text-xs text-slate-500 font-medium leading-relaxed">{n.body}</p>
-                </div>
-                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
-                  <Megaphone className="w-6 h-6 text-primary" />
-                </div>
-              </div>
+              <ResidentNoticeCard key={n.id} notice={n} />
             ))}
           </div>
         )}

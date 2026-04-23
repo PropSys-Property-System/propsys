@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { Filter, Plus, Search } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
-import { Filter, Plus, Search, Wrench } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   createTicketForUser,
@@ -11,25 +11,9 @@ import {
   listTicketsForUser,
   updateTicketStatusForUser,
 } from '@/lib/features/tickets/ticket-center.data';
-import { formatDateTime } from '@/lib/presentation/dates';
-import { IncidentEntity } from '@/lib/types';
-import { formatClientBadge, labelClient, labelIncidentPriority, labelIncidentStatus } from '@/lib/presentation/labels';
-
-function statusChip(status: IncidentEntity['status']) {
-  const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
-  if (status === 'REPORTED') return `${base} bg-rose-50 text-rose-700`;
-  if (status === 'ASSIGNED') return `${base} bg-amber-50 text-amber-700`;
-  if (status === 'IN_PROGRESS') return `${base} bg-amber-50 text-amber-700`;
-  if (status === 'RESOLVED') return `${base} bg-emerald-50 text-emerald-700`;
-  return `${base} bg-slate-100 text-slate-600`;
-}
-
-function priorityChip(priority: IncidentEntity['priority']) {
-  const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
-  if (priority === 'HIGH') return `${base} bg-rose-50 text-rose-700`;
-  if (priority === 'MEDIUM') return `${base} bg-amber-50 text-amber-700`;
-  return `${base} bg-slate-100 text-slate-600`;
-}
+import { AdminTicketCard, TicketComposerDialog } from '@/lib/features/tickets/ticket-center.ui';
+import { formatClientBadge } from '@/lib/presentation/labels';
+import type { IncidentEntity } from '@/lib/types';
 
 export default function AdminTicketsPage() {
   const { user } = useAuth();
@@ -52,8 +36,10 @@ export default function AdminTicketsPage() {
 
   useEffect(() => {
     let isMounted = true;
+
     const load = async () => {
       if (!user) return;
+
       try {
         setIsLoading(true);
         setError(null);
@@ -72,7 +58,9 @@ export default function AdminTicketsPage() {
         setIsLoading(false);
       }
     };
+
     load();
+
     return () => {
       isMounted = false;
     };
@@ -86,31 +74,45 @@ export default function AdminTicketsPage() {
   };
 
   const tickets = useMemo(() => {
-    const t = searchTerm.toLowerCase();
-    return allTickets.filter((x) => {
-      if (buildingFilterId && x.buildingId !== buildingFilterId) return false;
-      return x.title.toLowerCase().includes(t) || x.description.toLowerCase().includes(t);
+    const normalizedTerm = searchTerm.toLowerCase();
+    return allTickets.filter((ticket) => {
+      if (buildingFilterId && ticket.buildingId !== buildingFilterId) return false;
+      return (
+        ticket.title.toLowerCase().includes(normalizedTerm) ||
+        ticket.description.toLowerCase().includes(normalizedTerm)
+      );
     });
-  }, [allTickets, searchTerm, buildingFilterId]);
+  }, [allTickets, buildingFilterId, searchTerm]);
+
+  const buildingNameById = useMemo(
+    () => new Map(buildings.map((building) => [building.id, building.name])),
+    [buildings]
+  );
+  const unitNumberById = useMemo(() => new Map(units.map((unit) => [unit.id, unit.number])), [units]);
 
   const canCreate = user?.internalRole === 'BUILDING_ADMIN';
   const canUpdate = user?.internalRole === 'BUILDING_ADMIN';
+  const allStatuses: IncidentEntity['status'][] = ['REPORTED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
   const submitCreate = async () => {
     if (!user) return;
+
     if (!createBuildingId) {
       setActionError('Selecciona un edificio.');
       return;
     }
+
     if (!createTitle.trim() || !createDescription.trim()) {
-      setActionError('Completa título y descripción.');
+      setActionError('Completa titulo y descripcion.');
       return;
     }
-    const unit = createUnitId ? units.find((u) => u.id === createUnitId) : undefined;
+
+    const unit = createUnitId ? units.find((currentUnit) => currentUnit.id === createUnitId) : undefined;
     if (unit && unit.buildingId !== createBuildingId) {
       setActionError('La unidad seleccionada no pertenece al edificio.');
       return;
     }
+
     try {
       setIsSubmitting(true);
       setActionError(null);
@@ -134,16 +136,15 @@ export default function AdminTicketsPage() {
     }
   };
 
-  const allStatuses: IncidentEntity['status'][] = ['REPORTED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
-
   const updateStatus = async (id: string) => {
     if (!user) return;
-    const next = statusById[id];
-    if (!next) return;
+    const nextStatus = statusById[id];
+    if (!nextStatus) return;
+
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await updateTicketStatusForUser(user, id, next);
+      await updateTicketStatusForUser(user, id, nextStatus);
       await reload();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos actualizar la incidencia.');
@@ -154,6 +155,7 @@ export default function AdminTicketsPage() {
 
   const closeIncident = async (id: string) => {
     if (!user) return;
+
     try {
       setIsSubmitting(true);
       setActionError(null);
@@ -172,10 +174,10 @@ export default function AdminTicketsPage() {
         type="button"
         disabled
         aria-disabled="true"
-        title="Próximamente"
+        title="Proximamente"
         className="flex items-center px-4 py-2 bg-slate-100 border border-slate-200 text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
       >
-        <Filter className="w-4 h-4 mr-2" /> Próximamente
+        <Filter className="w-4 h-4 mr-2" /> Proximamente
       </button>
       {canCreate && (
         <button
@@ -185,7 +187,7 @@ export default function AdminTicketsPage() {
           }}
           className="flex items-center px-4 py-2 bg-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
         >
-          <Plus className="w-4 h-4 mr-2" /> Nueva Incidencia
+          <Plus className="w-4 h-4 mr-2" /> Nueva incidencia
         </button>
       )}
     </>
@@ -193,11 +195,7 @@ export default function AdminTicketsPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader
-        title="Incidencias"
-        description="Gestiona solicitudes de mantenimiento y reportes operativos"
-        actions={actions}
-      />
+      <PageHeader title="Incidencias" description="Gestiona solicitudes de mantenimiento y reportes operativos" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
         {formatClientBadge(user) && (
@@ -208,7 +206,7 @@ export default function AdminTicketsPage() {
           </div>
         )}
 
-        {actionError && <ErrorState title="Acción no disponible" description={actionError} />}
+        {actionError && <ErrorState title="Accion no disponible" description={actionError} />}
 
         <div className="flex flex-col md:flex-row gap-4 max-w-4xl">
           <div className="relative group flex-1">
@@ -216,20 +214,20 @@ export default function AdminTicketsPage() {
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por título o descripción..."
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por titulo o descripcion..."
               className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
             />
           </div>
           <select
             value={buildingFilterId}
-            onChange={(e) => setBuildingFilterId(e.target.value)}
+            onChange={(event) => setBuildingFilterId(event.target.value)}
             className="w-full md:w-72 px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-bold"
           >
             <option value="">Todos los edificios</option>
-            {buildings.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
+            {buildings.map((building) => (
+              <option key={building.id} value={building.id}>
+                {building.name}
               </option>
             ))}
           </select>
@@ -240,182 +238,49 @@ export default function AdminTicketsPage() {
         ) : isLoading ? (
           <LoadingState title="Cargando incidencias..." />
         ) : tickets.length === 0 ? (
-          <EmptyState title="Sin incidencias" description={searchTerm ? `No hay resultados para "${searchTerm}".` : 'Aún no hay incidencias registradas.'} />
+          <EmptyState title="Sin incidencias" description={searchTerm ? `No hay resultados para "${searchTerm}".` : 'Aun no hay incidencias registradas.'} />
         ) : (
           <div className="space-y-3 max-w-4xl">
-            {tickets.map((t) => (
-              <div key={t.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-start justify-between gap-6">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={statusChip(t.status)}>{labelIncidentStatus(t.status)}</span>
-                    <span className={priorityChip(t.priority)}>{labelIncidentPriority(t.priority)}</span>
-                    <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                      {labelClient(t.clientId)}
-                    </span>
-                    <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                      {buildings.find((b) => b.id === t.buildingId)?.name ?? t.buildingId}
-                    </span>
-                    {t.unitId && (
-                      <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                        Unidad {units.find((u) => u.id === t.unitId)?.number ?? t.unitId}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-3 text-sm font-black text-slate-900 truncate">{t.title}</p>
-                  <p className="mt-1 text-xs text-slate-500 font-medium line-clamp-2">{t.description}</p>
-                  <p className="mt-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    Creado {formatDateTime(t.createdAt)}
-                  </p>
-                  {canUpdate && (
-                    <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
-                      <select
-                        value={statusById[t.id] ?? ''}
-                        onChange={(e) => setStatusById((prev) => ({ ...prev, [t.id]: e.target.value as IncidentEntity['status'] }))}
-                        className="w-full sm:w-56 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-xs font-bold"
-                      >
-                        <option value="" disabled>
-                          Cambiar estado...
-                        </option>
-                        {allStatuses.map((s) => (
-                          <option key={s} value={s}>
-                            {labelIncidentStatus(s)}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        disabled={!statusById[t.id] || isSubmitting}
-                        onClick={() => updateStatus(t.id)}
-                        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
-                      >
-                        Guardar
-                      </button>
-                      <button
-                        disabled={isSubmitting || t.status === 'CLOSED'}
-                        onClick={() => closeIncident(t.id)}
-                        className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all disabled:opacity-60"
-                      >
-                        Cerrar
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
-                  <Wrench className="w-6 h-6 text-primary" />
-                </div>
-              </div>
+            {tickets.map((ticket) => (
+              <AdminTicketCard
+                key={ticket.id}
+                ticket={ticket}
+                buildingName={buildingNameById.get(ticket.buildingId) ?? ticket.buildingId}
+                unitLabel={ticket.unitId ? (unitNumberById.get(ticket.unitId) ?? ticket.unitId) : null}
+                canUpdate={Boolean(canUpdate)}
+                isSubmitting={isSubmitting}
+                selectedStatus={statusById[ticket.id] ?? ''}
+                allStatuses={allStatuses}
+                onStatusChange={(status) => setStatusById((prev) => ({ ...prev, [ticket.id]: status }))}
+                onSaveStatus={() => updateStatus(ticket.id)}
+                onCloseIncident={() => closeIncident(ticket.id)}
+              />
             ))}
           </div>
         )}
       </div>
 
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={() => setIsCreateOpen(false)} type="button" />
-          <div role="dialog" aria-modal="true" className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-lg font-black text-slate-900">Nueva incidencia</p>
-                <p className="mt-1 text-xs text-slate-500 font-medium">Crea una incidencia para el edificio.</p>
-              </div>
-              <button type="button" onClick={() => setIsCreateOpen(false)} className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700">
-                Cerrar
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Edificio</label>
-                <select
-                  value={createBuildingId}
-                  onChange={(e) => {
-                    setCreateBuildingId(e.target.value);
-                    setCreateUnitId('');
-                  }}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                >
-                  <option value="" disabled>
-                    Selecciona...
-                  </option>
-                  {buildings.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Unidad (opcional)</label>
-                <select
-                  value={createUnitId}
-                  onChange={(e) => setCreateUnitId(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                >
-                  <option value="">Sin unidad</option>
-                  {units
-                    .filter((u) => u.buildingId === createBuildingId)
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.number}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Prioridad</label>
-                <select
-                  value={createPriority}
-                  onChange={(e) => setCreatePriority(e.target.value as IncidentEntity['priority'])}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                >
-                  <option value="LOW">{labelIncidentPriority('LOW')}</option>
-                  <option value="MEDIUM">{labelIncidentPriority('MEDIUM')}</option>
-                  <option value="HIGH">{labelIncidentPriority('HIGH')}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Título</label>
-                <input
-                  value={createTitle}
-                  onChange={(e) => setCreateTitle(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripción</label>
-                <textarea
-                  value={createDescription}
-                  onChange={(e) => setCreateDescription(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium min-h-[120px]"
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
-              <button
-                type="button"
-                onClick={() => setIsCreateOpen(false)}
-                className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={submitCreate}
-                className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
-              >
-                Crear
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <TicketComposerDialog
+        isOpen={isCreateOpen}
+        isSubmitting={isSubmitting}
+        buildings={buildings}
+        units={units}
+        buildingId={createBuildingId}
+        unitId={createUnitId}
+        title={createTitle}
+        description={createDescription}
+        priority={createPriority}
+        onClose={() => setIsCreateOpen(false)}
+        onBuildingChange={(buildingId) => {
+          setCreateBuildingId(buildingId);
+          setCreateUnitId('');
+        }}
+        onUnitChange={setCreateUnitId}
+        onTitleChange={setCreateTitle}
+        onDescriptionChange={setCreateDescription}
+        onPriorityChange={setCreatePriority}
+        onSubmit={submitCreate}
+      />
     </div>
   );
 }
-
-

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
-import { CalendarDays, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   approveReservationForUser,
@@ -12,17 +12,9 @@ import {
   loadAdminReservationsPageData,
   rejectReservationForUser,
 } from '@/lib/features/reservations/reservations-center.data';
-import { formatDateTime, formatTime } from '@/lib/presentation/dates';
+import { AdminReservationCard } from '@/lib/features/reservations/reservations-center.ui';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
 import { labelReservationStatus } from '@/lib/presentation/labels';
-
-function statusChip(status: Reservation['status']) {
-  const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
-  if (status === 'REQUESTED') return `${base} bg-amber-50 text-amber-700`;
-  if (status === 'APPROVED') return `${base} bg-emerald-50 text-emerald-700`;
-  if (status === 'REJECTED') return `${base} bg-rose-50 text-rose-700`;
-  return `${base} bg-slate-100 text-slate-600`;
-}
 
 export default function AdminReservationsPage() {
   const { user } = useAuth();
@@ -163,55 +155,18 @@ export default function AdminReservationsPage() {
         ) : (
           <div className="space-y-3 max-w-4xl">
             {filtered.map((r) => (
-              <div key={r.id} className="bg-white border border-slate-200 rounded-2xl p-6 flex items-start justify-between gap-6">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className={statusChip(r.status)}>{labelReservationStatus(r.status)}</span>
-                    <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest">
-                      {unitLabelById.get(r.unitId) ?? r.unitId}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm font-black text-slate-900">{areaNameById.get(r.commonAreaId) ?? 'Área común'}</p>
-                  <p className="mt-1 text-xs text-slate-500 font-medium">
-                    {buildingNameById.get(r.buildingId) ?? 'Edificio'} · {formatDateTime(r.startAt)} - {formatTime(r.endAt)}
-                  </p>
-
-                  {canManage && (
-                    <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
-                      {r.status === 'REQUESTED' && (
-                        <>
-                          <button
-                            disabled={isSubmitting}
-                            onClick={() => approve(r.id)}
-                            className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 transition-all disabled:opacity-60"
-                          >
-                            Aprobar
-                          </button>
-                          <button
-                            disabled={isSubmitting}
-                            onClick={() => reject(r.id)}
-                            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
-                          >
-                            Rechazar
-                          </button>
-                        </>
-                      )}
-                      {r.status !== 'CANCELLED' && (
-                        <button
-                          disabled={isSubmitting}
-                          onClick={() => cancel(r.id)}
-                          className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
-                        >
-                          Cancelar
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
-                  <CalendarDays className="w-6 h-6 text-primary" />
-                </div>
-              </div>
+              <AdminReservationCard
+                key={r.id}
+                reservation={r}
+                areaName={areaNameById.get(r.commonAreaId) ?? 'Area comun'}
+                unitLabel={unitLabelById.get(r.unitId) ?? r.unitId}
+                buildingName={buildingNameById.get(r.buildingId) ?? 'Edificio'}
+                canManage={Boolean(canManage)}
+                isSubmitting={isSubmitting}
+                onApprove={() => approve(r.id)}
+                onReject={() => reject(r.id)}
+                onCancel={() => cancel(r.id)}
+              />
             ))}
           </div>
         )}

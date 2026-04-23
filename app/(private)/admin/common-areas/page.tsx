@@ -1,21 +1,22 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
-import { Home, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   listCommonAreasForBuilding,
   loadAdminCommonAreasPageData,
   updateCommonAreaApprovalForUser,
 } from '@/lib/features/physical/physical-center.data';
-import { Building, CommonArea } from '@/lib/types';
+import { BuildingScopeToolbar, CommonAreaCard, buildingToolbarIcon } from '@/lib/features/physical/physical-center.ui';
+import type { Building, CommonArea } from '@/lib/types';
 
 export default function AdminCommonAreasPage() {
   const { user } = useAuth();
   const [buildings, setBuildings] = useState<Building[]>([]);
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string>('');
+  const [selectedBuildingId, setSelectedBuildingId] = useState('');
   const [areas, setAreas] = useState<CommonArea[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -26,8 +27,10 @@ export default function AdminCommonAreasPage() {
 
   useEffect(() => {
     let isMounted = true;
+
     const loadBuildings = async () => {
       if (!user) return;
+
       try {
         setIsLoading(true);
         setError(null);
@@ -43,7 +46,9 @@ export default function AdminCommonAreasPage() {
         setIsLoading(false);
       }
     };
+
     loadBuildings();
+
     return () => {
       isMounted = false;
     };
@@ -51,9 +56,10 @@ export default function AdminCommonAreasPage() {
 
   useEffect(() => {
     let isMounted = true;
+
     const loadAreas = async () => {
-      if (!user) return;
-      if (!selectedBuildingId) return;
+      if (!user || !selectedBuildingId) return;
+
       try {
         setIsLoading(true);
         setError(null);
@@ -63,121 +69,84 @@ export default function AdminCommonAreasPage() {
         setAreas(data);
       } catch {
         if (!isMounted) return;
-        setError('No pudimos cargar las áreas comunes.');
+        setError('No pudimos cargar las areas comunes.');
       } finally {
         if (!isMounted) return;
         setIsLoading(false);
       }
     };
+
     loadAreas();
+
     return () => {
       isMounted = false;
     };
   }, [selectedBuildingId, user]);
 
-  const filtered = useMemo(() => {
-    const t = searchTerm.toLowerCase();
-    return areas.filter((a) => a.name.toLowerCase().includes(t));
+  const filteredAreas = useMemo(() => {
+    const normalizedTerm = searchTerm.toLowerCase();
+    return areas.filter((area) => area.name.toLowerCase().includes(normalizedTerm));
   }, [areas, searchTerm]);
 
   const updateApproval = async (area: CommonArea, nextRequiresApproval: boolean) => {
     if (!user) return;
+
     try {
       setSavingAreaId(area.id);
       setActionError(null);
       const updated = await updateCommonAreaApprovalForUser(user, area.id, nextRequiresApproval);
       setAreas((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'No pudimos actualizar el área común.');
+      setActionError(err instanceof Error ? err.message : 'No pudimos actualizar el area comun.');
     } finally {
       setSavingAreaId(null);
     }
   };
 
   const actions = canManageApproval ? (
-    <button
-      disabled
-      className="flex items-center px-4 py-2 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm cursor-default"
-    >
-      <Plus className="w-4 h-4 mr-2" /> Gestión activa
+    <button disabled className="flex items-center px-4 py-2 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm cursor-default">
+      <Plus className="w-4 h-4 mr-2" /> Gestion activa
     </button>
   ) : null;
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader
-        title="Áreas Comunes"
-        description="Configura espacios reservables y reglas de aprobación"
-        actions={actions}
-      />
+      <PageHeader title="Areas Comunes" description="Configura espacios reservables y reglas de aprobacion" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
-        {actionError && <ErrorState title="Acción no disponible" description={actionError} />}
+        {actionError && <ErrorState title="Accion no disponible" description={actionError} />}
+
         {buildings.length > 1 && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row gap-4 md:items-center">
-            <div className="flex items-center text-sm font-bold text-slate-700">
-              <Home className="w-4 h-4 mr-2 text-primary" /> Edificio
-            </div>
-            <select
-              value={selectedBuildingId}
-              onChange={(e) => setSelectedBuildingId(e.target.value)}
-              className="w-full md:w-80 px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all"
-            >
-              {buildings.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-            <div className="relative flex-1 group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar área común..."
-                className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-              />
-            </div>
-          </div>
+          <BuildingScopeToolbar
+            title="Edificio"
+            icon={buildingToolbarIcon()}
+            buildings={buildings}
+            selectedBuildingId={selectedBuildingId}
+            searchTerm={searchTerm}
+            searchPlaceholder="Buscar area comun..."
+            onBuildingChange={setSelectedBuildingId}
+            onSearchChange={setSearchTerm}
+          />
         )}
 
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando áreas comunes..." />
+          <LoadingState title="Cargando areas comunes..." />
         ) : !selectedBuildingId ? (
           <EmptyState title="Sin edificio" description="No hay un edificio seleccionado." />
-        ) : filtered.length === 0 ? (
-          <EmptyState title="Sin áreas" description={searchTerm ? `No hay coincidencias para "${searchTerm}".` : 'Aún no hay áreas comunes configuradas.'} />
+        ) : filteredAreas.length === 0 ? (
+          <EmptyState title="Sin areas" description={searchTerm ? `No hay coincidencias para "${searchTerm}".` : 'Aun no hay areas comunes configuradas.'} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">
-            {filtered.map((a) => (
-              <div key={a.id} className="bg-white border border-slate-200 rounded-2xl p-6">
-                <p className="text-sm font-black text-slate-900">{a.name}</p>
-                <p className="text-xs text-slate-500 font-medium mt-1">
-                  {typeof a.capacity === 'number' ? `Capacidad ${a.capacity}` : 'Capacidad no definida'}
-                </p>
-                <div className="mt-4">
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${a.requiresApproval ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                    {a.requiresApproval ? 'Requiere aprobación' : 'Auto-aprobación'}
-                  </span>
-                </div>
-                {canManageApproval && (
-                  <button
-                    type="button"
-                    disabled={savingAreaId === a.id}
-                    onClick={() => updateApproval(a, !a.requiresApproval)}
-                    className="mt-4 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
-                  >
-                    {savingAreaId === a.id
-                      ? 'Guardando...'
-                      : a.requiresApproval
-                        ? 'Cambiar a auto-aprobación'
-                        : 'Requerir aprobación'}
-                  </button>
-                )}
-              </div>
+            {filteredAreas.map((area) => (
+              <CommonAreaCard
+                key={area.id}
+                area={area}
+                canManageApproval={Boolean(canManageApproval)}
+                savingAreaId={savingAreaId}
+                onToggleApproval={updateApproval}
+              />
             ))}
           </div>
         )}
@@ -185,5 +154,3 @@ export default function AdminCommonAreasPage() {
     </div>
   );
 }
-
-

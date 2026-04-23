@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
-import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
+import { canAccessTenantEntity, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import type { ChecklistTemplate } from '@/lib/types';
@@ -34,7 +34,7 @@ function toTemplate(row: {
 
 async function ensureCanManageTemplate(pool: ReturnType<typeof getPool>, user: Awaited<ReturnType<typeof getSessionUser>>, template: { building_id: string }) {
   if (!user) return false;
-  if (!canBypassTenantScope(user) && !user.clientId) return false;
+  if (!hasTenantClientContext(user)) return false;
   if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') return false;
 
   if (user.internalRole === 'BUILDING_ADMIN') {
@@ -96,7 +96,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  if (!canBypassTenantScope(user) && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { id } = await ctx.params;
   const pool = getPool();
@@ -121,7 +121,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   );
   const current = currentRes.rows[0];
   if (!current) return NextResponse.json({ template: null }, { status: 404 });
-  if (!canBypassTenantScope(user) && current.client_id !== user.clientId) return NextResponse.json({ template: null }, { status: 404 });
+  if (!canAccessTenantEntity(user, current.client_id)) return NextResponse.json({ template: null }, { status: 404 });
 
   if (!current.is_private) {
     if (user.internalRole === 'BUILDING_ADMIN' || user.internalRole === 'STAFF') {
@@ -168,7 +168,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (!canBypassTenantScope(user) && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { id } = await ctx.params;
   const body = await req.json().catch(() => null);
@@ -204,7 +204,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   );
   const current = currentRes.rows[0];
   if (!current || current.deleted_at) return NextResponse.json({ template: null }, { status: 404 });
-  if (!canBypassTenantScope(user) && current.client_id !== user.clientId) return NextResponse.json({ template: null }, { status: 404 });
+  if (!canAccessTenantEntity(user, current.client_id)) return NextResponse.json({ template: null }, { status: 404 });
   if (current.is_private) return NextResponse.json({ error: 'No se puede editar un checklist manual por tarea.' }, { status: 403 });
 
   const canManage = await ensureCanManageTemplate(pool, user, { building_id: current.building_id });
@@ -294,7 +294,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (!canBypassTenantScope(user) && !user.clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const { id } = await ctx.params;
   const pool = getPool();
@@ -318,7 +318,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   );
   const current = currentRes.rows[0];
   if (!current || current.deleted_at) return NextResponse.json({ ok: false }, { status: 404 });
-  if (!canBypassTenantScope(user) && current.client_id !== user.clientId) return NextResponse.json({ ok: false }, { status: 404 });
+  if (!canAccessTenantEntity(user, current.client_id)) return NextResponse.json({ ok: false }, { status: 404 });
   if (current.is_private) return NextResponse.json({ error: 'No se puede eliminar un checklist manual por tarea.' }, { status: 403 });
 
   const canManage = await ensureCanManageTemplate(pool, user, { building_id: current.building_id });

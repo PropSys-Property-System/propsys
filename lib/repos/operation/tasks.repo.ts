@@ -9,6 +9,75 @@ import { fetchJsonOrThrow } from '@/lib/repos/http';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+type TaskUpdateInput = Partial<Pick<TaskEntity, 'status' | 'assignedToUserId'>>;
+
+function updateTaskForUserMock(user: User, id: string, input: TaskUpdateInput): TaskEntity | null {
+  const idx = MOCK_TASKS_V1.findIndex((task) => task.id === id);
+  if (idx === -1) return null;
+
+  const current = MOCK_TASKS_V1[idx];
+  if (!canAccessClientRecord(user, current.clientId)) return null;
+  if (user.internalRole === 'OCCUPANT' || user.internalRole === 'OWNER') throw new Error('No autorizado');
+
+  if (user.internalRole === 'STAFF') {
+    if (input.assignedToUserId) throw new Error('El personal no puede reasignar tareas.');
+    if (current.assignedToUserId !== user.id) throw new Error('No autorizado');
+    if (input.status === 'APPROVED') throw new Error('El personal no puede aprobar tareas.');
+    if (!input.status) throw new Error('Datos inválidos');
+    if (current.checklistTemplateId && input.status === 'COMPLETED') {
+      throw new Error('La tarea se marca como completada al completar el checklist.');
+    }
+    if (current.status === 'APPROVED' || current.status === 'COMPLETED') {
+      throw new Error('No puedes modificar una tarea completada o aprobada.');
+    }
+
+    const isNoOp = current.status === input.status;
+    const isAllowedTransition = current.checklistTemplateId
+      ? current.status === 'PENDING' && input.status === 'IN_PROGRESS'
+      : (current.status === 'PENDING' && input.status === 'IN_PROGRESS') ||
+        (current.status === 'IN_PROGRESS' && input.status === 'COMPLETED');
+
+    if (!isNoOp && !isAllowedTransition) {
+      throw new Error(
+        current.checklistTemplateId
+          ? 'Transición inválida. En tareas con checklist, el personal solo puede pasar de Pendiente a En progreso.'
+          : 'Transición inválida. El personal solo puede pasar de Pendiente a En progreso y de En progreso a Completada.'
+      );
+    }
+  } else {
+    if (current.checklistTemplateId && input.status && input.status !== current.status) {
+      throw new Error('Esta tarea se gestiona por el checklist y no permite cambios manuales de estado.');
+    }
+    if (current.status === 'APPROVED') throw new Error('No se puede modificar una tarea aprobada.');
+    if (input.status === 'APPROVED' && current.status !== 'COMPLETED') {
+      throw new Error('Solo se pueden aprobar tareas que estén Completadas.');
+    }
+  }
+
+  const now = new Date().toISOString();
+  const updated: TaskEntity = {
+    ...current,
+    assignedToUserId: input.assignedToUserId ?? current.assignedToUserId,
+    status: input.status ?? current.status,
+    updatedAt: now,
+  };
+
+  MOCK_TASKS_V1[idx] = updated;
+
+  auditService.logAction({
+    userId: user.id,
+    clientId: updated.clientId,
+    action: 'UPDATE',
+    entity: 'Task',
+    entityId: updated.id,
+    oldData: current,
+    newData: updated,
+    metadata: { buildingId: updated.buildingId, assignedToUserId: updated.assignedToUserId },
+  });
+
+  return updated;
+}
+
 export const tasksRepo = {
   async listForUser(user: User): Promise<TaskEntity[]> {
     if (isDbMode()) {
@@ -94,10 +163,10 @@ export const tasksRepo = {
         items: input.manualChecklistItems
           .slice()
           .sort((a, b) => a.order - b.order)
-          .map((it, idx) => ({
+          .map((item, idx) => ({
             id: `chk_i_${Date.now()}_${idx + 1}`,
-            label: it.label.trim(),
-            required: it.required,
+            label: item.label.trim(),
+            required: item.required,
           })),
         createdAt: now,
         updatedAt: now,
@@ -121,11 +190,7 @@ export const tasksRepo = {
     return task;
   },
 
-  async updateForUser(
-    user: User,
-    id: string,
-    input: Partial<Pick<TaskEntity, 'status' | 'assignedToUserId'>>
-  ): Promise<TaskEntity | null> {
+  async updateForUser(user: User, id: string, input: TaskUpdateInput): Promise<TaskEntity | null> {
     if (isDbMode()) {
       const res = await fetch(`/api/v1/operation/tasks/${id}`, {
         method: 'PATCH',
@@ -138,146 +203,12 @@ export const tasksRepo = {
       if (!res.ok) throw new Error(data?.error || 'No autorizado');
       return data?.task ?? null;
     }
+
     await sleep(200);
-
-    const idx = MOCK_TASKS_V1.findIndex((x) => x.id === id);
-    if (idx === -1) return null;
-
-    const current = MOCK_TASKS_V1[idx];
-    if (!canAccessClientRecord(user, current.clientId)) return null;
-
-    if (user.internalRole === 'STAFF') {
-      if (input.assignedToUserId) throw new Error('El personal no puede reasignar tareas.');
-      if (current.assignedToUserId !== user.id) throw new Error('No autorizado');
-      if (input.status === 'APPROVED') throw new Error('El personal no puede aprobar tareas.');
-      if (!input.status) throw new Error('Datos inválidos');
-      if (current.checklistTemplateId && input.status === 'COMPLETED') {
-        throw new Error('La tarea se marca como completada al completar el checklist.');
-      }
-      if (current.status === 'APPROVED' || current.status === 'COMPLETED') {
-        throw new Error('No puedes modificar una tarea completada o aprobada.');
-      }
-      const isNoOp = current.status === input.status;
-      const isAllowedTransition =
-        current.checklistTemplateId
-          ? current.status === 'PENDING' && input.status === 'IN_PROGRESS'
-          : (current.status === 'PENDING' && input.status === 'IN_PROGRESS') ||
-            (current.status === 'IN_PROGRESS' && input.status === 'COMPLETED');
-      if (!isNoOp && !isAllowedTransition) {
-        throw new Error(
-          current.checklistTemplateId
-            ? 'Transición inválida. En tareas con checklist, el personal solo puede pasar de Pendiente a En progreso.'
-            : 'Transición inválida. El personal solo puede pasar de Pendiente a En progreso y de En progreso a Completada.'
-        );
-      }
-    } else {
-      if (current.checklistTemplateId && input.status && input.status !== current.status) {
-        throw new Error('Esta tarea se gestiona por el checklist y no permite cambios manuales de estado.');
-      }
-      if (current.status === 'APPROVED') throw new Error('No se puede modificar una tarea aprobada.');
-      if (input.status === 'APPROVED' && current.status !== 'COMPLETED') {
-        throw new Error('Solo se pueden aprobar tareas que estén Completadas.');
-      }
-    }
-    if (user.internalRole === 'OCCUPANT' || user.internalRole === 'OWNER') throw new Error('No autorizado');
-
-    const now = new Date().toISOString();
-    const updated: TaskEntity = {
-      ...current,
-      assignedToUserId: input.assignedToUserId ?? current.assignedToUserId,
-      status: input.status ?? current.status,
-      updatedAt: now,
-    };
-
-    MOCK_TASKS_V1[idx] = updated;
-
-    auditService.logAction({
-      userId: user.id,
-      clientId: updated.clientId,
-      action: 'UPDATE',
-      entity: 'Task',
-      entityId: updated.id,
-      oldData: current,
-      newData: updated,
-      metadata: { buildingId: updated.buildingId, assignedToUserId: updated.assignedToUserId },
-    });
-
-    return updated;
+    return updateTaskForUserMock(user, id, input);
   },
 
   async updateStatusForUser(user: User, id: string, status: TaskEntity['status']): Promise<TaskEntity | null> {
-    if (isDbMode()) {
-      const res = await fetch(`/api/v1/operation/tasks/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status }),
-      });
-      if (res.status === 404) return null;
-      const data = (await res.json().catch(() => null)) as { task?: TaskEntity | null; error?: string } | null;
-      if (!res.ok) throw new Error(data?.error || 'No autorizado');
-      return data?.task ?? null;
-    }
-    await sleep(200);
-    const idx = MOCK_TASKS_V1.findIndex((x) => x.id === id);
-    if (idx === -1) return null;
-
-    const current = MOCK_TASKS_V1[idx];
-    if (!canAccessClientRecord(user, current.clientId)) return null;
-
-    if (user.internalRole === 'STAFF') {
-      if (current.assignedToUserId !== user.id) throw new Error('No autorizado');
-      if (status === 'APPROVED') throw new Error('El personal no puede aprobar tareas.');
-      if (current.checklistTemplateId && status === 'COMPLETED') {
-        throw new Error('La tarea se marca como completada al completar el checklist.');
-      }
-      if (current.status === 'APPROVED' || current.status === 'COMPLETED') {
-        throw new Error('No puedes modificar una tarea completada o aprobada.');
-      }
-      const isNoOp = current.status === status;
-      const isAllowedTransition =
-        current.checklistTemplateId
-          ? current.status === 'PENDING' && status === 'IN_PROGRESS'
-          : (current.status === 'PENDING' && status === 'IN_PROGRESS') || (current.status === 'IN_PROGRESS' && status === 'COMPLETED');
-      if (!isNoOp && !isAllowedTransition) {
-        throw new Error(
-          current.checklistTemplateId
-            ? 'Transición inválida. En tareas con checklist, el personal solo puede pasar de Pendiente a En progreso.'
-            : 'Transición inválida. El personal solo puede pasar de Pendiente a En progreso y de En progreso a Completada.'
-        );
-      }
-    }
-    if (user.internalRole === 'OCCUPANT' || user.internalRole === 'OWNER') throw new Error('No autorizado');
-    if (user.internalRole !== 'STAFF') {
-      if (current.checklistTemplateId && status !== current.status) {
-        throw new Error('Esta tarea se gestiona por el checklist y no permite cambios manuales de estado.');
-      }
-      if (current.status === 'APPROVED') throw new Error('No se puede modificar una tarea aprobada.');
-      if (status === 'APPROVED' && current.status !== 'COMPLETED') {
-        throw new Error('Solo se pueden aprobar tareas que estén Completadas.');
-      }
-    }
-
-    const now = new Date().toISOString();
-    const updated: TaskEntity = {
-      ...current,
-      status,
-      updatedAt: now,
-    };
-
-    MOCK_TASKS_V1[idx] = updated;
-
-    auditService.logAction({
-      userId: user.id,
-      clientId: updated.clientId,
-      action: 'UPDATE',
-      entity: 'Task',
-      entityId: updated.id,
-      oldData: current,
-      newData: updated,
-      metadata: { buildingId: updated.buildingId },
-    });
-
-    return updated;
+    return tasksRepo.updateForUser(user, id, { status });
   },
 };

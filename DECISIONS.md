@@ -153,3 +153,62 @@ En PowerShell (Windows):
 - Los repos se importan por ruta directa desde `lib/repos/**`.
 - `lib/features/README.md` fija el patrón mínimo para nuevas pantallas y reduce el costo de agregar módulos sin reintroducir un barrel engañoso.
 
+### 13.1 Módulo Tasks (estado 2026-04-21)
+- `app/(private)/admin/tasks/page.tsx` y `app/(private)/staff/tasks/page.tsx` consumen loaders y acciones desde `lib/features/tasks/task-center.data.ts`.
+- Las páginas privadas de tareas ya no importan repos de operación de forma directa.
+- La orquestación de tareas, checklist, evidencia y review queda concentrada en la fachada de `lib/features/tasks/**`.
+- `tasksRepo.updateForUser` y `tasksRepo.updateStatusForUser` comparten una sola ruta de validación/mock para reducir duplicación y drift.
+- La presentación compartida de evidencias y labels de estado vive en `lib/features/tasks/task-center.ui.tsx`, evitando drift visual entre admin y staff.
+- La revisión admin del checklist vive en `lib/features/tasks/task-review-dialog.tsx`; la página admin conserva estado, filtros y acciones, pero ya no mantiene el modal grande inline.
+- La ejecución staff del checklist vive en `lib/features/tasks/task-checklist-dialog.tsx`; la página staff conserva estado y mutaciones, pero ya no mezcla la UI completa del checklist/evidencia dentro de la página.
+- El módulo queda estructuralmente cerrado en este bloque: las páginas privadas de tareas quedaron reducidas a composición de pantalla, filtros, estado local y dispatch de acciones.
+- `evidence` y `checklist-templates/[id]` ya usan los helpers compartidos de tenant scope, auditoría y transacciones; se cierra ese residuo de fase 0 dentro del módulo.
+
+### 13.2 Diferido explícito tras este cleanup
+- Papelera de usuarios / soft delete de 30 días.
+- Creación y edición server-side de usuarios.
+- Financiero completo: emisión, pago, conciliación y anulación real de recibos.
+- Planes, límites y enforcement comercial.
+- Storage productivo de evidencias fuera de filesystem local.
+- Canonización del `ROOT_ADMIN` como parte estable del seed QA.
+- Reapertura de capacidades nuevas en tareas fuera del flujo V1 actual (por ejemplo, comentarios enriquecidos, storage externo o dashboards adicionales de operación).
+
+### 13.3 Módulos Admin Notices / Tickets / Receipts (estado 2026-04-21)
+- `app/(private)/admin/notices/page.tsx` conserva estado y acciones, pero la presentación del listado y el modal de publicación se movieron a `lib/features/notices/notices-center.ui.tsx`.
+- `app/(private)/admin/tickets/page.tsx` conserva filtros, estado y mutaciones, pero las cards y el modal de creación se movieron a `lib/features/tickets/ticket-center.ui.tsx`.
+- `app/(private)/admin/receipts/page.tsx` conserva carga, búsqueda y navegación; la lista visual se movió a `lib/features/receipts/receipts-center.ui.tsx`.
+- `app/(private)/admin/receipts/[id]/page.tsx` queda reducido a carga/errores y monta `AdminReceiptDetailView`, evitando que el detalle completo siga inline en la página.
+- Criterio del bloque: las páginas privadas de admin quedan como shells de orquestación; la UI de dominio se mueve a `lib/features/**` cuando no agrega estado propio ni acceso directo a repos.
+
+### 13.4 Módulos Admin Users / Buildings / Common Areas / Staff (estado 2026-04-21)
+- `app/(private)/admin/users/page.tsx` conserva carga, búsqueda y mutación de lifecycle, pero la card de usuario se movió a `lib/features/users/users-center.ui.tsx`.
+- `app/(private)/admin/buildings/page.tsx` queda reducido a shell de carga, búsqueda y render de `BuildingCard` desde `lib/features/physical/physical-center.ui.tsx`.
+- `app/(private)/admin/common-areas/page.tsx` conserva estado de edificio, búsqueda y toggle de aprobación, pero la toolbar y las cards se movieron a `lib/features/physical/physical-center.ui.tsx`.
+- `app/(private)/admin/staff/page.tsx` conserva carga/filtro por edificio, pero la toolbar y las cards de staff se movieron a `lib/features/physical/physical-center.ui.tsx`.
+- Resultado: las páginas privadas admin de físico/usuarios quedan alineadas con el patrón shell + feature UI + feature data, igual que `tasks`, `notices`, `tickets` y `receipts`.
+
+### 13.5 Módulos Resident Notices / Tickets / Receipts / Units (estado 2026-04-21)
+- `app/(private)/resident/notices/page.tsx` mantiene carga y búsqueda, pero la card visual se mueve a `lib/features/notices/notices-center.ui.tsx` con `ResidentNoticeCard`.
+- `app/(private)/resident/tickets/page.tsx` mantiene estado, carga y mutación de creación, pero el listado y el modal de alta se mueven a `lib/features/tickets/ticket-center.ui.tsx`.
+- `app/(private)/resident/receipts/page.tsx` conserva carga, búsqueda y navegación, pero el resumen y el listado visual pasan a `lib/features/receipts/receipts-center.ui.tsx`.
+- `app/(private)/resident/receipts/[id]/page.tsx` queda reducido a carga/errores y monta `ResidentReceiptDetailView`, eliminando el detalle inline con contenido fijo.
+- `app/(private)/resident/units/page.tsx` conserva carga y empty states, pero la card de unidad se mueve a `lib/features/physical/physical-center.ui.tsx`.
+- Resultado: el portal residente queda alineado con el mismo criterio de shells delgados + feature data + feature UI, sin tocar permisos ni comportamiento funcional.
+
+### 13.6 Módulos Reservations Admin / Resident (estado 2026-04-21)
+- `lib/features/reservations/reservations-center.ui.tsx` concentra ahora los chips de estado, las cards de reserva para admin/resident y el modal de creación residente.
+- `app/(private)/admin/reservations/page.tsx` conserva carga, búsqueda y mutaciones (`approve/reject/cancel`), pero deja de mantener la card de reserva inline.
+- `app/(private)/resident/reservations/page.tsx` conserva carga, búsqueda, cancelación y creación, pero delega el listado y el modal a la UI de feature.
+- Criterio aplicado: `reservations-center.data.ts` sigue siendo la fachada de carga/acciones y las páginas privadas quedan reducidas a estado local, filtros y dispatch de acciones.
+
+### 13.7 Dashboard + Router + Setup (estado 2026-04-21)
+- `app/(private)/admin/dashboard/page.tsx` mantiene carga, errores y mutación de aprobación de checklist, pero delega KPI grid, panel de actividad, checklist panel y quick links a `lib/features/dashboard/admin-dashboard.ui.tsx`.
+- `app/router/page.tsx` conserva la lógica de redirección y validación de `next`, pero reutiliza `RouterPageLoader` desde `lib/features/bootstrap/app-bootstrap.ui.tsx`.
+- `app/setup/page.tsx` queda reducido a estado del wizard y navegación final; el frame, el loader y los pasos visuales se mueven a `lib/features/bootstrap/app-bootstrap.ui.tsx`.
+- `lib/features/README.md` se actualiza para fijar el patrón real: `lib/features/**` ya concentra tanto fachadas de datos como UI reusable de dominio.
+
+### 13.8 Residuales finales: Staff Tickets + Reset Password (estado 2026-04-21)
+- `app/(private)/staff/tickets/page.tsx` conserva carga, búsqueda, alta y transición de estado, pero delega card y modal al feature `lib/features/tickets/ticket-center.ui.tsx`.
+- `app/reset-password/page.tsx` queda reducido a estado local del formulario; la UI pública de recuperación se mueve a `lib/features/auth/reset-password.ui.tsx`.
+- Criterio aplicado: incluso en páginas públicas o de staff, cuando la lógica es mínima y el peso real está en el markup, la pantalla queda como shell y la UI reusable vive en `lib/features/**`.
+

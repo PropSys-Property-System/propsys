@@ -2,12 +2,12 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
-import { ReceiptRow } from "@/components/Receipts";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import { CreditCard, Search, Filter } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import { loadResidentReceiptsPageData } from '@/lib/features/receipts/receipts-center.data';
+import { ResidentReceiptsList, ResidentReceiptsOverview } from '@/lib/features/receipts/receipts-center.ui';
 import { Receipt } from '@/lib/types';
 import { formatReceiptAmount, summarizeReceiptTotalsByCurrency } from '@/lib/presentation/receipts';
 
@@ -94,38 +94,11 @@ export default function ResidentReceiptsPage() {
       />
       
       <div className="p-6 md:p-8 space-y-8">
-        {/* Resumen de Estado */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-8 bg-white rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-primary/20 transition-all cursor-default">
-            <div className="space-y-1">
-              <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Deuda Pendiente</p>
-              <p className="text-4xl font-black text-slate-900 group-hover:text-primary transition-colors leading-tight">
-                {pendingAmountLabel}
-              </p>
-            </div>
-            <div className="w-14 h-14 bg-primary/5 rounded-2xl flex items-center justify-center">
-              <CreditCard className="w-7 h-7 text-primary" />
-            </div>
-          </div>
-          
-          <div className="p-8 bg-white rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-emerald-200 transition-all cursor-default">
-            <div className="space-y-1">
-              <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Último Pago</p>
-              <p className="text-4xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
-                {latestPaidReceipt ? formatReceiptAmount(latestPaidReceipt.amount, latestPaidReceipt.currency) : formatReceiptAmount(0, 'PEN')}
-              </p>
-            </div>
-            <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center">
-              <div className="w-7 h-7 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ResidentReceiptsOverview
+          pendingAmountLabel={pendingAmountLabel}
+          latestPaidAmountLabel={latestPaidReceipt ? formatReceiptAmount(latestPaidReceipt.amount, latestPaidReceipt.currency) : formatReceiptAmount(0, 'PEN')}
+        />
 
-        {/* Buscador y Filtros */}
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between border-b border-slate-100 pb-6">
           <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mr-auto">Historial Reciente</h3>
           <div className="relative group w-full md:w-80">
@@ -143,27 +116,16 @@ export default function ResidentReceiptsPage() {
           </button>
         </div>
 
-        {/* Lista de Recibos */}
         <div className="space-y-4">
           {loadError ? (
             <ErrorState title="Error" description={loadError} />
           ) : isLoading ? (
             <LoadingState title="Cargando recibos..." />
           ) : filteredReceipts.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 max-w-4xl">
-              {filteredReceipts.map((receipt) => (
-                <ReceiptRow
-                  key={receipt.id}
-                  number={receipt.number}
-                  date={receipt.issueDate}
-                  amount={receipt.amount}
-                  currency={receipt.currency}
-                  status={receipt.status}
-                  description={receipt.description}
-                  onView={() => router.push(`/resident/receipts/${receipt.id}`)}
-                />
-              ))}
-            </div>
+            <ResidentReceiptsList
+              receipts={filteredReceipts}
+              onView={(receiptId) => router.push(`/resident/receipts/${receiptId}`)}
+            />
           ) : (
             <div className="py-12 bg-white rounded-3xl border border-dashed border-slate-200">
               <EmptyState 

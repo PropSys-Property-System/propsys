@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { canAccessTenantEntity, canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
+import { insertAuditLog } from '@/lib/server/audit/audit-log';
+import { withTransaction } from '@/lib/server/db/tx';
 import {
   deleteEvidenceFile,
   isAllowedEvidence,
@@ -12,11 +14,6 @@ import {
 import type { EvidenceAttachment } from '@/lib/types';
 
 export const runtime = 'nodejs';
-
-type Queryable = {
-  query: <T>(sql: string, params?: unknown[]) => Promise<{ rows: T[] }>;
-  release?: () => void;
-};
 
 type EvidenceRow = {
   id: string;
@@ -95,53 +92,6 @@ function toEvidence(row: EvidenceRow): EvidenceAttachment {
   };
 }
 
-async function withWriteTransaction<T>(pool: ReturnType<typeof getPool>, fn: (db: Queryable) => Promise<T>) {
-  const maybeConnect = (pool as ReturnType<typeof getPool> & { connect?: () => Promise<Queryable> }).connect;
-  if (typeof maybeConnect !== 'function') {
-    return fn(pool as unknown as Queryable);
-  }
-
-  const client = await maybeConnect.call(pool);
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => null);
-    throw error;
-  } finally {
-    client.release?.();
-  }
-}
-
-async function insertEvidenceAuditLog(
-  db: Queryable,
-  input: {
-    clientId: string;
-    userId: string;
-    entity: EvidenceAttachment;
-  }
-) {
-  await db.query(
-    `INSERT INTO audit_logs (id, client_id, user_id, action, entity, entity_id, metadata, new_data)
-     VALUES ($1, $2, $3, 'CREATE', 'EvidenceAttachment', $4, $5::jsonb, $6::jsonb)`,
-    [
-      `audit_${Date.now()}_${randomUUID().slice(0, 8)}`,
-      input.clientId,
-      input.userId,
-      input.entity.id,
-      JSON.stringify({
-        buildingId: input.entity.buildingId,
-        checklistExecutionId: input.entity.checklistExecutionId ?? null,
-        taskId: input.entity.taskId ?? null,
-        mimeType: input.entity.mimeType,
-      }),
-      JSON.stringify(input.entity),
-    ]
-  );
-}
-
 export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -170,8 +120,8 @@ export async function GET(req: Request) {
     const exec = execRes.rows[0];
     if (!exec) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
     if (!canAccessTenantEntity(user, exec.client_id)) {
-        return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
-      }
+      return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
+    }
     if (user.internalRole === 'STAFF' && exec.assigned_to_user_id !== user.id) {
       return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
     }
@@ -258,8 +208,8 @@ export async function POST(req: Request) {
   const exec = execRes.rows[0];
   if (!exec) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
   if (!canAccessTenantEntity(user, exec.client_id)) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    }
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
   if (exec.status === 'APPROVED') {
     return NextResponse.json({ error: 'No puedes adjuntar evidencias a un checklist aprobado.' }, { status: 403 });
   }
@@ -291,7 +241,7 @@ export async function POST(req: Request) {
     });
     const storedFile = savedFile;
 
-    const evidence = await withWriteTransaction(pool, async (db) => {
+    const evidence = await withTransaction(pool, async (db) => {
       const created = await db.query<EvidenceRow>(
         `INSERT INTO evidence_attachments (id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at)
          VALUES ($1, $2, $3, NULL, NULL, $4, $5, $6, $7, $8, $9, $10, $10, $11, $12)
@@ -313,10 +263,19 @@ export async function POST(req: Request) {
       );
 
       const entity = toEvidence(created.rows[0]);
-      await insertEvidenceAuditLog(db, {
+      await insertAuditLog(db, {
         clientId,
         userId: user.id,
-        entity,
+        action: 'CREATE',
+        entity: 'EvidenceAttachment',
+        entityId: entity.id,
+        metadata: {
+          buildingId: entity.buildingId,
+          checklistExecutionId: entity.checklistExecutionId ?? null,
+          taskId: entity.taskId ?? null,
+          mimeType: entity.mimeType,
+        },
+        newData: entity,
       });
       return entity;
     });
