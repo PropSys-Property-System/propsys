@@ -362,14 +362,14 @@ export function ResidentReceiptDetailView({
       <div className="p-6 md:p-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-10 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-8">
-              <div className="space-y-4">
+            <div className="flex flex-col gap-6 border-b border-slate-100 p-8 md:flex-row md:items-start md:justify-between md:p-10">
+              <div className="min-w-0 space-y-4">
                 <StatusBadge status={receipt.status} />
                 <div className="space-y-1">
-                  <h2 className="text-4xl font-black text-slate-900 tracking-tight">{receipt.description}</h2>
+                  <h2 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">{receipt.description}</h2>
                   <p className="text-sm font-medium text-slate-500">{building?.name ?? 'Edificio'}</p>
                 </div>
-                <div className="flex flex-wrap gap-6">
+                <div className="flex flex-wrap gap-3 sm:gap-6">
                   <div className="flex items-center text-slate-500 font-medium">
                     <Calendar className="w-4 h-4 mr-2 text-primary" />
                     {formatReceiptDate(receipt.issueDate, { month: 'long', year: 'numeric' })}
@@ -384,16 +384,16 @@ export function ResidentReceiptDetailView({
                   </div>
                 </div>
               </div>
-              <div className="bg-slate-50 p-8 rounded-[1.5rem] border border-slate-100 text-center md:text-right min-w-[200px]">
+              <div className="w-full rounded-[1.5rem] border border-slate-100 bg-slate-50 p-6 text-left md:min-w-[220px] md:w-auto md:text-right md:p-8">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total a Pagar</p>
-                <p className="text-4xl font-black text-primary">{formatReceiptAmount(receipt.amount, receipt.currency)}</p>
+                <p className="text-3xl font-black text-primary sm:text-4xl">{formatReceiptAmount(receipt.amount, receipt.currency)}</p>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
                   Vence el {formatReceiptDate(receipt.dueDate)}
                 </p>
               </div>
             </div>
 
-            <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 gap-8 p-8 md:grid-cols-2 md:p-10">
               <div className="space-y-6">
                 <div className="space-y-1">
                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center">

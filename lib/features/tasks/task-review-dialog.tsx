@@ -90,7 +90,7 @@ export function TaskReviewDialog({
 
               {execution?.lastReviewAction === 'RETURN' && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-black uppercase tracking-widest text-amber-800">Ultima devolucion</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-800">Ultima correccion solicitada</p>
                   <p className="mt-2 text-[11px] font-semibold text-amber-900">
                     {execution.reviewedAt ? `Registrada ${formatDateTime(execution.reviewedAt)}` : 'Registrada por administracion'}
                   </p>
@@ -146,7 +146,7 @@ export function TaskReviewDialog({
 
                   <div className="space-y-2">
                     <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                      Comentario al devolver (opcional)
+                      Comentario para la correccion (opcional)
                     </label>
                     <textarea
                       value={reviewCommentDraft}
@@ -177,7 +177,7 @@ export function TaskReviewDialog({
               onClick={onReturn}
               className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-amber-700 font-black text-sm hover:bg-amber-50 transition-all disabled:opacity-70"
             >
-              {execution.status === 'APPROVED' ? 'Quitar aprobacion y devolver' : 'Devolver al staff'}
+              {execution.status === 'APPROVED' ? 'Quitar aprobacion y enviar a correccion' : 'Enviar a correccion'}
             </button>
           )}
           {execution?.status === 'COMPLETED' && (

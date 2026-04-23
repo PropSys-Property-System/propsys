@@ -125,6 +125,15 @@ En PowerShell (Windows):
 - Evidencias en Operación ya aceptan imagen/PDF, pero el storage sigue siendo local al servidor. Falta resolver storage productivo y políticas de retención.
 - Financiero solo lectura: no hay ciclo completo (emisión/pago/reconciliación) ni integraciones.
 
+### 10.1 UI simulada o diferida visible hoy
+- `/reset-password` sigue siendo una pantalla simulada de UX; no existe flujo real de token, email ni cambio de contraseña.
+- `/setup` sigue siendo un wizard visual; no persiste configuración real ni provisiona tenants/usuarios.
+- Los botones `Proximamente` visibles en admin/resident son placeholders internos de QA. No deben presentarse como funcionalidades cerradas en una beta externa o release pública.
+- `ROOT_ADMIN` QA sigue siendo manual en DB local; todavía no forma parte canónica del seed.
+
+### 10.2 Ajuste técnico de frontend
+- Tailwind debe escanear también `./lib/**/*.{js,ts,jsx,tsx,mdx}` porque la UI reusable vive en `lib/features/**`. Si ese path no está en `tailwind.config.ts`, pueden aparecer layouts inconsistentes o clases faltantes aunque el código JSX sea correcto.
+
 ## 11. Lifecycle de usuarios y soft delete (estado real)
 - **Regla implementada hoy:** solo `ACTIVE` puede iniciar sesión o mantener sesión válida.
 - **Estados tipados hoy:** `ACTIVE`, `INACTIVE`, `SUSPENDED`, `ARCHIVED`.
