@@ -6,6 +6,12 @@ import { clearSessionCookie, getSessionIdFromRequest } from '@/lib/server/auth/s
 export async function POST(req: Request) {
   const sessionId = getSessionIdFromRequest(req);
 
+  if (sessionId?.startsWith('mock_')) {
+    const res = NextResponse.json({ ok: true });
+    clearSessionCookie(res);
+    return res;
+  }
+
   let auditFailed = false;
   try {
     if (sessionId) {

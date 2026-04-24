@@ -5,8 +5,40 @@ import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
 import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { InternalRole } from '@/lib/types/auth';
+import { getSessionIdFromRequest } from '@/lib/server/auth/session-cookie';
+import { MOCK_ROOT_ADMIN, MOCK_USERS } from '@/lib/mocks';
+import { MOCK_USER_BUILDING_ASSIGNMENTS, MOCK_USER_UNIT_ASSIGNMENTS } from '@/lib/mocks/physical';
 
 export async function GET(req: Request) {
+  const sessionId = getSessionIdFromRequest(req);
+  if (sessionId?.startsWith('mock_')) {
+    const userId = sessionId.slice('mock_'.length);
+    const u = [MOCK_ROOT_ADMIN, ...MOCK_USERS].find((x) => x.id === userId);
+    if (!u) return NextResponse.json({ user: null }, { status: 401 });
+    const buildingAssignments = MOCK_USER_BUILDING_ASSIGNMENTS.filter((x) => x.userId === u.id).map((x) => ({
+      id: x.id,
+      client_id: x.clientId,
+      user_id: x.userId,
+      building_id: x.buildingId,
+      status: x.status,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+      deleted_at: null,
+    }));
+    const unitAssignments = MOCK_USER_UNIT_ASSIGNMENTS.filter((x) => x.userId === u.id).map((x) => ({
+      id: x.id,
+      client_id: x.clientId,
+      user_id: x.userId,
+      unit_id: x.unitId,
+      assignment_type: x.assignmentType,
+      status: x.status,
+      created_at: x.createdAt,
+      updated_at: x.updatedAt,
+      deleted_at: null,
+    }));
+    return NextResponse.json({ user: u, buildingAssignments, unitAssignments });
+  }
+
   const sessionUser = await getSessionUser(req);
   if (!sessionUser) return NextResponse.json({ user: null }, { status: 401 });
 

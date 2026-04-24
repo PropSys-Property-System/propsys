@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(req: NextRequest) {
@@ -15,7 +15,10 @@ export function middleware(req: NextRequest) {
   if (!isPrivate) return NextResponse.next();
 
   const session = req.cookies.get('ps_session')?.value;
-  const looksValid = typeof session === 'string' && /^sess_[0-9a-fA-F-]{36}$/.test(session);
+  const looksValid =
+    typeof session === 'string' &&
+    (/^sess_[0-9a-fA-F-]{36}$/.test(session) ||
+      (process.env.NODE_ENV === 'development' && /^mock_[a-zA-Z0-9_-]+$/.test(session)));
   if (!looksValid) {
     const url = req.nextUrl.clone();
     url.pathname = '/';

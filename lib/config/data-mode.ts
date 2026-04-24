@@ -1,6 +1,7 @@
-﻿export type DataMode = 'mock' | 'db';
+export type DataMode = 'mock' | 'db';
 
 export function getDataMode(): DataMode {
+  if (process.env.NODE_ENV === 'development' && !process.env.DATABASE_URL) return 'mock';
   const v =
     (process.env.NEXT_PUBLIC_DATA_MODE as DataMode | undefined) ??
     (process.env.DATA_MODE as DataMode | undefined) ??

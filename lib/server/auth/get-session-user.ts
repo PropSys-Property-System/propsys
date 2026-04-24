@@ -2,6 +2,7 @@ import { getPool } from '@/lib/server/db/client';
 import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
 import { getSessionIdFromRequest } from '@/lib/server/auth/session-cookie';
 import type { AuthScope, InternalRole, UIRole, UserStatus } from '@/lib/types/auth';
+import { MOCK_ROOT_ADMIN, MOCK_USERS } from '@/lib/mocks';
 
 export type SessionUser = {
   id: string;
@@ -17,6 +18,22 @@ export type SessionUser = {
 export async function getSessionUser(req: Request): Promise<SessionUser | null> {
   const sessionId = getSessionIdFromRequest(req);
   if (!sessionId) return null;
+
+  if (sessionId.startsWith('mock_')) {
+    const userId = sessionId.slice('mock_'.length);
+    const u = [MOCK_ROOT_ADMIN, ...MOCK_USERS].find((x) => x.id === userId);
+    if (!u) return null;
+    return {
+      id: u.id,
+      clientId: u.clientId ?? null,
+      email: u.email,
+      name: u.name,
+      role: u.role as UIRole,
+      internalRole: u.internalRole as InternalRole,
+      scope: u.scope as AuthScope,
+      status: u.status as UserStatus,
+    };
+  }
 
   const pool = getPool();
   const sRes = await pool.query<{ user_id: string; client_id: string | null }>(
