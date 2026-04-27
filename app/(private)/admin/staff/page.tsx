@@ -92,8 +92,9 @@ export default function AdminStaffPage() {
   }, [searchTerm, staff]);
 
   const canCreateStaff =
-    Boolean(user) &&
-    (user.internalRole === 'ROOT_ADMIN' || user.internalRole === 'CLIENT_MANAGER' || user.internalRole === 'BUILDING_ADMIN') &&
+    (user?.internalRole === 'ROOT_ADMIN' ||
+      user?.internalRole === 'CLIENT_MANAGER' ||
+      user?.internalRole === 'BUILDING_ADMIN') &&
     Boolean(selectedBuildingId);
 
   const actions = (
