@@ -7,15 +7,19 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   archiveBuildingForUser,
+  assignUserToUnit,
   createUnitForBuilding,
   createBuildingForUser,
   listUnitsForBuilding,
   loadAdminBuildingsPageData,
   restoreBuildingForUser,
+  unassignUnitResident,
 } from '@/lib/features/physical/physical-center.data';
 import { BuildingCard, BuildingComposerDialog, BuildingUnitsDialog } from '@/lib/features/physical/physical-center.ui';
 import type { Building, Unit } from '@/lib/types';
 import { labelClient } from '@/lib/presentation/labels';
+
+type UnitAssignmentType = 'OWNER' | 'OCCUPANT';
 
 export default function BuildingsPage() {
   const { user } = useAuth();
@@ -42,6 +46,14 @@ export default function BuildingsPage() {
   const [unitFloor, setUnitFloor] = useState('');
   const [unitError, setUnitError] = useState<string | null>(null);
   const [isUnitSubmitting, setIsUnitSubmitting] = useState(false);
+  const [assigningUnit, setAssigningUnit] = useState<Unit | null>(null);
+  const [assignmentType, setAssignmentType] = useState<UnitAssignmentType | null>(null);
+  const [assignmentName, setAssignmentName] = useState('');
+  const [assignmentEmail, setAssignmentEmail] = useState('');
+  const [assignmentPassword, setAssignmentPassword] = useState('');
+  const [assignmentMessage, setAssignmentMessage] = useState<string | null>(null);
+  const [isAssignmentSubmitting, setIsAssignmentSubmitting] = useState(false);
+  const [isResidentUnassigning, setIsResidentUnassigning] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -214,6 +226,12 @@ export default function BuildingsPage() {
     setUnitNumber('');
     setUnitFloor('');
     setUnitError(null);
+    setAssigningUnit(null);
+    setAssignmentType(null);
+    setAssignmentName('');
+    setAssignmentEmail('');
+    setAssignmentPassword('');
+    setAssignmentMessage(null);
 
     try {
       setIsUnitsLoading(true);
@@ -254,6 +272,133 @@ export default function BuildingsPage() {
       setUnitError(err instanceof Error ? err.message : 'No pudimos crear la unidad.');
     } finally {
       setIsUnitSubmitting(false);
+    }
+  }
+
+  function handleStartUnitAssignment(unit: Unit, nextAssignmentType: UnitAssignmentType) {
+    setAssigningUnit(unit);
+    setAssignmentType(nextAssignmentType);
+    setAssignmentName('');
+    setAssignmentEmail('');
+    setAssignmentPassword('');
+    setAssignmentMessage(null);
+    setUnitError(null);
+  }
+
+  function handleCancelUnitAssignment() {
+    setAssigningUnit(null);
+    setAssignmentType(null);
+    setAssignmentName('');
+    setAssignmentEmail('');
+    setAssignmentPassword('');
+  }
+
+  async function handleAssignUserToUnit() {
+    if (!user || !assigningUnit || !assignmentType) return;
+
+    if (!assignmentName.trim() || !assignmentEmail.trim()) {
+      setUnitError('Completa nombre y email para asignar el usuario.');
+      return;
+    }
+
+    try {
+      setIsAssignmentSubmitting(true);
+      setUnitError(null);
+      setAssignmentMessage(null);
+
+      const result = await assignUserToUnit(user, {
+        unitId: assigningUnit.id,
+        assignmentType,
+        name: assignmentName.trim(),
+        email: assignmentEmail.trim(),
+        password: assignmentPassword.trim() || undefined,
+      });
+
+      setBuildingUnits((current) =>
+        current.map((unit) =>
+          unit.id === result.unitId
+            ? {
+                ...unit,
+                ownerId: result.assignmentType === 'OWNER' ? result.user.id : unit.ownerId,
+                residentId: result.assignmentType === 'OCCUPANT' ? result.user.id : unit.residentId,
+              }
+            : unit
+        )
+      );
+      setAssignmentMessage(
+        result.tempPassword
+          ? `Usuario creado y asignado. Contrasena temporal: ${result.tempPassword}`
+          : 'Usuario existente asignado correctamente.'
+      );
+      handleCancelUnitAssignment();
+    } catch (err) {
+      setUnitError(err instanceof Error ? err.message : 'No pudimos asignar el usuario a la unidad.');
+    } finally {
+      setIsAssignmentSubmitting(false);
+    }
+  }
+
+  async function handleAssignOwnerAsResident(unit: Unit) {
+    if (!user || !unit.ownerId) return;
+
+    try {
+      setIsAssignmentSubmitting(true);
+      setUnitError(null);
+      setAssignmentMessage(null);
+
+      const result = await assignUserToUnit(user, {
+        unitId: unit.id,
+        assignmentType: 'OCCUPANT',
+        ownerAsResident: true,
+      });
+
+      setBuildingUnits((current) =>
+        current.map((item) =>
+          item.id === result.unitId
+            ? {
+                ...item,
+                residentId: result.user.id,
+              }
+            : item
+        )
+      );
+      setAssignmentMessage('Propietario marcado como residente de la unidad.');
+      handleCancelUnitAssignment();
+    } catch (err) {
+      setUnitError(err instanceof Error ? err.message : 'No pudimos marcar al propietario como residente.');
+    } finally {
+      setIsAssignmentSubmitting(false);
+    }
+  }
+
+  async function handleUnassignResident(unit: Unit) {
+    if (!user || !unit.residentId) return;
+
+    const confirmed = window.confirm('Liberar la residencia de esta unidad permitira asignar un nuevo inquilino o marcar al propietario como residente.');
+    if (!confirmed) return;
+
+    try {
+      setIsResidentUnassigning(true);
+      setUnitError(null);
+      setAssignmentMessage(null);
+
+      const result = await unassignUnitResident(user, { unitId: unit.id });
+      setBuildingUnits((current) =>
+        current.map((item) =>
+          item.id === result.unitId
+            ? {
+                ...item,
+                residentId: undefined,
+              }
+            : item
+        )
+      );
+      setAssignmentMessage('Residencia liberada. Ahora puedes asignar un inquilino nuevo o marcar al propietario como residente.');
+      handleCancelUnitAssignment();
+    } catch (err) {
+      setUnitError(err instanceof Error ? err.message : 'No pudimos liberar la residencia.');
+    } finally {
+      setIsResidentUnassigning(false);
     }
   }
 
@@ -380,12 +525,30 @@ export default function BuildingsPage() {
         isSubmitting={isUnitSubmitting}
         canCreate={canManageUnits}
         onClose={() => {
-          if (isUnitSubmitting) return;
+          if (isUnitSubmitting || isAssignmentSubmitting || isResidentUnassigning) return;
           setUnitBuilding(null);
+          handleCancelUnitAssignment();
+          setAssignmentMessage(null);
         }}
         onNumberChange={setUnitNumber}
         onFloorChange={setUnitFloor}
         onSubmit={handleCreateUnit}
+        assigningUnit={assigningUnit}
+        assignmentType={assignmentType}
+        assignmentName={assignmentName}
+        assignmentEmail={assignmentEmail}
+        assignmentPassword={assignmentPassword}
+        assignmentMessage={assignmentMessage}
+        isAssigning={isAssignmentSubmitting}
+        isUnassigningResident={isResidentUnassigning}
+        onStartAssignment={handleStartUnitAssignment}
+        onCancelAssignment={handleCancelUnitAssignment}
+        onAssignmentNameChange={setAssignmentName}
+        onAssignmentEmailChange={setAssignmentEmail}
+        onAssignmentPasswordChange={setAssignmentPassword}
+        onAssignUser={handleAssignUserToUnit}
+        onAssignOwnerAsResident={handleAssignOwnerAsResident}
+        onUnassignResident={handleUnassignResident}
       />
     </div>
   );

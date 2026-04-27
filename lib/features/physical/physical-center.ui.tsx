@@ -3,6 +3,8 @@ import { Building2, Home, Phone, Search, Users } from 'lucide-react';
 import type { Building, CommonArea, StaffMember, Unit } from '@/lib/types';
 import { labelClient } from '@/lib/presentation/labels';
 
+type UnitAssignmentType = 'OWNER' | 'OCCUPANT';
+
 type BuildingCardProps = {
   building: Building;
   showClient?: boolean;
@@ -44,10 +46,26 @@ type BuildingUnitsDialogProps = {
   isLoading: boolean;
   isSubmitting: boolean;
   canCreate: boolean;
+  assigningUnit: Unit | null;
+  assignmentType: UnitAssignmentType | null;
+  assignmentName: string;
+  assignmentEmail: string;
+  assignmentPassword: string;
+  assignmentMessage: string | null;
+  isAssigning: boolean;
+  isUnassigningResident: boolean;
   onClose: () => void;
   onNumberChange: (value: string) => void;
   onFloorChange: (value: string) => void;
   onSubmit: () => void | Promise<void>;
+  onStartAssignment: (unit: Unit, assignmentType: UnitAssignmentType) => void | Promise<void>;
+  onCancelAssignment: () => void;
+  onAssignmentNameChange: (value: string) => void;
+  onAssignmentEmailChange: (value: string) => void;
+  onAssignmentPasswordChange: (value: string) => void;
+  onAssignUser: () => void | Promise<void>;
+  onAssignOwnerAsResident: (unit: Unit) => void | Promise<void>;
+  onUnassignResident: (unit: Unit) => void | Promise<void>;
 };
 
 type BuildingScopeToolbarProps = {
@@ -147,12 +165,30 @@ export function BuildingUnitsDialog({
   isLoading,
   isSubmitting,
   canCreate,
+  assigningUnit,
+  assignmentType,
+  assignmentName,
+  assignmentEmail,
+  assignmentPassword,
+  assignmentMessage,
+  isAssigning,
+  isUnassigningResident,
   onClose,
   onNumberChange,
   onFloorChange,
   onSubmit,
+  onStartAssignment,
+  onCancelAssignment,
+  onAssignmentNameChange,
+  onAssignmentEmailChange,
+  onAssignmentPasswordChange,
+  onAssignUser,
+  onAssignOwnerAsResident,
+  onUnassignResident,
 }: BuildingUnitsDialogProps) {
   if (!isOpen || !building) return null;
+
+  const assignmentLabel = assignmentType === 'OWNER' ? 'propietario' : 'inquilino';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -169,6 +205,11 @@ export function BuildingUnitsDialog({
         </div>
 
         {error ? <div className="mt-4 bg-rose-50 border border-rose-100 text-rose-700 rounded-xl px-4 py-3 text-sm font-bold">{error}</div> : null}
+        {assignmentMessage ? (
+          <div className="mt-4 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl px-4 py-3 text-sm font-bold">
+            {assignmentMessage}
+          </div>
+        ) : null}
 
         <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[45vh] overflow-y-auto pr-1">
           {isLoading ? (
@@ -187,9 +228,96 @@ export function BuildingUnitsDialog({
                     {unit.ownerId ? 'Con propietario' : 'Sin propietario'}
                   </span>
                   <span className="px-2.5 py-1 rounded-full bg-white text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                    {unit.residentId ? 'Con inquilino' : 'Sin inquilino'}
+                    {unit.ownerId && unit.residentId === unit.ownerId
+                      ? 'Propietario residente'
+                      : unit.residentId
+                        ? 'Con inquilino'
+                        : 'Sin inquilino'}
                   </span>
                 </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {!unit.ownerId ? (
+                    <button
+                      type="button"
+                      onClick={() => void onStartAssignment(unit, 'OWNER')}
+                      className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-xs hover:bg-slate-50 transition-all"
+                    >
+                      Asignar propietario
+                    </button>
+                  ) : null}
+                  {!unit.residentId ? (
+                    <button
+                      type="button"
+                      onClick={() => void onStartAssignment(unit, 'OCCUPANT')}
+                      className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-xs hover:bg-slate-50 transition-all"
+                    >
+                      Asignar inquilino
+                    </button>
+                  ) : null}
+                  {unit.ownerId && !unit.residentId ? (
+                    <button
+                      type="button"
+                      onClick={() => void onAssignOwnerAsResident(unit)}
+                      disabled={isAssigning}
+                      className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 font-black text-xs hover:bg-emerald-100 transition-all disabled:opacity-70"
+                    >
+                      Propietario vive aqui
+                    </button>
+                  ) : null}
+                  {unit.residentId ? (
+                    <button
+                      type="button"
+                      onClick={() => void onUnassignResident(unit)}
+                      disabled={isUnassigningResident}
+                      className="px-3 py-2 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 font-black text-xs hover:bg-rose-100 transition-all disabled:opacity-70"
+                    >
+                      {isUnassigningResident ? 'Liberando...' : 'Liberar residencia'}
+                    </button>
+                  ) : null}
+                </div>
+                {assigningUnit?.id === unit.id && assignmentType ? (
+                  <div className="mt-4 rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Nuevo {assignmentLabel}</p>
+                    <input
+                      value={assignmentName}
+                      onChange={(event) => onAssignmentNameChange(event.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                      placeholder="Nombre completo"
+                    />
+                    <input
+                      value={assignmentEmail}
+                      onChange={(event) => onAssignmentEmailChange(event.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                      placeholder="email@dominio.com"
+                      type="email"
+                    />
+                    <input
+                      value={assignmentPassword}
+                      onChange={(event) => onAssignmentPasswordChange(event.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                      placeholder="Contrasena opcional; si queda vacio se genera una temporal"
+                      type="text"
+                    />
+                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={onCancelAssignment}
+                        disabled={isAssigning}
+                        className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-xs hover:bg-slate-50 transition-all disabled:opacity-70"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onAssignUser()}
+                        disabled={isAssigning}
+                        className="px-4 py-2 rounded-xl bg-primary text-white font-black text-xs shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
+                      >
+                        {isAssigning ? 'Asignando...' : `Asignar ${assignmentLabel}`}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ))
           )}

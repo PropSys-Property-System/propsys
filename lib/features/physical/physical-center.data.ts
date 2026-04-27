@@ -1,5 +1,6 @@
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { commonAreasRepo } from '@/lib/repos/physical/common-areas.repo';
+import { assignmentsRepo } from '@/lib/repos/physical/assignments.repo';
 import { staffRepo } from '@/lib/repos/physical/staff.repo';
 import { unitsRepo } from '@/lib/repos/physical/units.repo';
 import type { Building, CommonArea, StaffMember, Unit, User } from '@/lib/types';
@@ -86,6 +87,20 @@ export async function createUnitForBuilding(
   input: Parameters<typeof unitsRepo.createForBuilding>[1]
 ): Promise<Awaited<ReturnType<typeof unitsRepo.createForBuilding>>> {
   return unitsRepo.createForBuilding(user, input);
+}
+
+export async function assignUserToUnit(
+  user: User,
+  input: Parameters<typeof assignmentsRepo.assignUserToUnit>[1]
+): Promise<Awaited<ReturnType<typeof assignmentsRepo.assignUserToUnit>>> {
+  return assignmentsRepo.assignUserToUnit(user, input);
+}
+
+export async function unassignUnitResident(
+  user: User,
+  input: Parameters<typeof assignmentsRepo.unassignUnitResident>[1]
+): Promise<Awaited<ReturnType<typeof assignmentsRepo.unassignUnitResident>>> {
+  return assignmentsRepo.unassignUnitResident(user, input);
 }
 
 export async function loadAdminCommonAreasPageData(user: User): Promise<AdminCommonAreasPageData> {
