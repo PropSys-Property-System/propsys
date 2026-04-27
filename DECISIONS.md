@@ -1,4 +1,4 @@
-﻿# Decisiones de Arquitectura - PropSys
+# Decisiones de Arquitectura - PropSys
 
 Este documento fija el canon de ejecución y las decisiones que habilitan QA real sobre PostgreSQL sin ambigüedad.
 
@@ -32,7 +32,7 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 - **Regla actual en escrituras de dominio:** si una mutación DB debe auditar y el insert en `audit_logs` falla, la request falla. La auditoría es bloqueante en operación/comunicación.
 - **Excepción actual:** `login/logout` son best-effort; no bloquean autenticación. Si la auditoría falla, la respuesta expone `x-propsys-audit=failed`.
 
-### 5.1 Matriz mínima de acciones críticas (estado real 2026-04-19)
+### 5.1 Matriz mínima de acciones críticas (estado real 2026-04-27)
 
 | Acción crítica | Estado actual | Auditoría | Nota |
 |---|---|---|---|
@@ -41,12 +41,17 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 | Crear tarea / reasignar / cambiar estado / aprobar tarea | Implementado | Sí | Incluye sync desde checklist cuando corresponde. |
 | Crear checklist template / editar / eliminar | Implementado | Sí | Soft delete del template con auditoría. |
 | Crear checklist execution / guardar / completar / aprobar / devolver | Implementado | Sí | Devuelve feedback de revisión y lo limpia al recompletar. |
-| Subir evidencia / eliminar evidencia | Implementado | Sí | Auditoría existe hoy con helper SQL local a Evidence. |
+| Subir evidencia / eliminar evidencia | Implementado | Sí | Acepta imagen/PDF; storage en filesystem local del servidor en DB-mode. |
 | Crear reserva / aprobar o rechazar / cancelar | Implementado | Sí | Flujo V1 cubierto en rutas DB. |
 | Crear y publicar aviso | Implementado | Sí | Publicación queda tenant-scoped o client-scoped explícita para root. |
 | Listar / suspender / reactivar usuario | Implementado (mínimo) | Sí | `ROOT_ADMIN` y `CLIENT_MANAGER` con reglas conservadoras; suspender revoca sesiones activas. |
-| Crear / editar usuario | No implementado | N/A | Sigue fuera de alcance en este bloque. |
-| Crear / editar edificio o unidad | No implementado | N/A | Hoy físico expone lectura; `common_areas` sí tiene mutación parcial con auditoría. |
+| Crear / editar usuario genérico | No implementado | N/A | Sin flujo de alta/edición general de usuarios; sigue diferido. |
+| Crear edificio | Implementado | Sí | `POST /api/v1/physical/buildings`; solo `ROOT_ADMIN` / `CLIENT_MANAGER`. |
+| Archivar / restaurar edificio | Implementado | Sí | `DELETE` / `PATCH /api/v1/physical/buildings/[id]`; bloquea si hay datos activos. |
+| Crear unidad | Implementado | Sí | `POST /api/v1/physical/units`; solo `ROOT_ADMIN` / `CLIENT_MANAGER`. |
+| Asignar owner / occupant a unidad | Implementado | Sí | `POST /api/v1/physical/unit-assignments`; soporta `ownerAsResident`; crea el usuario si no existe. |
+| Liberar residencia (unassign occupant) | Implementado | Sí | `DELETE /api/v1/physical/unit-assignments`; archiva asignación activa. |
+| Dar de alta staff por edificio | Implementado | No | `POST /api/v1/physical/staff`; crea usuario + asignación en transacción; **sin audit log**. |
 | Crear / editar / anular recibo | No implementado | N/A | Financiero sigue en lectura. |
 
 ## 6. Cobertura DB vs Mock (estado actual)
@@ -63,11 +68,11 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 
 | Módulo | UI (privado) | API DB (`/api/v1`) | DB schema | Seeds QA | Estado V1 | Observación |
 |---|---|---:|---:|---:|---|---|
-| Físico | Admin: Buildings/Common Areas/Staff + Resident: Units | Sí | Sí | Sí | Cerrado | Listados tenant-scoped + asignaciones por edificio/unidad (fuente de verdad). |
-| Usuarios | Admin: Users | Sí | Sí | Sí | Cerrado (mínimo) | Listado + suspensión/reactivación con revocación de sesiones; sin creación/edición/papelera todavía. |
+| Físico | Admin: Buildings/Common Areas/Staff + Resident: Units | Sí | Sí | Sí | Cerrado | Listado + creación de edificios/unidades + archivo/restauración de edificios + asignación owner/occupant + ownerAsResident + liberación de residencia + alta de staff; todo tenant-scoped. |
+| Usuarios | Admin: Users | Sí | Sí | Sí | Cerrado (mínimo) | Listado + suspensión/reactivación con revocación de sesiones; sin creación/edición genérica ni papelera. |
 | Avisos | Admin: Notices + Resident: Notices | Sí | Sí | Sí | Cerrado | Lectura para todos (scoped por edificio/audience) + publicación para `CLIENT_MANAGER`/`BUILDING_ADMIN`. |
 | Reservas | Admin: Reservations + Resident: Reservations | Sí | Sí | Sí | Cerrado | Crear (owner/occupant), aprobar/rechazar (building admin), cancelar (owner/occupant o building admin). |
-| Operación | Staff: Tasks/Tickets + Admin/Resident: Tickets | Sí (Incidents/Tasks/Checklists/Evidence) | Sí | Sí | Cerrado (mínimo) | Checklist/Evidence DB mínimo: templates + ejecuciones + evidencias como enlaces. |
+| Operación | Staff: Tasks/Tickets + Admin/Resident: Tickets | Sí (Incidents/Tasks/Checklists/Evidence) | Sí | Sí | Cerrado (mínimo) | Templates + ejecuciones (guardar/completar/aprobar/devolver) + evidencias como imagen/PDF en filesystem local. |
 | Financiero | Admin/Resident: Receipts | Sí (Receipts lectura) | Sí (Receipts) | Sí | Parcial | Solo lectura/listado por building o unit. Sin emisión/cobranza/pagos/reconciliación en V1. |
 
 ### 7.2 Checklist/Evidence (decisión explícita V1)
@@ -77,9 +82,9 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 - **Estado técnico:** DB-mode usa endpoints `app/api/v1/operation/*` y repos `lib/repos/operation/*`. Mock-mode queda como fallback solo para desarrollo.
 
 ### 7.3 Qué queda explícitamente cerrado/parcial/fuera de alcance
-- **Cerrado V1 (DB-mode):** Físico, Usuarios, Avisos, Reservas, Operación (Incidents/Tasks/Checklists/Evidence mínimo).
+- **Cerrado V1 (DB-mode):** Físico (incluyendo creación, archivo/restauración de edificios, creación de unidades, asignación/liberación de residentes, alta de staff), Usuarios, Avisos, Reservas, Operación (Incidents/Tasks/Checklists/Evidence mínimo).
 - **Parcial V1:** Financiero (solo lectura de receipts).
-- **Fuera de alcance V1:** storage/subida de evidencias (archivos), Planes, Root Admin, financiero completo (emisión/pagos/reconciliación) y cualquier capacidad nueva.
+- **Fuera de alcance V1:** storage productivo de evidencias (hoy filesystem local del servidor), Planes y límites comerciales, Root Admin canonical seed, financiero completo (emisión/pagos/reconciliación), creación/edición genérica de usuarios, audit log en alta de staff, y cualquier capacidad nueva.
 
 ## 8. Flujo QA real (DB-mode con seeds)
 1) Configurar `.env.local` (o variables) con `DATABASE_URL` y `NEXT_PUBLIC_DATA_MODE=db` (ver [.env.example](file:///c:/Users/angel/OneDrive/Escritorio/Empresa/propsys-frontend/.env.example)).
@@ -150,10 +155,20 @@ En PowerShell (Windows):
 - **Gap actual:** no existe creación/edición server-side de usuarios, no existe `deleted_at` en `users`, no hay papelera de 30 días ni hard delete diferido.
 - **Decisión actual:** la papelera/soft delete de usuarios queda diferida; no se cierra en este bloque.
 
-## 12. Recomendación de siguiente paso
-- **Siguiente paso recomendado:** cerrar el cleanup estructural y dejar documentado lo diferido de V1.
-- **Bloque recomendado ahora:** consolidar helpers/guards repetidos de API y bajar aún más el costo de mantenimiento.
-- **Diferido explícito:** papelera de usuarios, creación/edición de usuarios, financiero completo, reservas avanzadas y planes/límites.
+## 12. Diferido explícito V1 (lista canónica)
+
+Estos ítems están conscientemente fuera del alcance actual. No reabrir sin justificación nueva:
+
+- Papelera / soft delete de usuarios (30 días).
+- Creación y edición genérica server-side de usuarios.
+- Financiero completo: emisión, pago, conciliación y anulación real de recibos.
+- Planes, límites y enforcement comercial.
+- Storage productivo de evidencias fuera de filesystem local (CDN, object storage, políticas de retención).
+- Canonización del `ROOT_ADMIN` como parte estable del seed QA.
+- Reset password real (token + email + cambio de contraseña en DB).
+- Setup real (wizard que persista configuración y provisione tenants/usuarios).
+- Audit log en alta de staff (`POST /api/v1/physical/staff`).
+- Soporte interno avanzado / visor de audit logs en UI.
 
 ## 13. Cleanup estructural (estado 2026-04-20)
 - `lib/data.ts` deja de existir como fachada de páginas privadas.
@@ -174,13 +189,7 @@ En PowerShell (Windows):
 - `evidence` y `checklist-templates/[id]` ya usan los helpers compartidos de tenant scope, auditoría y transacciones; se cierra ese residuo de fase 0 dentro del módulo.
 
 ### 13.2 Diferido explícito tras este cleanup
-- Papelera de usuarios / soft delete de 30 días.
-- Creación y edición server-side de usuarios.
-- Financiero completo: emisión, pago, conciliación y anulación real de recibos.
-- Planes, límites y enforcement comercial.
-- Storage productivo de evidencias fuera de filesystem local.
-- Canonización del `ROOT_ADMIN` como parte estable del seed QA.
-- Reapertura de capacidades nuevas en tareas fuera del flujo V1 actual (por ejemplo, comentarios enriquecidos, storage externo o dashboards adicionales de operación).
+Ver sección 12 para la lista canónica completa. En resumen: papelera de usuarios, creación/edición genérica de usuarios, financiero completo, planes/límites, storage productivo de evidencias, `ROOT_ADMIN` canonical seed, reset password real, setup real, audit log en alta de staff.
 
 ### 13.3 Módulos Admin Notices / Tickets / Receipts (estado 2026-04-21)
 - `app/(private)/admin/notices/page.tsx` conserva estado y acciones, pero la presentación del listado y el modal de publicación se movieron a `lib/features/notices/notices-center.ui.tsx`.
