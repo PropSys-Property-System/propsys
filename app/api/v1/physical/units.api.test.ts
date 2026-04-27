@@ -126,4 +126,70 @@ describe('physical units API', () => {
     expect(res.status).toBe(404);
     expect(connect).not.toHaveBeenCalled();
   });
+
+  it('rejects BUILDING_ADMIN attempting to create a unit (no permission)', async () => {
+    sessionUser.internalRole = 'BUILDING_ADMIN';
+    sessionUser.scope = 'client';
+
+    const req = new Request('http://localhost/api/v1/physical/units', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', number: '401', floor: '4' }),
+    });
+
+    const res = await createUnit(req);
+    expect(res.status).toBe(403);
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for payload without required number field without opening a transaction', async () => {
+    sessionUser.internalRole = 'CLIENT_MANAGER';
+    sessionUser.scope = 'client';
+    sessionUser.clientId = 'client_001';
+
+    const req = new Request('http://localhost/api/v1/physical/units', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1' }),
+    });
+
+    const res = await createUnit(req);
+    expect(res.status).toBe(400);
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 when audit log insert fails and does not leave the unit created', async () => {
+    sessionUser.internalRole = 'CLIENT_MANAGER';
+    sessionUser.scope = 'client';
+    sessionUser.clientId = 'client_001';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM buildings')) return { rows: [{ id: 'b1', client_id: 'client_001' }] };
+      if (sql.includes('FROM units')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN') return { rows: [] };
+      if (sql.includes('INSERT INTO units')) {
+        return {
+          rows: [{ id: 'unit_new', client_id: 'client_001', building_id: 'b1', number: '501', floor: '5' }],
+        };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) throw new Error('audit down');
+      if (sql === 'ROLLBACK') return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/physical/units', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', number: '501', floor: '5' }),
+    });
+
+    const res = await createUnit(req);
+    expect(res.status).toBe(500);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe('No pudimos registrar la auditoria.');
+  });
 });

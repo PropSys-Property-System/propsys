@@ -267,4 +267,71 @@ describe('reservations API (route handlers)', () => {
     );
     expect(auditCalls.length).toBe(1);
   });
+
+  it('returns 500 when audit insert fails during reservation creation (no silent swallow)', async () => {
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'OCCUPANT';
+    (sessionUser as { role: string }).role = 'TENANT';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u5';
+
+    const now = new Date();
+    const startAt = new Date(now.getTime() + 60_000).toISOString();
+    const endAt = new Date(now.getTime() + 3_660_000).toISOString();
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT client_id, building_id FROM units')) {
+        return { rows: [{ client_id: 'client_001', building_id: 'b1' }] };
+      }
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [{ ok: true }] };
+      if (sql.includes('FROM common_areas')) {
+        return {
+          rows: [{ requires_approval: false, client_id: 'client_001', building_id: 'b1', status: 'ACTIVE', deleted_at: null }],
+        };
+      }
+      if (sql.includes('FROM reservations')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN') return { rows: [] };
+      if (sql.includes('INSERT INTO reservations')) {
+        return {
+          rows: [
+            reservationRow({
+              id: 'resv_fail',
+              clientId: 'client_001',
+              buildingId: 'b1',
+              unitId: 'unit-102',
+              commonAreaId: 'ca-1',
+              createdByUserId: 'u5',
+              status: 'APPROVED',
+            }),
+          ],
+        };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) throw new Error('audit down');
+      if (sql === 'ROLLBACK') return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/reservations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        buildingId: 'b1',
+        unitId: 'unit-102',
+        commonAreaId: 'ca-1',
+        startAt,
+        endAt,
+      }),
+    });
+
+    const res = await createReservation(req);
+    expect(res.status).toBe(500);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe('No pudimos registrar la auditoría.');
+  });
 });
