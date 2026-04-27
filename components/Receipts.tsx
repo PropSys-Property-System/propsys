@@ -49,10 +49,11 @@ export interface ReceiptRowProps {
   status: ReceiptStatus;
   description: string;
   meta?: React.ReactNode;
+  actions?: React.ReactNode;
   onView?: () => void;
 }
 
-export function ReceiptRow({ number, date, amount, currency, status, description, meta, onView }: ReceiptRowProps) {
+export function ReceiptRow({ number, date, amount, currency, status, description, meta, actions, onView }: ReceiptRowProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (onView && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
@@ -108,6 +109,7 @@ export function ReceiptRow({ number, date, amount, currency, status, description
         <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider font-semibold">
           {formattedDate}
         </p>
+        {actions ? <div className="mt-2 flex flex-wrap justify-end gap-2">{actions}</div> : null}
       </div>
     </div>
   );

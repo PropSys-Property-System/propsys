@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Building as BuildingIcon, Calendar, CreditCard, Download, Edit2, Home, Printer, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building as BuildingIcon, Calendar, CheckCircle2, CreditCard, Download, Edit2, Home, Printer, Send, Trash2, XCircle } from 'lucide-react';
 import { ReceiptRow, StatusBadge } from '@/components/Receipts';
 import { formatReceiptAmount, formatReceiptDate } from '@/lib/presentation/receipts';
 import { labelClient } from '@/lib/presentation/labels';
@@ -22,7 +22,10 @@ type AdminReceiptsListProps = {
   receipts: Receipt[];
   buildingById: Map<string, ReceiptBuildingLookup>;
   unitById: Map<string, ReceiptUnitLookup>;
+  pendingActionId?: string | null;
   onView: (receiptId: string) => void;
+  onMarkPaid?: (receipt: Receipt) => void | Promise<void>;
+  onCancelReceipt?: (receipt: Receipt) => void | Promise<void>;
 };
 
 type AdminReceiptDetailViewProps = {
@@ -42,6 +45,37 @@ type ResidentReceiptsListProps = {
   onView: (receiptId: string) => void;
 };
 
+type ReceiptComposerDialogProps = {
+  isOpen: boolean;
+  buildings: ReceiptBuildingLookup[];
+  units: ReceiptUnitLookup[];
+  buildingId: string;
+  unitId: string;
+  amount: string;
+  currency: string;
+  description: string;
+  issueDate: string;
+  dueDate: string;
+  error: string | null;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onBuildingChange: (buildingId: string) => void;
+  onUnitChange: (unitId: string) => void;
+  onAmountChange: (value: string) => void;
+  onCurrencyChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onIssueDateChange: (value: string) => void;
+  onDueDateChange: (value: string) => void;
+  onSubmit: () => void | Promise<void>;
+};
+
+type AdminReceiptHeaderActionsProps = {
+  receipt: Receipt;
+  pendingActionId?: string | null;
+  onMarkPaid?: (receipt: Receipt) => void | Promise<void>;
+  onCancelReceipt?: (receipt: Receipt) => void | Promise<void>;
+};
+
 type ResidentReceiptHeaderActionsProps = {
   receiptStatus: Receipt['status'];
 };
@@ -53,7 +87,69 @@ type ResidentReceiptDetailViewProps = {
   actions: ReactNode;
 };
 
-export function AdminReceiptsList({ receipts, buildingById, unitById, onView }: AdminReceiptsListProps) {
+function receiptActionKey(receiptId: string, action: 'PAID' | 'CANCELLED') {
+  return `${receiptId}:${action}`;
+}
+
+function PendingReceiptActions({
+  receipt,
+  pendingActionId,
+  onMarkPaid,
+  onCancelReceipt,
+}: {
+  receipt: Receipt;
+  pendingActionId?: string | null;
+  onMarkPaid?: (receipt: Receipt) => void | Promise<void>;
+  onCancelReceipt?: (receipt: Receipt) => void | Promise<void>;
+}) {
+  if (receipt.status !== 'PENDING' || (!onMarkPaid && !onCancelReceipt)) return null;
+
+  const markPaidKey = receiptActionKey(receipt.id, 'PAID');
+  const cancelKey = receiptActionKey(receipt.id, 'CANCELLED');
+
+  return (
+    <>
+      {onMarkPaid ? (
+        <button
+          type="button"
+          disabled={pendingActionId === markPaidKey || Boolean(pendingActionId)}
+          onClick={(event) => {
+            event.stopPropagation();
+            void onMarkPaid(receipt);
+          }}
+          className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all disabled:opacity-60"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+          {pendingActionId === markPaidKey ? 'Marcando...' : 'Pagado'}
+        </button>
+      ) : null}
+      {onCancelReceipt ? (
+        <button
+          type="button"
+          disabled={pendingActionId === cancelKey || Boolean(pendingActionId)}
+          onClick={(event) => {
+            event.stopPropagation();
+            void onCancelReceipt(receipt);
+          }}
+          className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-100 text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 transition-all disabled:opacity-60"
+        >
+          <XCircle className="w-3.5 h-3.5 mr-1" />
+          {pendingActionId === cancelKey ? 'Anulando...' : 'Anular'}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+export function AdminReceiptsList({
+  receipts,
+  buildingById,
+  unitById,
+  pendingActionId,
+  onView,
+  onMarkPaid,
+  onCancelReceipt,
+}: AdminReceiptsListProps) {
   return (
     <div className="grid grid-cols-1 gap-3">
       {receipts.map((receipt) => {
@@ -84,6 +180,14 @@ export function AdminReceiptsList({ receipts, buildingById, unitById, onView }: 
                 </span>
               </div>
             }
+            actions={
+              <PendingReceiptActions
+                receipt={receipt}
+                pendingActionId={pendingActionId}
+                onMarkPaid={onMarkPaid}
+                onCancelReceipt={onCancelReceipt}
+              />
+            }
             onView={() => onView(receipt.id)}
           />
         );
@@ -92,7 +196,162 @@ export function AdminReceiptsList({ receipts, buildingById, unitById, onView }: 
   );
 }
 
-export function AdminReceiptHeaderActions() {
+export function ReceiptComposerDialog({
+  isOpen,
+  buildings,
+  units,
+  buildingId,
+  unitId,
+  amount,
+  currency,
+  description,
+  issueDate,
+  dueDate,
+  error,
+  isSubmitting,
+  onClose,
+  onBuildingChange,
+  onUnitChange,
+  onAmountChange,
+  onCurrencyChange,
+  onDescriptionChange,
+  onIssueDateChange,
+  onDueDateChange,
+  onSubmit,
+}: ReceiptComposerDialogProps) {
+  if (!isOpen) return null;
+
+  const unitOptions = units.filter((unit) => unit.buildingId === buildingId);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button aria-label="Cerrar" type="button" className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div role="dialog" aria-modal="true" className="relative w-full max-w-2xl bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-lg font-black text-slate-900">Emitir recibo</p>
+            <p className="mt-1 text-xs text-slate-500 font-medium">Registra un cobro manual para una unidad activa.</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={isSubmitting} className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700 disabled:opacity-60">
+            Cerrar
+          </button>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Edificio</label>
+            <select
+              value={buildingId}
+              onChange={(event) => onBuildingChange(event.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            >
+              <option value="">Selecciona un edificio...</option>
+              {buildings.map((building) => (
+                <option key={building.id} value={building.id}>
+                  {building.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Unidad</label>
+            <select
+              value={unitId}
+              onChange={(event) => onUnitChange(event.target.value)}
+              disabled={!buildingId}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium disabled:opacity-70"
+            >
+              <option value="">Selecciona una unidad...</option>
+              {unitOptions.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  Unidad {unit.number}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Monto</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(event) => onAmountChange(event.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+              placeholder="Ej: 250"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Moneda</label>
+            <select
+              value={currency}
+              onChange={(event) => onCurrencyChange(event.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            >
+              <option value="PEN">PEN</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Fecha de emision</label>
+            <input
+              type="date"
+              value={issueDate}
+              onChange={(event) => onIssueDateChange(event.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Fecha de vencimiento</label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(event) => onDueDateChange(event.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripcion</label>
+            <input
+              value={description}
+              onChange={(event) => onDescriptionChange(event.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+              placeholder="Ej: Mantenimiento mensual"
+            />
+          </div>
+        </div>
+
+        {error ? <div className="mt-4 bg-rose-50 border border-rose-100 text-rose-700 rounded-xl px-4 py-3 text-sm font-bold">{error}</div> : null}
+
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void onSubmit()}
+            disabled={isSubmitting}
+            className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
+          >
+            {isSubmitting ? 'Emitiendo...' : 'Emitir recibo'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AdminReceiptHeaderActions({
+  receipt,
+  pendingActionId,
+  onMarkPaid,
+  onCancelReceipt,
+}: AdminReceiptHeaderActionsProps) {
   return (
     <>
       <button
@@ -131,6 +390,12 @@ export function AdminReceiptHeaderActions() {
       >
         <Send className="w-4 h-4 mr-2" /> Proximamente
       </button>
+      <PendingReceiptActions
+        receipt={receipt}
+        pendingActionId={pendingActionId}
+        onMarkPaid={onMarkPaid}
+        onCancelReceipt={onCancelReceipt}
+      />
     </>
   );
 }

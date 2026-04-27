@@ -1,4 +1,4 @@
-import { Receipt, User } from '@/lib/types';
+import { Receipt, ReceiptStatus, User } from '@/lib/types';
 import { MOCK_RECEIPTS } from '@/lib/mocks';
 import { filterItemsByTenant } from '@/lib/auth/access-rules';
 import { accessScope } from '@/lib/access/access-scope';
@@ -8,6 +8,21 @@ import { isDbMode } from '@/lib/config/data-mode';
 import { fetchJsonOrThrow } from '@/lib/repos/http';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export type CreateReceiptInput = {
+  buildingId: string;
+  unitId: string;
+  amount: number;
+  currency: string;
+  description: string;
+  issueDate: string;
+  dueDate: string;
+};
+
+export type UpdateReceiptStatusInput = {
+  receiptId: string;
+  status: Extract<ReceiptStatus, 'PAID' | 'CANCELLED'>;
+};
 
 export const receiptsRepo = {
   async listForUser(user: User): Promise<Receipt[]> {
@@ -50,5 +65,57 @@ export const receiptsRepo = {
     }
     const list = await receiptsRepo.listForUser(user);
     return list.find((r) => r.id === id) ?? null;
+  },
+
+  async createForUser(user: User, input: CreateReceiptInput): Promise<Receipt> {
+    if (isDbMode()) {
+      const data = await fetchJsonOrThrow<{ receipt: Receipt }>('/api/v1/finance/receipts', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      return data.receipt;
+    }
+
+    await sleep(250);
+    const building = (await buildingsRepo.listForUser(user)).find((item) => item.id === input.buildingId);
+    const unit = (await unitsRepo.listForUser(user)).find((item) => item.id === input.unitId && item.buildingId === input.buildingId);
+    if (!building || !unit) throw new Error('Unidad no encontrada o no pertenece al edificio.');
+
+    const receipt: Receipt = {
+      id: `mock-receipt-${Date.now()}`,
+      clientId: building.clientId,
+      buildingId: input.buildingId,
+      unitId: input.unitId,
+      number: `REC-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`,
+      description: input.description,
+      amount: input.amount,
+      currency: input.currency,
+      issueDate: input.issueDate,
+      dueDate: input.dueDate,
+      status: 'PENDING',
+    };
+    MOCK_RECEIPTS.unshift(receipt);
+    return receipt;
+  },
+
+  async updateStatusForUser(user: User, input: UpdateReceiptStatusInput): Promise<Receipt> {
+    if (isDbMode()) {
+      const data = await fetchJsonOrThrow<{ receipt: Receipt }>(`/api/v1/finance/receipts/${input.receiptId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: input.status }),
+      });
+      return data.receipt;
+    }
+
+    await sleep(250);
+    const receipt = (await receiptsRepo.listForUser(user)).find((item) => item.id === input.receiptId);
+    if (!receipt) throw new Error('Recibo no encontrado.');
+    if (receipt.status !== 'PENDING') throw new Error('Solo se pueden actualizar recibos pendientes.');
+    receipt.status = input.status;
+    return receipt;
   },
 };
