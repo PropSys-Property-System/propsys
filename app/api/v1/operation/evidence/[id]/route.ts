@@ -72,21 +72,25 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   }
 
   const now = new Date().toISOString();
-  await withTransaction(pool, async (db) => {
-    await db.query(`UPDATE evidence_attachments SET deleted_at = $2 WHERE id = $1`, [id, now]);
-    await insertAuditLog(db, {
-      clientId: evidence.client_id,
-      userId: user.id,
-      action: 'DELETE',
-      entity: 'EvidenceAttachment',
-      entityId: evidence.id,
-      metadata: {
-        buildingId: evidence.building_id,
-        checklistExecutionId: evidence.checklist_execution_id,
-      },
-      oldData: evidence,
+  try {
+    await withTransaction(pool, async (db) => {
+      await db.query(`UPDATE evidence_attachments SET deleted_at = $2 WHERE id = $1`, [id, now]);
+      await insertAuditLog(db, {
+        clientId: evidence.client_id,
+        userId: user.id,
+        action: 'DELETE',
+        entity: 'EvidenceAttachment',
+        entityId: evidence.id,
+        metadata: {
+          buildingId: evidence.building_id,
+          checklistExecutionId: evidence.checklist_execution_id,
+        },
+        oldData: evidence,
+      });
     });
-  });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
 
   try {
     await deleteEvidenceFile(evidence.storage_path);
