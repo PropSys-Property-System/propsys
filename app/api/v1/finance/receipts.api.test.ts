@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GET as listReceipts } from './receipts/route';
-import { GET as getReceipt } from './receipts/[id]/route';
+import { GET as listReceipts, POST as createReceipt } from './receipts/route';
+import { GET as getReceipt, PATCH as patchReceipt } from './receipts/[id]/route';
 
 const query = vi.fn();
+const release = vi.fn();
+const connect = vi.fn(async () => ({ query, release }));
 
 vi.mock('@/lib/server/db/client', () => ({
   getPool: () => ({
     query,
+    connect,
   }),
 }));
 
@@ -166,5 +169,206 @@ describe('finance receipts API (route handlers)', () => {
     const data = (await res.json()) as { receipt: { id: string; buildingId: string } };
     expect(data.receipt.id).toBe('r1');
     expect(data.receipt.buildingId).toBe('b1');
+  });
+
+  it('rejects POST with unauthorized role', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'OWNER';
+
+    const req = new Request('http://localhost/api/v1/finance/receipts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'u1', amount: 100, description: 'Test', issueDate: '2026-04-01', dueDate: '2026-04-10' }),
+    });
+    const res = await createReceipt(req);
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects POST with invalid payload', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+
+    const req = new Request('http://localhost/api/v1/finance/receipts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'u1', amount: null }),
+    });
+    const res = await createReceipt(req);
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects POST with invalid unit or tenant mismatch', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM units')) {
+        return { rows: [{ client_id: 'client_002', building_id: 'b1' }] };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'u1', amount: 100, description: 'Test', issueDate: '2026-04-01', dueDate: '2026-04-10' }),
+    });
+    const res = await createReceipt(req);
+    expect(res.status).toBe(403);
+  });
+
+  it('creates a receipt successfully', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u_mgr';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM units')) {
+        return { rows: [{ client_id: 'client_001', building_id: 'b1' }] };
+      }
+      if (sql.includes('INSERT INTO receipts')) {
+        return { rows: [{ id: 'new-rect', status: 'PENDING' }] };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'u1', amount: 150, description: 'Test', issueDate: '2026-04-01', dueDate: '2026-04-10' }),
+    });
+    const res = await createReceipt(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { receipt: { id: string; status: string } };
+    expect(data.receipt.id).toBe('new-rect');
+    expect(data.receipt.status).toBe('PENDING');
+
+    const auditCall = query.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO audit_logs'));
+    expect(auditCall).toBeDefined();
+  });
+
+  it('returns 500 when POST audit fails', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM units')) return { rows: [{ client_id: 'client_001', building_id: 'b1' }] };
+      if (sql.includes('INSERT INTO receipts')) return { rows: [{ id: 'new-rect', status: 'PENDING' }] };
+      if (sql.includes('INSERT INTO audit_logs')) throw new Error('DB DOWN');
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'u1', amount: 150, description: 'Test', issueDate: '2026-04-01', dueDate: '2026-04-10' }),
+    });
+    const res = await createReceipt(req);
+    expect(res.status).toBe(500);
+  });
+
+  it('rejects PATCH with invalid transition', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+
+    const req = new Request('http://localhost/api/v1/finance/receipts/r1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'OVERDUE' }),
+    });
+    const res = await patchReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
+    expect(res.status).toBe(400);
+  });
+
+  it('successfully transitions to PAID', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM receipts') && sql.includes('SELECT')) {
+        return { rows: [{ id: 'r1', client_id: 'client_001', building_id: 'b1', status: 'PENDING' }] };
+      }
+      if (sql.includes('UPDATE receipts')) {
+        return { rows: [{ id: 'r1', status: 'PAID' }] };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts/r1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'PAID' }),
+    });
+    const res = await patchReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { receipt: { status: string } };
+    expect(data.receipt.status).toBe('PAID');
+
+    const auditCall = query.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO audit_logs'));
+    expect(auditCall).toBeDefined();
+  });
+
+  it('successfully transitions to CANCELLED', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM receipts') && sql.includes('SELECT')) {
+        return { rows: [{ id: 'r1', client_id: 'client_001', building_id: 'b1', status: 'PENDING' }] };
+      }
+      if (sql.includes('UPDATE receipts')) {
+        return { rows: [{ id: 'r1', status: 'CANCELLED' }] };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts/r1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'CANCELLED' }),
+    });
+    const res = await patchReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { receipt: { status: string } };
+    expect(data.receipt.status).toBe('CANCELLED');
+  });
+
+  it('returns 500 when PATCH audit fails', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM receipts') && sql.includes('SELECT')) {
+        return { rows: [{ id: 'r1', client_id: 'client_001', building_id: 'b1', status: 'PENDING' }] };
+      }
+      if (sql.includes('UPDATE receipts')) {
+        return { rows: [{ id: 'r1', status: 'PAID' }] };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) throw new Error('DB DOWN');
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts/r1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'PAID' }),
+    });
+    const res = await patchReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
+    expect(res.status).toBe(500);
   });
 });
