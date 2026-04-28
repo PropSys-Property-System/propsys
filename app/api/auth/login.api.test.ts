@@ -90,4 +90,32 @@ describe('POST /api/auth/login', () => {
     expect(verify).not.toHaveBeenCalled();
     expect(insertAuditLog).not.toHaveBeenCalled();
   });
+
+  it('rate limits repeated failed login attempts by client and email', async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    const { POST } = await import('./login/route');
+
+    const makeRequest = () =>
+      new Request('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-forwarded-for': '203.0.113.10',
+        },
+        body: JSON.stringify({ email: 'manager@propsys.com', password: 'wrong-password' }),
+      });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const res = await POST(makeRequest());
+      expect(res.status).toBe(401);
+    }
+
+    const limited = await POST(makeRequest());
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0);
+    const data = (await limited.json()) as { error?: string };
+    expect(data.error).toBe('Demasiados intentos de inicio de sesion. Intenta nuevamente mas tarde.');
+    expect(query.mock.calls.length).toBe(5);
+  });
 });

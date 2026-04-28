@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { setSessionCookie } from '@/lib/server/auth/session-cookie';
 import { MOCK_ROOT_ADMIN, MOCK_USERS } from '@/lib/mocks';
+import { checkLoginRateLimit, clearFailedLoginAttempts, recordFailedLoginAttempt } from '@/lib/server/auth/login-rate-limit';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -16,14 +17,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 400 });
   }
 
+  const rateLimit = checkLoginRateLimit(req, email);
+  if (rateLimit.limited) {
+    return NextResponse.json(
+      { error: 'Demasiados intentos de inicio de sesion. Intenta nuevamente mas tarde.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
+    );
+  }
+
+  const rejectLogin = async (error: string, status: number, delayMs = 350) => {
+    await sleep(delayMs);
+    recordFailedLoginAttempt(req, email);
+    return NextResponse.json({ error }, { status });
+  };
+
   const tryMockLogin = async () => {
     const u = [MOCK_ROOT_ADMIN, ...MOCK_USERS].find((x) => x.email.toLowerCase() === email);
     if (!u) {
-      await sleep(200);
-      return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 });
+      return rejectLogin('Credenciales inválidas', 401, 200);
     }
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14);
     const res = NextResponse.json({ ok: true });
+    clearFailedLoginAttempts(req, email);
     setSessionCookie(res, `mock_${u.id}`, expiresAt);
     return res;
   };
@@ -43,19 +58,16 @@ export async function POST(req: Request) {
 
     const row = userRes.rows[0];
     if (!row) {
-      await sleep(350);
-      return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 });
+      return rejectLogin('Credenciales inválidas', 401);
     }
 
     if (row.status !== 'ACTIVE') {
-      await sleep(350);
-      return NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 });
+      return rejectLogin('Usuario inactivo', 403);
     }
 
     const ok = await argon2.verify(row.password_hash, password).catch(() => false);
     if (!ok) {
-      await sleep(350);
-      return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 });
+      return rejectLogin('Credenciales inválidas', 401);
     }
 
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 14);
@@ -86,6 +98,7 @@ export async function POST(req: Request) {
 
     const res = NextResponse.json({ ok: true });
     if (auditFailed) res.headers.set('x-propsys-audit', 'failed');
+    clearFailedLoginAttempts(req, email);
     setSessionCookie(res, sessionId, expiresAt);
     return res;
   } catch {
