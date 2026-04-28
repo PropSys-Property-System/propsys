@@ -7,11 +7,16 @@ loadEnv({ path: path.join(process.cwd(), '.env.local') });
 loadEnv({ path: path.join(process.cwd(), '.env') });
 
 async function main() {
+  const qaSeedPassword = process.env.PROPSYS_QA_SEED_PASSWORD;
+  if (!qaSeedPassword) {
+    throw new Error('PROPSYS_QA_SEED_PASSWORD no configurada para ejecutar el seed QA');
+  }
+  if (qaSeedPassword.length < 12) {
+    throw new Error('PROPSYS_QA_SEED_PASSWORD debe tener al menos 12 caracteres');
+  }
+  const passwordHash = await argon2.hash(qaSeedPassword, { type: argon2.argon2id });
   const pool = getPool();
   const client = await pool.connect();
-
-  const password = 'PropsysQA#2026';
-  const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
 
   try {
     await client.query('BEGIN');
@@ -168,8 +173,6 @@ async function main() {
     await client.query('COMMIT');
     // eslint-disable-next-line no-console
     console.log('Seed QA aplicado.');
-    // eslint-disable-next-line no-console
-    console.log(`Password QA: ${password}`);
     // eslint-disable-next-line no-console
     console.log(
       'Cuentas: manager@propsys.com, building.admin@propsys.com, building.admin.qa@propsys.com, staff@propsys.com, owner@propsys.com, tenant@propsys.com, manager.sur@propsys.com, building.admin.sur@propsys.com, staff.sur@propsys.com, owner.sur@propsys.com, tenant.sur@propsys.com, inactive@propsys.com'

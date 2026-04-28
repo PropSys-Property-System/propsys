@@ -7,6 +7,7 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 - **Variable canónica:** `NEXT_PUBLIC_DATA_MODE=db` (cliente). Ver [.env.example](file:///c:/Users/angel/OneDrive/Escritorio/Empresa/propsys-frontend/.env.example).
 - **Requisitos QA:** `DATABASE_URL` configurado + migraciones + seed.
   - `npm run db:migrate`
+  - Configurar `PROPSYS_QA_SEED_PASSWORD` en `.env.local`.
   - `npm run db:seed`
 
 ## 2. Autenticación Real (cookie/sesión)
@@ -87,7 +88,7 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 - **Fuera de alcance V1:** storage productivo de evidencias (hoy filesystem local del servidor), Planes y límites comerciales, Root Admin canonical seed, financiero completo (emisión/pagos/reconciliación), creación/edición genérica de usuarios, audit log en alta de staff, y cualquier capacidad nueva.
 
 ## 8. Flujo QA real (DB-mode con seeds)
-1) Configurar `.env.local` (o variables) con `DATABASE_URL` y `NEXT_PUBLIC_DATA_MODE=db` (ver [.env.example](file:///c:/Users/angel/OneDrive/Escritorio/Empresa/propsys-frontend/.env.example)).
+1) Configurar `.env.local` (o variables) con `DATABASE_URL`, `NEXT_PUBLIC_DATA_MODE=db` y `PROPSYS_QA_SEED_PASSWORD` (ver [.env.example](file:///c:/Users/angel/OneDrive/Escritorio/Empresa/propsys-frontend/.env.example)).
 2) Ejecutar migraciones y seed:
    - `npm run db:migrate`
    - `npm run db:seed`
@@ -96,7 +97,7 @@ Este documento fija el canon de ejecución y las decisiones que habilitan QA rea
 4) Ingresar por `/` y usar el router `/router` post-login para aterrizar por rol.
 
 ### 8.1 Cuentas QA (seed)
-- Password QA: `PropsysQA#2026`
+- Contraseña QA: definir `PROPSYS_QA_SEED_PASSWORD` localmente antes de ejecutar `npm run db:seed`; el valor no se versiona ni se imprime.
 - **Manager client_001:** `manager@propsys.com`
 - **Manager client_002:** `manager.sur@propsys.com`
 - **Building Admin asignado:** `building.admin@propsys.com` (asignado a `b1` y `b2`)

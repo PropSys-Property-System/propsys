@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const query = vi.fn();
 const verify = vi.fn();
 const insertAuditLog = vi.fn();
+const TEST_PASSWORD_INPUT = 'test-password-input';
 
 vi.mock('@/lib/server/db/client', () => ({
   getPool: () => ({
@@ -53,7 +54,7 @@ describe('POST /api/auth/login', () => {
         'content-type': 'application/json',
         'user-agent': 'vitest',
       },
-      body: JSON.stringify({ email: 'manager@propsys.com', password: 'PropsysQA#2026' }),
+      body: JSON.stringify({ email: 'manager@propsys.com', password: TEST_PASSWORD_INPUT }),
     });
 
     const res = await POST(req);
@@ -79,7 +80,7 @@ describe('POST /api/auth/login', () => {
     const req = new Request('http://localhost/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'inactive@propsys.com', password: 'PropsysQA#2026' }),
+      body: JSON.stringify({ email: 'inactive@propsys.com', password: TEST_PASSWORD_INPUT }),
     });
 
     const res = await POST(req);

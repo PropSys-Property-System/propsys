@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { AuthForm } from './AuthForm';
 
 const loginMock = vi.fn(async () => undefined);
+const TEST_PASSWORD_INPUT = 'test-password-input';
 
 vi.mock('@/lib/auth/auth-context', () => ({
   useAuth: () => ({ login: loginMock, isLoading: false }),
@@ -29,10 +30,10 @@ describe('AuthForm (QA demo accounts)', () => {
     const email = screen.getByPlaceholderText('Correo electrónico') as HTMLInputElement;
     const password = screen.getByPlaceholderText('Contraseña') as HTMLInputElement;
     fireEvent.change(email, { target: { value: 'manager@propsys.com' } });
-    fireEvent.change(password, { target: { value: 'PropsysQA#2026' } });
+    fireEvent.change(password, { target: { value: TEST_PASSWORD_INPUT } });
 
     fireEvent.click(screen.getByRole('button', { name: 'Entrar ahora' }));
-    expect(loginMock).toHaveBeenCalledWith('manager@propsys.com', 'PropsysQA#2026');
+    expect(loginMock).toHaveBeenCalledWith('manager@propsys.com', TEST_PASSWORD_INPUT);
   });
 
   it('shows backend error messages when login fails', async () => {
@@ -43,7 +44,7 @@ describe('AuthForm (QA demo accounts)', () => {
       target: { value: 'inactive@propsys.com' },
     });
     fireEvent.change(screen.getByPlaceholderText('Contraseña'), {
-      target: { value: 'PropsysQA#2026' },
+      target: { value: TEST_PASSWORD_INPUT },
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Entrar ahora' }));
