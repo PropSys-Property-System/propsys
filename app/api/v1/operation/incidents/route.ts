@@ -191,28 +191,34 @@ export async function POST(req: Request) {
   if (!clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (!bypassTenant && building.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
+  if (unitId) {
+    const unitRes = await pool.query<{ id: string }>(
+      `SELECT id
+       FROM units
+       WHERE id = $1 AND client_id = $2 AND building_id = $3
+       LIMIT 1`,
+      [unitId, clientId, buildingId]
+    );
+    if (!unitRes.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
   if (user.internalRole === 'OWNER') {
     if (!unitId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    const unitRes = await pool.query<{ building_id: string; client_id: string }>('SELECT building_id, client_id FROM units WHERE id = $1 LIMIT 1', [unitId]);
-    const unit = unitRes.rows[0];
-    if (!unit) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    if (unit.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    if (unit.building_id !== buildingId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
        FROM user_unit_assignments
-       WHERE user_id = $1 AND unit_id = $2 AND assignment_type = 'OWNER' AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND unit_id = $2 AND client_id = $3 AND assignment_type = 'OWNER' AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, unitId]
+      [user.id, unitId, clientId]
     );
     if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   } else if (user.internalRole === 'STAFF' || user.internalRole === 'BUILDING_ADMIN') {
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
        FROM user_building_assignments
-       WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, buildingId]
+      [user.id, buildingId, clientId]
     );
     if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
