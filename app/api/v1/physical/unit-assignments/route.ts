@@ -7,20 +7,16 @@ import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
+import {
+  generateStaffPassword as generateUserPassword,
+  validateStaffPassword as validateUserPassword,
+} from '@/lib/server/auth/staff-password';
 import type { User } from '@/lib/types';
 
 type AssignmentType = 'OWNER' | 'OCCUPANT';
 
 function normalizeEmail(email: unknown): string {
   return typeof email === 'string' ? email.trim().toLowerCase() : '';
-}
-
-function randomPassword(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-  const special = '!@#$%';
-  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
-  const middle = Array.from({ length: 8 }, () => pick(alphabet)).join('');
-  return `Ps${middle}${pick(special)}`;
 }
 
 function toUser(row: {
@@ -185,7 +181,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Ese usuario existe pero no esta activo; reactivarlo antes de asignarlo.' }, { status: 409 });
   }
 
-  const password = typeof body?.password === 'string' && body.password.trim() ? body.password : randomPassword();
+  const manualPassword = typeof body?.password === 'string' && body.password.trim() ? body.password : null;
+  if (!existingUser && manualPassword && !validateUserPassword(manualPassword)) {
+    return NextResponse.json(
+      { error: 'La contrasena debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
+      { status: 400 }
+    );
+  }
+
+  const password = manualPassword ?? generateUserPassword();
   const userId = existingUser?.id ?? `u_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const tempPassword = existingUser ? undefined : password;
 
@@ -241,12 +245,14 @@ export async function POST(req: Request) {
       return assignedUser;
     });
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       user: toUser(result, unitId),
       unitId,
       assignmentType,
       tempPassword,
     });
+    if (tempPassword) res.headers.set('Cache-Control', 'no-store');
+    return res;
   } catch (e: unknown) {
     const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code) : '';
     if (code === '23505') return NextResponse.json({ error: 'Ese email ya existe' }, { status: 409 });

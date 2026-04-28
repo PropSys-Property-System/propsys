@@ -1,6 +1,8 @@
+import argon2 from 'argon2';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DELETE as unassignUnitResident } from './unit-assignments/route';
 import { POST as assignUnitUser } from './unit-assignments/route';
+import { validateStaffPassword as validateUserPassword } from '@/lib/server/auth/staff-password';
 
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
@@ -51,10 +53,61 @@ describe('physical unit assignments API', () => {
     clientQuery.mockReset();
     release.mockReset();
     connect.mockClear();
+    vi.mocked(argon2.hash).mockClear();
     sessionUser.id = 'u_mgr';
     sessionUser.clientId = 'client_001';
     sessionUser.internalRole = 'CLIENT_MANAGER';
     sessionUser.scope = 'client';
+  });
+
+  it('creates a new owner with a generated password that satisfies policy', async () => {
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM units u')) return { rows: [unitRow()] };
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [] };
+      if (sql.includes('FROM users')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+      if (sql.includes('INSERT INTO users')) {
+        return {
+          rows: [
+            {
+              id: 'u_owner_new',
+              email: 'owner.new@propsys.com',
+              name: 'Owner Nuevo',
+              internal_role: 'OWNER',
+              client_id: 'client_001',
+              scope: 'client',
+              status: 'ACTIVE',
+            },
+          ],
+        };
+      }
+      if (sql.includes('INSERT INTO user_unit_assignments')) return { rows: [] };
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/physical/unit-assignments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        unitId: 'unit-103',
+        assignmentType: 'OWNER',
+        name: 'Owner Nuevo',
+        email: 'owner.new@propsys.com',
+      }),
+    });
+
+    const res = await assignUnitUser(req);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    const data = (await res.json()) as { tempPassword?: string };
+    expect(data.tempPassword).toBeDefined();
+    expect(validateUserPassword(data.tempPassword ?? '')).toBe(true);
+    expect(argon2.hash).toHaveBeenCalledWith(data.tempPassword, { type: argon2.argon2id });
   });
 
   it('creates and assigns a new owner to an accessible unit', async () => {
@@ -106,22 +159,51 @@ describe('physical unit assignments API', () => {
         assignmentType: 'OWNER',
         name: 'Owner Nuevo',
         email: 'owner.new@propsys.com',
-        password: 'Temp123!',
+        password: 'StrongOwner#2026',
       }),
     });
 
     const res = await assignUnitUser(req);
     expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
     const data = (await res.json()) as { user?: { id: string; internalRole: string; unitId: string }; tempPassword?: string };
     expect(data.user?.id).toBe('u_owner_new');
     expect(data.user?.internalRole).toBe('OWNER');
     expect(data.user?.unitId).toBe('unit-103');
-    expect(data.tempPassword).toBe('Temp123!');
+    expect(data.tempPassword).toBe('StrongOwner#2026');
     expect(userInsertParams?.[1]).toBe('client_001');
     expect(userInsertParams?.[6]).toBe('OWNER');
     expect(assignmentInsertParams?.[2]).toBe('u_owner_new');
     expect(assignmentInsertParams?.[4]).toBe('OWNER');
     expect(auditActions).toEqual(['CREATE', 'ASSIGN']);
+  });
+
+  it('rejects weak manual passwords before opening a transaction', async () => {
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM units u')) return { rows: [unitRow()] };
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [] };
+      if (sql.includes('FROM users')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/physical/unit-assignments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        unitId: 'unit-103',
+        assignmentType: 'OWNER',
+        name: 'Owner Nuevo',
+        email: 'owner.new@propsys.com',
+        password: 'Temp123!',
+      }),
+    });
+
+    const res = await assignUnitUser(req);
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe('La contrasena debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.');
+    expect(connect).not.toHaveBeenCalled();
+    expect(argon2.hash).not.toHaveBeenCalled();
   });
 
   it('reuses an existing compatible occupant user', async () => {
