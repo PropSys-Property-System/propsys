@@ -6,6 +6,7 @@ import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { StaffMember } from '@/lib/types';
 import { randomUUID } from 'node:crypto';
 import { withTransaction } from '@/lib/server/db/tx';
+import { generateStaffPassword, validateStaffPassword } from '@/lib/server/auth/staff-password';
 
 function roleLabel(internalRole: string): string {
   switch (internalRole) {
@@ -89,14 +90,6 @@ function normalizeEmail(email: unknown): string {
   return typeof email === 'string' ? email.trim().toLowerCase() : '';
 }
 
-function randomPassword(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-  const special = '!@#$%';
-  const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
-  const middle = Array.from({ length: 8 }, () => pick(alphabet)).join('');
-  return `Ps${middle}${pick(special)}`;
-}
-
 export async function POST(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -109,11 +102,20 @@ export async function POST(req: Request) {
   const buildingId = typeof body?.buildingId === 'string' ? body.buildingId : '';
   const name = typeof body?.name === 'string' ? body.name.trim() : '';
   const email = normalizeEmail(body?.email);
-  const password = typeof body?.password === 'string' && body.password.trim() ? body.password : randomPassword();
+  const manualPassword = typeof body?.password === 'string' && body.password.trim() ? body.password : null;
 
   if (!buildingId || !name || !email) {
     return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
   }
+
+  if (manualPassword && !validateStaffPassword(manualPassword)) {
+    return NextResponse.json(
+      { error: 'La contrasena debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
+      { status: 400 }
+    );
+  }
+
+  const password = manualPassword ?? generateStaffPassword();
 
   const pool = getPool();
   const bypassTenant = canBypassTenantScope(user);
@@ -168,7 +170,9 @@ export async function POST(req: Request) {
       status: 'ACTIVE',
     };
 
-    return NextResponse.json({ staff, tempPassword: password });
+    const res = NextResponse.json({ staff, tempPassword: password });
+    res.headers.set('Cache-Control', 'no-store');
+    return res;
   } catch (e: unknown) {
     const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code) : '';
     if (code === '23505') {
