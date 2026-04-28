@@ -63,8 +63,8 @@ async function listBuildingIdsForUser(
     const rows = await pool.query<{ building_id: string }>(
       `SELECT building_id
        FROM user_building_assignments
-       WHERE user_id = $1 AND status = 'ACTIVE' AND deleted_at IS NULL`,
-      [user.id]
+       WHERE user_id = $1 AND client_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL`,
+      [user.id, user.clientId]
     );
     return rows.rows.map((row) => row.building_id);
   }
@@ -72,6 +72,7 @@ async function listBuildingIdsForUser(
 }
 
 function toEvidence(row: EvidenceRow): EvidenceAttachment {
+  const accessPath = `/api/v1/operation/evidence/${encodeURIComponent(row.id)}`;
   return {
     id: row.id,
     clientId: row.client_id,
@@ -83,9 +84,8 @@ function toEvidence(row: EvidenceRow): EvidenceAttachment {
     fileName: row.file_name,
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes != null ? Number(row.size_bytes) : undefined,
-    storagePath: row.storage_path ?? undefined,
-    publicPath: row.public_path ?? undefined,
-    url: row.url,
+    publicPath: accessPath,
+    url: accessPath,
     uploadedByUserId: row.uploaded_by_user_id,
     createdAt: row.created_at,
     deletedAt: row.deleted_at,
@@ -129,9 +129,9 @@ export async function GET(req: Request) {
       const ok = await pool.query<{ ok: boolean }>(
         `SELECT true as ok
          FROM user_building_assignments
-         WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+         WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
          LIMIT 1`,
-        [user.id, exec.building_id]
+        [user.id, exec.building_id, exec.client_id]
       );
       if (!ok.rows[0]) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
     }
@@ -151,14 +151,30 @@ export async function GET(req: Request) {
   const buildingIds = await listBuildingIdsForUser(pool, user);
   if (buildingIds.length === 0) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
 
+  const baseParams = [...tenantParams, buildingIds];
+  const staffAssignedWhere =
+    user.internalRole === 'STAFF'
+      ? `AND EXISTS (
+           SELECT 1
+           FROM checklist_executions ce
+           WHERE ce.id = evidence_attachments.checklist_execution_id
+             AND ce.client_id = evidence_attachments.client_id
+             AND ce.building_id = evidence_attachments.building_id
+             AND ce.assigned_to_user_id = $${baseParams.length + 1}
+             AND ce.deleted_at IS NULL
+         )`
+      : '';
+  const queryParams = user.internalRole === 'STAFF' ? [...baseParams, user.id] : baseParams;
+
   const rows = await pool.query<EvidenceRow>(
     `SELECT id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at, deleted_at
      FROM evidence_attachments
      WHERE deleted_at IS NULL
        ${tenantWhere}
        AND building_id = ANY($${tenantParams.length + 1}::text[])
+       ${staffAssignedWhere}
      ORDER BY created_at DESC`,
-    [...tenantParams, buildingIds]
+    queryParams
   );
 
   return NextResponse.json({ evidence: rows.rows.map(toEvidence) });
@@ -221,9 +237,9 @@ export async function POST(req: Request) {
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
        FROM user_building_assignments
-       WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, exec.building_id]
+      [user.id, exec.building_id, exec.client_id]
     );
     if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }

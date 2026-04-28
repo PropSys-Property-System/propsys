@@ -591,8 +591,8 @@ describe('operation checklists API (route handlers)', () => {
       originalName: 'evidencia.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 4,
-      storagePath: 'public/uploads/evidence/chkexec_test/ev_test.jpg',
-      publicPath: '/uploads/evidence/chkexec_test/ev_test.jpg',
+      storagePath: '.data/uploads/evidence/chkexec_test/ev_test.jpg',
+      publicPath: '/api/v1/operation/evidence/ev_test',
     });
 
     query.mockImplementation(async (sql: string) => {
@@ -625,9 +625,9 @@ describe('operation checklists API (route handlers)', () => {
               file_name: 'evidencia.jpg',
               mime_type: 'image/jpeg',
               size_bytes: 4,
-              storage_path: 'public/uploads/evidence/chkexec_test/ev_test.jpg',
-              public_path: '/uploads/evidence/chkexec_test/ev_test.jpg',
-              url: '/uploads/evidence/chkexec_test/ev_test.jpg',
+              storage_path: '.data/uploads/evidence/chkexec_test/ev_test.jpg',
+              public_path: '/api/v1/operation/evidence/ev_test',
+              url: '/api/v1/operation/evidence/ev_test',
               uploaded_by_user_id: 'u3',
               created_at: new Date().toISOString(),
               deleted_at: null,
@@ -648,7 +648,7 @@ describe('operation checklists API (route handlers)', () => {
     const res = await addEvidence(req);
     expect(res.status).toBe(200);
     const data = (await res.json()) as { evidence: { url: string } };
-    expect(data.evidence.url).toBe('/uploads/evidence/chkexec_test/ev_test.jpg');
+    expect(data.evidence.url).toBe('/api/v1/operation/evidence/ev_test');
     const auditCalls = query.mock.calls.filter(([sql]) => typeof sql === 'string' && (sql as string).startsWith('INSERT INTO audit_logs'));
     expect(auditCalls.length).toBe(1);
   });

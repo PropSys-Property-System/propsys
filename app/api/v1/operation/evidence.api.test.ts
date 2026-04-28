@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { POST } from './evidence/route';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { GET, POST } from './evidence/route';
 
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
@@ -41,6 +41,102 @@ vi.mock('@/lib/server/operation/evidence-storage', () => ({
 }));
 
 describe('evidence API', () => {
+  beforeEach(() => {
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    release.mockReset();
+    connect.mockClear();
+    storageMocks.saveEvidenceFile.mockReset();
+    storageMocks.deleteEvidenceFile.mockReset();
+    storageMocks.isAllowedEvidence.mockReset();
+    storageMocks.isAllowedEvidence.mockReturnValue(true);
+    sessionUser.id = 'u_staff';
+    sessionUser.clientId = 'client_001';
+    sessionUser.internalRole = 'STAFF';
+    sessionUser.scope = 'client';
+  });
+
+  function evidenceRow(overrides: Partial<{ id: string; checklist_execution_id: string; uploaded_by_user_id: string }> = {}) {
+    return {
+      id: 'ev_own',
+      client_id: 'client_001',
+      building_id: 'b1',
+      unit_id: null,
+      incident_id: null,
+      task_id: 'task-1',
+      checklist_execution_id: 'chk-exec-1',
+      file_name: 'evidencia.jpg',
+      mime_type: 'image/jpeg',
+      size_bytes: 4,
+      storage_path: '.data/uploads/evidence/chk-exec-1/ev_own.jpg',
+      public_path: '/uploads/evidence/chk-exec-1/ev_own.jpg',
+      url: '/uploads/evidence/chk-exec-1/ev_own.jpg',
+      uploaded_by_user_id: 'u_staff',
+      created_at: new Date().toISOString(),
+      deleted_at: null,
+      ...overrides,
+    };
+  }
+
+  it('limits general evidence listing for STAFF to assigned checklist executions', async () => {
+    let evidenceSql = '';
+    let evidenceParams: unknown[] = [];
+
+    poolQuery.mockImplementation(async (sql: string, params: unknown[] = []) => {
+      if (sql.includes('FROM user_building_assignments')) {
+        return { rows: [{ building_id: 'b1' }] };
+      }
+      if (sql.includes('FROM evidence_attachments')) {
+        evidenceSql = sql;
+        evidenceParams = params;
+        return {
+          rows: sql.includes('assigned_to_user_id = $3')
+            ? [evidenceRow()]
+            : [evidenceRow(), evidenceRow({ id: 'ev_other', checklist_execution_id: 'chk-exec-2', uploaded_by_user_id: 'u_other' })],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence', { method: 'GET' });
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { evidence: Array<{ id: string; url: string }> };
+    expect(data.evidence.map((item) => item.id)).toEqual(['ev_own']);
+    expect(data.evidence[0]).toMatchObject({ url: '/api/v1/operation/evidence/ev_own' });
+    expect(evidenceSql).toContain('FROM checklist_executions ce');
+    expect(evidenceSql).toContain('assigned_to_user_id = $3');
+    expect(evidenceParams[0]).toBe('client_001');
+    expect(evidenceParams[1]).toEqual(['b1']);
+    expect(evidenceParams[2]).toBe('u_staff');
+  });
+
+  it('keeps building admin general evidence listing available for assigned buildings', async () => {
+    sessionUser.internalRole = 'BUILDING_ADMIN';
+    let evidenceSql = '';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM user_building_assignments')) {
+        return { rows: [{ building_id: 'b1' }] };
+      }
+      if (sql.includes('FROM evidence_attachments')) {
+        evidenceSql = sql;
+        return { rows: [evidenceRow({ id: 'ev_admin' })] };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence', { method: 'GET' });
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { evidence: Array<{ id: string; url: string }> };
+    expect(data.evidence.map((item) => item.id)).toEqual(['ev_admin']);
+    expect(data.evidence[0].url).toBe('/api/v1/operation/evidence/ev_admin');
+    expect(evidenceSql).not.toContain('assigned_to_user_id');
+  });
+
   it('rejects non-multipart evidence payloads', async () => {
     const req = new Request('http://localhost/api/v1/operation/evidence', {
       method: 'POST',
@@ -55,13 +151,6 @@ describe('evidence API', () => {
   });
 
   it('stores multipart evidence for the assigned staff member', async () => {
-    poolQuery.mockReset();
-    clientQuery.mockReset();
-    storageMocks.saveEvidenceFile.mockReset();
-    storageMocks.deleteEvidenceFile.mockReset();
-    storageMocks.isAllowedEvidence.mockReset();
-    storageMocks.isAllowedEvidence.mockReturnValue(true);
-
     poolQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM checklist_executions')) {
         return {
@@ -84,8 +173,8 @@ describe('evidence API', () => {
       originalName: 'evidencia.jpg',
       mimeType: 'image/jpeg',
       sizeBytes: 4,
-      storagePath: 'public/uploads/evidence/chk-exec-1/ev_test.jpg',
-      publicPath: '/uploads/evidence/chk-exec-1/ev_test.jpg',
+      storagePath: '.data/uploads/evidence/chk-exec-1/ev_test.jpg',
+      publicPath: '/api/v1/operation/evidence/ev_test',
     });
 
     clientQuery.mockImplementation(async (sql: string) => {
@@ -104,9 +193,9 @@ describe('evidence API', () => {
               file_name: 'evidencia.jpg',
               mime_type: 'image/jpeg',
               size_bytes: 4,
-              storage_path: 'public/uploads/evidence/chk-exec-1/ev_test.jpg',
-              public_path: '/uploads/evidence/chk-exec-1/ev_test.jpg',
-              url: '/uploads/evidence/chk-exec-1/ev_test.jpg',
+              storage_path: '.data/uploads/evidence/chk-exec-1/ev_test.jpg',
+              public_path: '/api/v1/operation/evidence/ev_test',
+              url: '/api/v1/operation/evidence/ev_test',
               uploaded_by_user_id: 'u_staff',
               created_at: new Date().toISOString(),
               deleted_at: null,
@@ -136,6 +225,6 @@ describe('evidence API', () => {
     const data = (await res.json()) as { evidence?: { fileName: string; url: string; mimeType: string } };
     expect(data.evidence?.fileName).toBe('evidencia.jpg');
     expect(data.evidence?.mimeType).toBe('image/jpeg');
-    expect(data.evidence?.url).toBe('/uploads/evidence/chk-exec-1/ev_test.jpg');
+    expect(data.evidence?.url).toBe('/api/v1/operation/evidence/ev_test');
   });
 });
