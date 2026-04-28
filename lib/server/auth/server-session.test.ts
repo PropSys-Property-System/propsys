@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSessionUserFromCookieHeader } from './server-session';
 
 const query = vi.fn();
@@ -10,6 +10,10 @@ vi.mock('@/lib/server/db/client', () => ({
 }));
 
 describe('server-session', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('returns null when cookie header missing', async () => {
     query.mockReset();
     const user = await getSessionUserFromCookieHeader(null);
@@ -39,6 +43,25 @@ describe('server-session', () => {
     const user = await getSessionUserFromCookieHeader('ps_session=sess_00000000-0000-0000-0000-000000000000');
     expect(user?.id).toBe('u1');
     expect(user?.status).toBe('ACTIVE');
+  });
+
+  it('allows mock sessions in development', async () => {
+    query.mockReset();
+    vi.stubEnv('NODE_ENV', 'development');
+
+    const user = await getSessionUserFromCookieHeader('ps_session=mock_u0');
+    expect(user?.id).toBe('u0');
+    expect(user?.internalRole).toBe('ROOT_ADMIN');
+    expect(query.mock.calls.length).toBe(0);
+  });
+
+  it('rejects mock sessions outside development', async () => {
+    query.mockReset();
+    vi.stubEnv('NODE_ENV', 'production');
+
+    const user = await getSessionUserFromCookieHeader('ps_session=mock_u0');
+    expect(user).toBeNull();
+    expect(query.mock.calls.length).toBe(0);
   });
 
   it('derives role from internal_role (does not trust persisted role)', async () => {

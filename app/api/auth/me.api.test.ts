@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GET as me } from './me/route';
 
 const query = vi.fn();
@@ -21,10 +21,45 @@ const sessionUser = {
 };
 
 vi.mock('@/lib/server/auth/get-session-user', () => ({
+  canUseMockSession: () => process.env.NODE_ENV === 'development',
   getSessionUser: vi.fn(async () => sessionUser),
 }));
 
 describe('/api/auth/me', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('allows mock session hydration in development', async () => {
+    query.mockReset();
+    vi.stubEnv('NODE_ENV', 'development');
+
+    const req = new Request('http://localhost/api/auth/me', {
+      method: 'GET',
+      headers: { cookie: 'ps_session=mock_u0' },
+    });
+    const res = await me(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { user: { id: string; internalRole: string } };
+    expect(data.user.id).toBe('u0');
+    expect(data.user.internalRole).toBe('ROOT_ADMIN');
+  });
+
+  it('rejects mock session hydration outside development', async () => {
+    query.mockReset();
+    vi.stubEnv('NODE_ENV', 'production');
+
+    const req = new Request('http://localhost/api/auth/me', {
+      method: 'GET',
+      headers: { cookie: 'ps_session=mock_u0' },
+    });
+    const res = await me(req);
+    expect(res.status).toBe(401);
+    const data = (await res.json()) as { user: null };
+    expect(data.user).toBeNull();
+    expect(query.mock.calls.length).toBe(0);
+  });
+
   it('derives role from internalRole (does not trust persisted role)', async () => {
     query.mockReset();
     (sessionUser as unknown as { internalRole: string }).internalRole = 'OCCUPANT';

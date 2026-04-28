@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/server/db/client';
 import type { User } from '@/lib/types';
-import { getSessionUser } from '@/lib/server/auth/get-session-user';
+import { canUseMockSession, getSessionUser } from '@/lib/server/auth/get-session-user';
 import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
 import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { InternalRole } from '@/lib/types/auth';
@@ -12,6 +12,7 @@ import { MOCK_USER_BUILDING_ASSIGNMENTS, MOCK_USER_UNIT_ASSIGNMENTS } from '@/li
 export async function GET(req: Request) {
   const sessionId = getSessionIdFromRequest(req);
   if (sessionId?.startsWith('mock_')) {
+    if (!canUseMockSession()) return NextResponse.json({ user: null }, { status: 401 });
     const userId = sessionId.slice('mock_'.length);
     const u = [MOCK_ROOT_ADMIN, ...MOCK_USERS].find((x) => x.id === userId);
     if (!u) return NextResponse.json({ user: null }, { status: 401 });

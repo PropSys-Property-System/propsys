@@ -15,11 +15,16 @@ export type SessionUser = {
   status: UserStatus;
 };
 
+export function canUseMockSession(): boolean {
+  return process.env.NODE_ENV === 'development';
+}
+
 export async function getSessionUser(req: Request): Promise<SessionUser | null> {
   const sessionId = getSessionIdFromRequest(req);
   if (!sessionId) return null;
 
   if (sessionId.startsWith('mock_')) {
+    if (!canUseMockSession()) return null;
     const userId = sessionId.slice('mock_'.length);
     const u = [MOCK_ROOT_ADMIN, ...MOCK_USERS].find((x) => x.id === userId);
     if (!u) return null;
