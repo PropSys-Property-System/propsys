@@ -42,6 +42,29 @@ export interface Receipt {
   pdfUrl?: string;
 }
 
+export type ReceiptPaymentProofStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+
+export interface ReceiptPaymentProof {
+  id: string;
+  clientId: string;
+  buildingId: string;
+  unitId: string;
+  receiptId: string;
+  uploadedByUserId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storagePath: string;
+  note?: string | null;
+  status: ReceiptPaymentProofStatus;
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+  reviewComment?: string | null;
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Building {
   id: string;
   clientId?: string;

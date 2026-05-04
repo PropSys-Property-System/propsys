@@ -1,4 +1,5 @@
-﻿import { pgTable, text, timestamp, boolean, integer, numeric, date, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, text, timestamp, boolean, integer, numeric, date, jsonb, uniqueIndex, bigint, index } from 'drizzle-orm/pg-core';
 
 export const clients = pgTable('clients', {
   id: text('id').primaryKey(),
@@ -227,6 +228,37 @@ export const receipts = pgTable('receipts', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const receiptPaymentProofs = pgTable(
+  'receipt_payment_proofs',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull(),
+    buildingId: text('building_id').notNull(),
+    unitId: text('unit_id').notNull(),
+    receiptId: text('receipt_id').notNull(),
+    uploadedByUserId: text('uploaded_by_user_id').notNull(),
+    fileName: text('file_name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    storagePath: text('storage_path').notNull(),
+    note: text('note'),
+    status: text('status').notNull(),
+    reviewedByUserId: text('reviewed_by_user_id'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewComment: text('review_comment'),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    clientBuildingCreatedIdx: index('receipt_payment_proofs_client_building_created_idx').on(t.clientId, t.buildingId, t.createdAt.desc()),
+    receiptIdx: index('receipt_payment_proofs_receipt_idx').on(t.receiptId),
+    uploadedByIdx: index('receipt_payment_proofs_uploaded_by_idx').on(t.uploadedByUserId),
+    activeReceiptUniqueIdx: uniqueIndex('receipt_payment_proofs_receipt_active_unique')
+      .on(t.receiptId)
+      .where(sql`${t.deletedAt} IS NULL AND ${t.status} IN ('PENDING_REVIEW', 'APPROVED')`),
+  })
+);
 export const auditLogs = pgTable('audit_logs', {
   id: text('id').primaryKey(),
   clientId: text('client_id').notNull(),
