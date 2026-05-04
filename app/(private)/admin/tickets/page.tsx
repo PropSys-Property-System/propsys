@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Filter, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -20,6 +20,7 @@ export default function AdminTicketsPage() {
   const [allTickets, setAllTickets] = useState<IncidentEntity[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [buildingFilterId, setBuildingFilterId] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | IncidentEntity['status']>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -77,12 +78,13 @@ export default function AdminTicketsPage() {
     const normalizedTerm = searchTerm.toLowerCase();
     return allTickets.filter((ticket) => {
       if (buildingFilterId && ticket.buildingId !== buildingFilterId) return false;
+      if (statusFilter !== 'ALL' && ticket.status !== statusFilter) return false;
       return (
         ticket.title.toLowerCase().includes(normalizedTerm) ||
         ticket.description.toLowerCase().includes(normalizedTerm)
       );
     });
-  }, [allTickets, buildingFilterId, searchTerm]);
+  }, [allTickets, buildingFilterId, searchTerm, statusFilter]);
 
   const buildingNameById = useMemo(
     () => new Map(buildings.map((building) => [building.id, building.name])),
@@ -93,6 +95,17 @@ export default function AdminTicketsPage() {
   const canCreate = user?.internalRole === 'BUILDING_ADMIN';
   const canUpdate = user?.internalRole === 'BUILDING_ADMIN';
   const allStatuses: IncidentEntity['status'][] = ['REPORTED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+  const ticketCounts = useMemo(
+    () => ({
+      total: allTickets.length,
+      reported: allTickets.filter((ticket) => ticket.status === 'REPORTED').length,
+      assigned: allTickets.filter((ticket) => ticket.status === 'ASSIGNED').length,
+      inProgress: allTickets.filter((ticket) => ticket.status === 'IN_PROGRESS').length,
+      resolved: allTickets.filter((ticket) => ticket.status === 'RESOLVED').length,
+      closed: allTickets.filter((ticket) => ticket.status === 'CLOSED').length,
+    }),
+    [allTickets],
+  );
 
   const submitCreate = async () => {
     if (!user) return;
@@ -170,15 +183,18 @@ export default function AdminTicketsPage() {
 
   const actions = (
     <>
-      <button
-        type="button"
-        disabled
-        aria-disabled="true"
-        title="Proximamente"
-        className="flex items-center px-4 py-2 bg-slate-100 border border-slate-200 text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
+      <select
+        value={statusFilter}
+        onChange={(event) => setStatusFilter(event.target.value as 'ALL' | IncidentEntity['status'])}
+        className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
       >
-        <Filter className="w-4 h-4 mr-2" /> Proximamente
-      </button>
+        <option value="ALL">Todos los estados</option>
+        <option value="REPORTED">Reportada</option>
+        <option value="ASSIGNED">Asignada</option>
+        <option value="IN_PROGRESS">En progreso</option>
+        <option value="RESOLVED">Resuelta</option>
+        <option value="CLOSED">Cerrada</option>
+      </select>
       {canCreate && (
         <button
           onClick={() => {
@@ -207,6 +223,23 @@ export default function AdminTicketsPage() {
         )}
 
         {actionError && <ErrorState title="Accion no disponible" description={actionError} />}
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
+            Total {ticketCounts.total}
+          </span>
+          <span className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-rose-700">
+            Reportadas {ticketCounts.reported}
+          </span>
+          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700">
+            Asignadas {ticketCounts.assigned + ticketCounts.inProgress}
+          </span>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+            Resueltas {ticketCounts.resolved}
+          </span>
+          <span className="rounded-full bg-slate-200 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-700">
+            Cerradas {ticketCounts.closed}
+          </span>
+        </div>
 
         <div className="flex flex-col md:flex-row gap-4 max-w-4xl">
           <div className="relative group flex-1">

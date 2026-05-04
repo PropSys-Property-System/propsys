@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Download, Filter, Plus, Search } from 'lucide-react';
+import { Download, Plus, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
@@ -14,6 +14,7 @@ export default function AdminReceiptsPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'OVERDUE' | 'PAID' | 'CANCELLED'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allReceipts, setAllReceipts] = useState<Receipt[]>([]);
@@ -65,12 +66,14 @@ export default function AdminReceiptsPage() {
 
   const receipts = useMemo(() => {
     const normalizedTerm = searchTerm.toLowerCase();
-    return allReceipts.filter(
-      (receipt) =>
+    return allReceipts.filter((receipt) => {
+      const matchesTerm =
         receipt.number.toLowerCase().includes(normalizedTerm) ||
-        receipt.description.toLowerCase().includes(normalizedTerm)
-    );
-  }, [allReceipts, searchTerm]);
+        receipt.description.toLowerCase().includes(normalizedTerm);
+      const matchesStatus = statusFilter === 'ALL' || receipt.status === statusFilter;
+      return matchesTerm && matchesStatus;
+    });
+  }, [allReceipts, searchTerm, statusFilter]);
 
   const buildingById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
   const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
@@ -157,8 +160,34 @@ export default function AdminReceiptsPage() {
 
   const actions = (
     <>
-      <button disabled className="flex items-center px-4 py-2 bg-slate-100 text-slate-400 rounded-xl font-bold text-sm cursor-not-allowed">
-        <Download className="w-4 h-4 mr-2" /> Proximamente
+      <button
+        type="button"
+        onClick={() => {
+          const header = ['numero', 'descripcion', 'monto', 'moneda', 'emision', 'vencimiento', 'estado', 'edificio', 'unidad'];
+          const rows = receipts.map((item) => [
+            item.number,
+            item.description,
+            String(item.amount),
+            item.currency,
+            item.issueDate,
+            item.dueDate,
+            item.status,
+            item.buildingId,
+            item.unitId,
+          ]);
+          const csv = [header, ...rows].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement('a');
+          anchor.href = url;
+          anchor.download = 'recibos.csv';
+          anchor.click();
+          URL.revokeObjectURL(url);
+        }}
+        disabled={receipts.length === 0}
+        className="flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        <Download className="w-4 h-4 mr-2" /> Exportar CSV
       </button>
       <button
         type="button"
@@ -191,9 +220,17 @@ export default function AdminReceiptsPage() {
               onChange={(event) => setSearchTerm(event.target.value)}
             />
           </div>
-          <button disabled className="flex items-center justify-center px-4 py-3 bg-slate-100 border border-slate-200 text-slate-400 rounded-xl font-bold text-sm cursor-not-allowed">
-            <Filter className="w-4 h-4 mr-2" /> Proximamente
-          </button>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as 'ALL' | 'PENDING' | 'OVERDUE' | 'PAID' | 'CANCELLED')}
+            className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
+          >
+            <option value="ALL">Todos los estados</option>
+            <option value="PENDING">Pendiente</option>
+            <option value="OVERDUE">Vencido</option>
+            <option value="PAID">Pagado</option>
+            <option value="CANCELLED">Cancelado</option>
+          </select>
         </div>
 
         <div className="space-y-3">

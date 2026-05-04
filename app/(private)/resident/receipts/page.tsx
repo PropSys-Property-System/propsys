@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
@@ -6,7 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/components/States";
 import { CreditCard, Search, Filter } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
-import { loadResidentReceiptsPageData } from '@/lib/features/receipts/receipts-center.data';
+import { loadResidentReceiptsPageData, reportResidentReceiptPayment } from '@/lib/features/receipts/receipts-center.data';
 import { ResidentReceiptsList, ResidentReceiptsOverview } from '@/lib/features/receipts/receipts-center.ui';
 import { Receipt } from '@/lib/types';
 import { formatReceiptAmount, summarizeReceiptTotalsByCurrency } from '@/lib/presentation/receipts';
@@ -17,6 +17,9 @@ export default function ResidentReceiptsPage() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [isPayingAll, setIsPayingAll] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -76,12 +79,37 @@ export default function ResidentReceiptsPage() {
 
   const actions = (
     <button
-      disabled
-      aria-disabled="true"
-      title="Próximamente"
-      className="flex items-center px-6 py-3 bg-slate-100 text-slate-500 rounded-2xl font-black text-sm cursor-not-allowed"
+      type="button"
+      disabled={isPayingAll || pendingAmount.length === 0}
+      aria-disabled={isPayingAll || pendingAmount.length === 0}
+      onClick={() => {
+        if (!user) return;
+        const pending = receipts.filter((item) => item.status === 'PENDING' || item.status === 'OVERDUE');
+        if (pending.length === 0) return;
+        const confirmed = window.confirm(`Vas a registrar pago para ${pending.length} recibo(s). Deseas continuar?`);
+        if (!confirmed) return;
+        void (async () => {
+          try {
+            setIsPayingAll(true);
+            setActionError(null);
+            setActionMessage(null);
+            let updated = [...receipts];
+            for (const item of pending) {
+              const paid = await reportResidentReceiptPayment(user, item.id);
+              updated = updated.map((entry) => (entry.id === paid.id ? paid : entry));
+            }
+            setReceipts(updated);
+            setActionMessage('Pagos registrados correctamente.');
+          } catch (err) {
+            setActionError(err instanceof Error ? err.message : 'No pudimos registrar los pagos.');
+          } finally {
+            setIsPayingAll(false);
+          }
+        })();
+      }}
+      className={`flex items-center px-6 py-3 rounded-2xl font-black text-sm ${pendingAmount.length > 0 ? 'bg-primary text-white hover:bg-primary/90' : 'bg-slate-100 text-slate-500 cursor-not-allowed'} ${isPayingAll ? 'opacity-70' : ''}`}
     >
-      <CreditCard className="w-5 h-5 mr-3" /> Pagar Todo
+      <CreditCard className="w-5 h-5 mr-3" /> {isPayingAll ? 'Procesando...' : 'Pagar Todo'}
     </button>
   );
 
@@ -98,6 +126,12 @@ export default function ResidentReceiptsPage() {
           pendingAmountLabel={pendingAmountLabel}
           latestPaidAmountLabel={latestPaidReceipt ? formatReceiptAmount(latestPaidReceipt.amount, latestPaidReceipt.currency) : formatReceiptAmount(0, 'PEN')}
         />
+        {actionError ? (
+          <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{actionError}</div>
+        ) : null}
+        {actionMessage ? (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{actionMessage}</div>
+        ) : null}
 
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between border-b border-slate-100 pb-6">
           <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mr-auto">Historial Reciente</h3>

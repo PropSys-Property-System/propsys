@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GET as listReceipts, POST as createReceipt } from './receipts/route';
-import { GET as getReceipt, PATCH as patchReceipt } from './receipts/[id]/route';
+import { DELETE as deleteReceipt, GET as getReceipt, PATCH as patchReceipt, PUT as putReceipt } from './receipts/[id]/route';
 
 const query = vi.fn();
 const release = vi.fn();
@@ -370,5 +370,179 @@ describe('finance receipts API (route handlers)', () => {
     });
     const res = await patchReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
     expect(res.status).toBe(500);
+  });
+
+  it('allows resident to mark own receipt as paid', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'OWNER';
+    (sessionUser as { role: string }).role = 'OWNER';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u4';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM receipts') && sql.includes('SELECT')) {
+        return {
+          rows: [
+            {
+              id: 'r1',
+              client_id: 'client_001',
+              building_id: 'b1',
+              unit_id: 'unit-101',
+              number: 'REC-001',
+              description: 'Recibo de prueba',
+              amount: '150.00',
+              currency: 'PEN',
+              issue_date: '2026-04-01',
+              due_date: '2026-04-10',
+              status: 'PENDING',
+            },
+          ],
+        };
+      }
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [{ ok: true }] };
+      if (sql.includes('UPDATE receipts')) {
+        return {
+          rows: [
+            {
+              id: 'r1',
+              client_id: 'client_001',
+              building_id: 'b1',
+              unit_id: 'unit-101',
+              number: 'REC-001',
+              description: 'Recibo de prueba',
+              amount: '150.00',
+              currency: 'PEN',
+              issue_date: '2026-04-01',
+              due_date: '2026-04-10',
+              status: 'PAID',
+            },
+          ],
+        };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts/r1', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'PAID' }),
+    });
+    const res = await patchReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { receipt: { status: string } };
+    expect(data.receipt.status).toBe('PAID');
+  });
+
+  it('updates receipt fields with PUT for manager', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { role: string }).role = 'MANAGER';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u_mgr';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM receipts') && sql.includes('SELECT')) {
+        return {
+          rows: [
+            {
+              id: 'r1',
+              client_id: 'client_001',
+              building_id: 'b1',
+              unit_id: 'unit-101',
+              number: 'REC-001',
+              description: 'Recibo de prueba',
+              amount: '150.00',
+              currency: 'PEN',
+              issue_date: '2026-04-01',
+              due_date: '2026-04-10',
+              status: 'PENDING',
+            },
+          ],
+        };
+      }
+      if (sql.includes('UPDATE receipts')) {
+        return {
+          rows: [
+            {
+              id: 'r1',
+              building_id: 'b1',
+              unit_id: 'unit-101',
+              number: 'REC-001',
+              description: 'Recibo editado',
+              amount: '180.00',
+              currency: 'PEN',
+              issue_date: '2026-04-02',
+              due_date: '2026-04-11',
+              status: 'PENDING',
+            },
+          ],
+        };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts/r1', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        amount: 180,
+        currency: 'PEN',
+        description: 'Recibo editado',
+        issueDate: '2026-04-02',
+        dueDate: '2026-04-11',
+      }),
+    });
+    const res = await putReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { receipt: { description: string; amount: number } };
+    expect(data.receipt.description).toBe('Recibo editado');
+    expect(data.receipt.amount).toBe(180);
+  });
+
+  it('deletes non-paid receipt for manager', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { role: string }).role = 'MANAGER';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u_mgr';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM receipts') && sql.includes('SELECT')) {
+        return {
+          rows: [
+            {
+              id: 'r1',
+              client_id: 'client_001',
+              building_id: 'b1',
+              unit_id: 'unit-101',
+              number: 'REC-001',
+              description: 'Recibo de prueba',
+              amount: '150.00',
+              currency: 'PEN',
+              issue_date: '2026-04-01',
+              due_date: '2026-04-10',
+              status: 'CANCELLED',
+            },
+          ],
+        };
+      }
+      if (sql.includes('DELETE FROM receipts')) return { rows: [] };
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts/r1', { method: 'DELETE' });
+    const res = await deleteReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok?: boolean };
+    expect(data.ok).toBe(true);
   });
 });

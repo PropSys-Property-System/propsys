@@ -13,6 +13,13 @@ export type AdminDashboardData = {
   openIncidentsCount: number;
   requestedReservationsCount: number;
   recentReceipts: Receipt[];
+  receiptStatusCounts: {
+    pending: number;
+    overdue: number;
+    paid: number;
+    cancelled: number;
+  };
+  upcomingDueReceipts: Receipt[];
   checklistsToApprove: ChecklistExecution[];
   templateNameById: Record<string, string>;
   checklistError: string | null;
@@ -35,6 +42,16 @@ export async function loadAdminDashboardData(user: User): Promise<AdminDashboard
     recentReceipts: [...receipts]
       .sort((left, right) => new Date(right.issueDate).getTime() - new Date(left.issueDate).getTime())
       .slice(0, 5),
+    receiptStatusCounts: {
+      pending: receipts.filter((receipt) => receipt.status === 'PENDING').length,
+      overdue: receipts.filter((receipt) => receipt.status === 'OVERDUE').length,
+      paid: receipts.filter((receipt) => receipt.status === 'PAID').length,
+      cancelled: receipts.filter((receipt) => receipt.status === 'CANCELLED').length,
+    },
+    upcomingDueReceipts: [...receipts]
+      .filter((receipt) => receipt.status === 'PENDING' || receipt.status === 'OVERDUE')
+      .sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime())
+      .slice(0, 3),
     checklistsToApprove: [],
     templateNameById: {},
     checklistError: null,

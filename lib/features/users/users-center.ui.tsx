@@ -10,6 +10,7 @@ type UserCardProps = {
   units: Map<string, string>;
   pendingUserId: string | null;
   onStatusChange: (target: User) => void | Promise<void>;
+  onEdit?: (target: User) => void;
 };
 
 export function UserCard({
@@ -19,6 +20,7 @@ export function UserCard({
   units,
   pendingUserId,
   onStatusChange,
+  onEdit,
 }: UserCardProps) {
   const canManage = canManageUserLifecycle(currentUser, targetUser);
 
@@ -60,7 +62,17 @@ export function UserCard({
       </div>
 
       {canManage ? (
-        <div className="ml-auto flex-shrink-0 self-center">
+        <div className="ml-auto flex-shrink-0 self-center flex items-center gap-2">
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={() => onEdit(targetUser)}
+              disabled={pendingUserId === targetUser.id}
+              className="rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest transition border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Editar
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void onStatusChange(targetUser)}

@@ -8,6 +8,9 @@ import type { ChecklistExecution, Receipt as ReceiptItem, User } from '@/lib/typ
 
 type DashboardHeaderActionsProps = {
   disabled?: boolean;
+  isPendingOnly?: boolean;
+  onExport?: () => void;
+  onTogglePending?: () => void;
 };
 
 type DashboardKpiGridProps = {
@@ -17,13 +20,19 @@ type DashboardKpiGridProps = {
   openIncidentsCount: number | null;
 };
 
-type DashboardStatsPlaceholderProps = {
-  title: string;
-  description: string;
+type DashboardStatsPanelProps = {
+  receiptStatusCounts: {
+    pending: number;
+    overdue: number;
+    paid: number;
+    cancelled: number;
+  };
 };
 
 type DashboardRecentActivityPanelProps = {
   receipts: ReceiptItem[];
+  upcomingDueReceipts: ReceiptItem[];
+  isPendingOnly?: boolean;
 };
 
 type DashboardChecklistPanelProps = {
@@ -44,20 +53,37 @@ function kpiValue(value: number | null) {
   return value === null ? '-' : String(value);
 }
 
-export function DashboardHeaderActions({ disabled = true }: DashboardHeaderActionsProps) {
+export function DashboardHeaderActions({
+  disabled = true,
+  isPendingOnly = false,
+  onExport,
+  onTogglePending,
+}: DashboardHeaderActionsProps) {
   return (
     <div className="flex gap-2">
       <button
-        disabled={disabled}
-        className="flex cursor-not-allowed items-center rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-400"
+        type="button"
+        disabled={disabled || !onExport}
+        onClick={() => onExport?.()}
+        className={`flex items-center rounded-xl px-4 py-2 text-sm font-bold transition-all ${
+          disabled || !onExport ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+        }`}
       >
-        <Download className="mr-2 h-4 w-4" /> Proximamente
+        <Download className="mr-2 h-4 w-4" /> Exportar
       </button>
       <button
-        disabled={disabled}
-        className="flex cursor-not-allowed items-center rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-400"
+        type="button"
+        disabled={disabled || !onTogglePending}
+        onClick={() => onTogglePending?.()}
+        className={`flex items-center rounded-xl px-4 py-2 text-sm font-bold transition-all ${
+          disabled || !onTogglePending
+            ? 'cursor-not-allowed bg-slate-100 text-slate-400'
+            : isPendingOnly
+              ? 'bg-primary text-white'
+              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+        }`}
       >
-        <Filter className="mr-2 h-4 w-4" /> Proximamente
+        <Filter className="mr-2 h-4 w-4" /> {isPendingOnly ? 'Solo Pendientes' : 'Todos'}
       </button>
     </div>
   );
@@ -103,21 +129,42 @@ export function DashboardKpiGrid({
   );
 }
 
-export function DashboardStatsPlaceholder({ title, description }: DashboardStatsPlaceholderProps) {
+export function DashboardStatsPanel({ receiptStatusCounts }: DashboardStatsPanelProps) {
+  const total = receiptStatusCounts.pending + receiptStatusCounts.overdue + receiptStatusCounts.paid + receiptStatusCounts.cancelled;
+  const percent = (value: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
   return (
     <div className="flex h-[400px] flex-col rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm lg:col-span-2">
       <div className="space-y-2">
-        <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">{title}</h3>
-        <p className="text-xs font-medium text-slate-500">{description}</p>
+        <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Distribucion de Recibos</h3>
+        <p className="text-xs font-medium text-slate-500">Resumen por estado con base en los recibos visibles para tu alcance.</p>
       </div>
-      <div className="mt-6 flex flex-1 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-6">
-        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Proximamente</p>
+      <div className="mt-6 grid flex-1 grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-6">
+        <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-widest text-amber-700">Pendientes</span>
+          <span className="text-sm font-black text-slate-900">{receiptStatusCounts.pending} ({percent(receiptStatusCounts.pending)}%)</span>
+        </div>
+        <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-widest text-rose-700">Vencidos</span>
+          <span className="text-sm font-black text-slate-900">{receiptStatusCounts.overdue} ({percent(receiptStatusCounts.overdue)}%)</span>
+        </div>
+        <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-widest text-emerald-700">Pagados</span>
+          <span className="text-sm font-black text-slate-900">{receiptStatusCounts.paid} ({percent(receiptStatusCounts.paid)}%)</span>
+        </div>
+        <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-widest text-slate-600">Cancelados</span>
+          <span className="text-sm font-black text-slate-900">{receiptStatusCounts.cancelled} ({percent(receiptStatusCounts.cancelled)}%)</span>
+        </div>
       </div>
     </div>
   );
 }
 
-export function DashboardRecentActivityPanel({ receipts }: DashboardRecentActivityPanelProps) {
+export function DashboardRecentActivityPanel({
+  receipts,
+  upcomingDueReceipts,
+  isPendingOnly = false,
+}: DashboardRecentActivityPanelProps) {
   return (
     <div className="flex flex-col rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
       <div className="mb-8 flex items-center justify-between">
@@ -130,11 +177,14 @@ export function DashboardRecentActivityPanel({ receipts }: DashboardRecentActivi
       <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto pr-2">
         {receipts.length === 0 ? (
           <div className="py-10">
-            <EmptyState title="Sin actividad" description="No hay recibos recientes para mostrar." />
+            <EmptyState
+              title="Sin actividad"
+              description={isPendingOnly ? 'No hay recibos pendientes o vencidos en este momento.' : 'No hay recibos recientes para mostrar.'}
+            />
           </div>
         ) : (
           receipts.map((receipt, index) => (
-            <div key={receipt.id} className="group flex cursor-pointer items-start space-x-4">
+            <Link key={receipt.id} href={`/admin/receipts/${receipt.id}`} className="group flex items-start space-x-4">
               <div className={`mt-1 h-2 w-2 flex-shrink-0 rounded-full ${index === 0 ? 'animate-pulse bg-primary' : 'bg-slate-200'}`}></div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-bold text-slate-700 transition-colors group-hover:text-primary">{receipt.description}</p>
@@ -143,7 +193,7 @@ export function DashboardRecentActivityPanel({ receipts }: DashboardRecentActivi
                   <StatusBadge status={receipt.status} />
                 </div>
               </div>
-            </div>
+            </Link>
           ))
         )}
       </div>
@@ -152,7 +202,20 @@ export function DashboardRecentActivityPanel({ receipts }: DashboardRecentActivi
         <div className="mb-2 flex items-center text-xs font-black uppercase tracking-widest text-slate-400">
           <Calendar className="mr-2 h-3.5 w-3.5 text-primary" /> Agenda
         </div>
-        <p className="text-xs font-medium text-slate-600">Proximamente</p>
+        {upcomingDueReceipts.length === 0 ? (
+          <p className="text-xs font-medium text-slate-600">Sin vencimientos proximos.</p>
+        ) : (
+          <div className="space-y-2">
+            {upcomingDueReceipts.map((receipt) => (
+              <div key={receipt.id} className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-semibold text-slate-700">{receipt.number}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  {formatDateTime(receipt.dueDate)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

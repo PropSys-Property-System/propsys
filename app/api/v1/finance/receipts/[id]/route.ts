@@ -117,7 +117,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
-  if (user.internalRole === 'STAFF' || user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+  if (user.internalRole === 'STAFF') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
@@ -172,7 +172,15 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (!ok.rows[0]) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
   }
 
-  if (current.status !== 'PENDING') {
+  if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+    if (nextStatus !== 'PAID') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    const hasAccess = await hasUnitAssignment(pool, user, current.unit_id);
+    if (!hasAccess) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
+  }
+
+  if (current.status !== 'PENDING' && current.status !== 'OVERDUE') {
     return NextResponse.json({ error: `No se puede modificar un recibo que está ${current.status}` }, { status: 400 });
   }
 
@@ -207,7 +215,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         action: nextStatus === 'PAID' ? 'MARK_PAID' : 'CANCEL',
         entity: 'Receipt',
         entityId: id,
-        metadata: { status: nextStatus },
+        metadata: { status: nextStatus, source: user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT' ? 'RESIDENT' : 'ADMIN' },
         oldData: toLegacy(current),
         newData: toLegacy(updatedRow),
       });
@@ -218,5 +226,166 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return NextResponse.json({ receipt: toLegacy(updated) });
   } catch {
     return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
+  }
+}
+
+export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  if (user.internalRole === 'STAFF' || user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  const bypassTenant = canBypassTenantScope(user);
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+
+  const { id } = await ctx.params;
+  const body = await req.json().catch(() => null);
+  const amount = typeof body?.amount === 'number' ? body.amount : null;
+  const currency = typeof body?.currency === 'string' ? body.currency : '';
+  const description = typeof body?.description === 'string' ? body.description.trim() : '';
+  const issueDate = typeof body?.issueDate === 'string' ? body.issueDate : '';
+  const dueDate = typeof body?.dueDate === 'string' ? body.dueDate : '';
+  if (amount === null || !Number.isFinite(amount) || amount <= 0 || !currency || !description || !issueDate || !dueDate) {
+    return NextResponse.json({ error: 'Datos invalidos' }, { status: 400 });
+  }
+
+  const pool = getPool();
+  const currentRes = await pool.query<{
+    id: string;
+    client_id: string;
+    building_id: string;
+    unit_id: string;
+    number: string;
+    description: string | null;
+    amount: string;
+    currency: string;
+    issue_date: string;
+    due_date: string;
+    status: string;
+  }>(
+    `SELECT id, client_id, building_id, unit_id, number, description, amount::text as amount, currency, issue_date::text as issue_date, due_date::text as due_date, status
+     FROM receipts
+     WHERE id = $1
+     LIMIT 1`,
+    [id]
+  );
+  const current = currentRes.rows[0];
+  if (!current) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
+
+  if (!bypassTenant && current.client_id !== user.clientId) {
+    return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
+  }
+  if (user.internalRole === 'BUILDING_ADMIN') {
+    const ok = await hasBuildingAssignment(pool, user.id, current.building_id);
+    if (!ok) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
+  }
+  if (current.status !== 'PENDING') {
+    return NextResponse.json({ error: 'Solo se pueden editar recibos pendientes.' }, { status: 400 });
+  }
+
+  const now = new Date().toISOString();
+  try {
+    const updated = await withTransaction(pool, async (db) => {
+      const res = await db.query<{
+        id: string;
+        building_id: string;
+        unit_id: string;
+        number: string;
+        description: string | null;
+        amount: string;
+        currency: string;
+        issue_date: string;
+        due_date: string;
+        status: string;
+      }>(
+        `UPDATE receipts
+         SET amount = $2, currency = $3, description = $4, issue_date = $5, due_date = $6, updated_at = $7
+         WHERE id = $1
+         RETURNING id, building_id, unit_id, number, description, amount::text as amount, currency, issue_date::text as issue_date, due_date::text as due_date, status`,
+        [id, amount, currency, description, issueDate, dueDate, now]
+      );
+      const updatedRow = res.rows[0];
+
+      await insertAuditLog(db, {
+        clientId: current.client_id,
+        userId: user.id,
+        action: 'UPDATE',
+        entity: 'Receipt',
+        entityId: id,
+        metadata: { fields: ['amount', 'currency', 'description', 'issueDate', 'dueDate'] },
+        oldData: toLegacy(current),
+        newData: toLegacy({ ...updatedRow, client_id: current.client_id }),
+      });
+
+      return updatedRow;
+    });
+
+    return NextResponse.json({ receipt: toLegacy({ ...updated, client_id: current.client_id }) });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoria.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (user.internalRole === 'STAFF' || user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  const bypassTenant = canBypassTenantScope(user);
+  if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  const { id } = await ctx.params;
+  const pool = getPool();
+  const currentRes = await pool.query<{
+    id: string;
+    client_id: string;
+    building_id: string;
+    unit_id: string;
+    number: string;
+    description: string | null;
+    amount: string;
+    currency: string;
+    issue_date: string;
+    due_date: string;
+    status: string;
+  }>(
+    `SELECT id, client_id, building_id, unit_id, number, description, amount::text as amount, currency, issue_date::text as issue_date, due_date::text as due_date, status
+     FROM receipts
+     WHERE id = $1
+     LIMIT 1`,
+    [id]
+  );
+  const current = currentRes.rows[0];
+  if (!current) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
+  if (!bypassTenant && current.client_id !== user.clientId) {
+    return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
+  }
+  if (user.internalRole === 'BUILDING_ADMIN') {
+    const ok = await hasBuildingAssignment(pool, user.id, current.building_id);
+    if (!ok) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
+  }
+  if (current.status === 'PAID') {
+    return NextResponse.json({ error: 'No se puede eliminar un recibo pagado.' }, { status: 400 });
+  }
+
+  try {
+    await withTransaction(pool, async (db) => {
+      await db.query(`DELETE FROM receipts WHERE id = $1`, [id]);
+      await insertAuditLog(db, {
+        clientId: current.client_id,
+        userId: user.id,
+        action: 'DELETE',
+        entity: 'Receipt',
+        entityId: id,
+        metadata: { status: current.status },
+        oldData: toLegacy(current),
+      });
+    });
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: 'No pudimos registrar la auditoria.' }, { status: 500 });
   }
 }

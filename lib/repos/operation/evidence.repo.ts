@@ -1,5 +1,5 @@
 import { EvidenceAttachment, User } from '@/lib/types';
-import { MOCK_EVIDENCE_ATTACHMENTS } from '@/lib/mocks';
+import { MOCK_CHECKLIST_EXECUTIONS, MOCK_EVIDENCE_ATTACHMENTS } from '@/lib/mocks';
 import { canAccessClientRecord, filterItemsByTenant, requireClientContext } from '@/lib/auth/access-rules';
 import { accessScope } from '@/lib/access/access-scope';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
@@ -81,14 +81,21 @@ export const evidenceRepo = {
 
     await sleep(150);
 
+    const execution = MOCK_CHECKLIST_EXECUTIONS.find((item) => item.id === input.checklistExecutionId && !item.deletedAt);
+    if (!execution) throw new Error('Checklist no encontrado.');
+    if (!canAccessClientRecord(user, execution.clientId)) throw new Error('No autorizado');
+    if (user.internalRole === 'STAFF' && execution.assignedToUserId !== user.id) throw new Error('No autorizado');
+    if (execution.status === 'APPROVED') throw new Error('No puedes adjuntar evidencias a un checklist aprobado.');
+
     const now = new Date().toISOString();
     const id = `ev_${Date.now()}`;
     const previewUrl = URL.createObjectURL(input.file);
     const evidence: EvidenceAttachment = {
       id,
-      clientId: requireClientContext(user, 'Selecciona un cliente para continuar.'),
-      buildingId: 'b1',
+      clientId: execution.clientId ?? requireClientContext(user, 'Selecciona un cliente para continuar.'),
+      buildingId: execution.buildingId,
       checklistExecutionId: input.checklistExecutionId,
+      taskId: execution.taskId,
       fileName: input.file.name,
       mimeType: input.file.type || 'application/octet-stream',
       sizeBytes: input.file.size,
@@ -118,6 +125,12 @@ export const evidenceRepo = {
     if (index === -1) return false;
     const current = MOCK_EVIDENCE_ATTACHMENTS[index];
     if (!canAccessClientRecord(user, current.clientId)) return false;
+    if (current.checklistExecutionId) {
+      const execution = MOCK_CHECKLIST_EXECUTIONS.find((item) => item.id === current.checklistExecutionId && !item.deletedAt);
+      if (!execution) return false;
+      if (execution.status === 'APPROVED') throw new Error('No puedes eliminar evidencias de un checklist aprobado.');
+      if (user.internalRole === 'STAFF' && execution.assignedToUserId !== user.id) throw new Error('No autorizado');
+    }
     if (user.internalRole === 'STAFF' && current.uploadedByUserId !== user.id) throw new Error('No autorizado');
     MOCK_EVIDENCE_ATTACHMENTS.splice(index, 1);
     return true;

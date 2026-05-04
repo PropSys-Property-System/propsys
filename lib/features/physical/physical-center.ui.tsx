@@ -84,6 +84,10 @@ type CommonAreaCardProps = {
   canManageApproval: boolean;
   savingAreaId: string | null;
   onToggleApproval: (area: CommonArea, nextRequiresApproval: boolean) => void | Promise<void>;
+  onEdit?: (area: CommonArea) => void | Promise<void>;
+  onArchive?: (area: CommonArea) => void | Promise<void>;
+  onRestore?: (area: CommonArea) => void | Promise<void>;
+  showArchived?: boolean;
 };
 
 type StaffCardProps = {
@@ -500,7 +504,16 @@ export function BuildingScopeToolbar({
   );
 }
 
-export function CommonAreaCard({ area, canManageApproval, savingAreaId, onToggleApproval }: CommonAreaCardProps) {
+export function CommonAreaCard({
+  area,
+  canManageApproval,
+  savingAreaId,
+  onToggleApproval,
+  onEdit,
+  onArchive,
+  onRestore,
+  showArchived = false,
+}: CommonAreaCardProps) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-6">
       <p className="text-sm font-black text-slate-900">{area.name}</p>
@@ -517,18 +530,47 @@ export function CommonAreaCard({ area, canManageApproval, savingAreaId, onToggle
         </span>
       </div>
       {canManageApproval && (
-        <button
-          type="button"
-          disabled={savingAreaId === area.id}
-          onClick={() => void onToggleApproval(area, !area.requiresApproval)}
-          className="mt-4 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
-        >
-          {savingAreaId === area.id
-            ? 'Guardando...'
-            : area.requiresApproval
-              ? 'Cambiar a auto-aprobacion'
-              : 'Requerir aprobacion'}
-        </button>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={savingAreaId === area.id}
+            onClick={() => void onToggleApproval(area, !area.requiresApproval)}
+            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
+          >
+            {savingAreaId === area.id
+              ? 'Guardando...'
+              : area.requiresApproval
+                ? 'Cambiar a auto-aprobacion'
+                : 'Requerir aprobacion'}
+          </button>
+          {!showArchived && onEdit ? (
+            <button
+              type="button"
+              onClick={() => void onEdit(area)}
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all"
+            >
+              Editar
+            </button>
+          ) : null}
+          {!showArchived && onArchive ? (
+            <button
+              type="button"
+              onClick={() => void onArchive(area)}
+              className="px-4 py-2 bg-white border border-rose-100 text-rose-700 rounded-xl font-bold text-xs hover:bg-rose-50 transition-all"
+            >
+              Archivar
+            </button>
+          ) : null}
+          {showArchived && onRestore ? (
+            <button
+              type="button"
+              onClick={() => void onRestore(area)}
+              className="px-4 py-2 bg-white border border-emerald-100 text-emerald-700 rounded-xl font-bold text-xs hover:bg-emerald-50 transition-all"
+            >
+              Restaurar
+            </button>
+          ) : null}
+        </div>
       )}
     </div>
   );

@@ -24,6 +24,15 @@ export type UpdateReceiptStatusInput = {
   status: Extract<ReceiptStatus, 'PAID' | 'CANCELLED'>;
 };
 
+export type EditReceiptInput = {
+  receiptId: string;
+  amount: number;
+  currency: string;
+  description: string;
+  issueDate: string;
+  dueDate: string;
+};
+
 export const receiptsRepo = {
   async listForUser(user: User): Promise<Receipt[]> {
     if (isDbMode()) {
@@ -117,5 +126,76 @@ export const receiptsRepo = {
     if (receipt.status !== 'PENDING') throw new Error('Solo se pueden actualizar recibos pendientes.');
     receipt.status = input.status;
     return receipt;
+  },
+
+  async editForUser(user: User, input: EditReceiptInput): Promise<Receipt> {
+    if (isDbMode()) {
+      const data = await fetchJsonOrThrow<{ receipt: Receipt }>(`/api/v1/finance/receipts/${input.receiptId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          amount: input.amount,
+          currency: input.currency,
+          description: input.description,
+          issueDate: input.issueDate,
+          dueDate: input.dueDate,
+        }),
+      });
+      return data.receipt;
+    }
+
+    await sleep(250);
+    const receipt = (await receiptsRepo.listForUser(user)).find((item) => item.id === input.receiptId);
+    if (!receipt) throw new Error('Recibo no encontrado.');
+    if (receipt.status !== 'PENDING') throw new Error('Solo se pueden editar recibos pendientes.');
+    receipt.amount = input.amount;
+    receipt.currency = input.currency;
+    receipt.description = input.description;
+    receipt.issueDate = input.issueDate;
+    receipt.dueDate = input.dueDate;
+    return { ...receipt };
+  },
+
+  async reportPaymentForUser(user: User, receiptId: string): Promise<Receipt> {
+    if (isDbMode()) {
+      const data = await fetchJsonOrThrow<{ receipt: Receipt }>(`/api/v1/finance/receipts/${receiptId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'PAID' }),
+      });
+      return data.receipt;
+    }
+
+    await sleep(250);
+    const receipt = (await receiptsRepo.listForUser(user)).find((item) => item.id === receiptId);
+    if (!receipt) throw new Error('Recibo no encontrado.');
+    if (receipt.status !== 'PENDING' && receipt.status !== 'OVERDUE') throw new Error('Este recibo no admite pago.');
+    receipt.status = 'PAID';
+    return { ...receipt };
+  },
+
+  async removeForUser(user: User, receiptId: string): Promise<void> {
+    if (isDbMode()) {
+      const res = await fetch(`/api/v1/finance/receipts/${receiptId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || `Error HTTP ${res.status}`);
+      }
+      return;
+    }
+
+    await sleep(150);
+    const idx = MOCK_RECEIPTS.findIndex((item) => item.id === receiptId);
+    if (idx === -1) throw new Error('Recibo no encontrado.');
+    const receipt = MOCK_RECEIPTS[idx];
+    const tenantScoped = await receiptsRepo.listForUser(user);
+    if (!tenantScoped.some((item) => item.id === receiptId)) throw new Error('Recibo no encontrado.');
+    if (receipt.status === 'PAID') throw new Error('No se puede eliminar un recibo pagado.');
+    MOCK_RECEIPTS.splice(idx, 1);
   },
 };

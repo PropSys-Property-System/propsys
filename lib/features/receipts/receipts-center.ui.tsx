@@ -33,6 +33,8 @@ type AdminReceiptDetailViewProps = {
   building: Building | null;
   unit: Unit | null;
   actions: ReactNode;
+  onDelete?: (receipt: Receipt) => void | Promise<void>;
+  isDeleting?: boolean;
 };
 
 type ResidentReceiptsOverviewProps = {
@@ -74,10 +76,19 @@ type AdminReceiptHeaderActionsProps = {
   pendingActionId?: string | null;
   onMarkPaid?: (receipt: Receipt) => void | Promise<void>;
   onCancelReceipt?: (receipt: Receipt) => void | Promise<void>;
+  onEdit?: (receipt: Receipt) => void;
+  onPrint?: (receipt: Receipt) => void;
+  onDownload?: (receipt: Receipt) => void;
+  onSend?: (receipt: Receipt) => void | Promise<void>;
+  isSending?: boolean;
 };
 
 type ResidentReceiptHeaderActionsProps = {
+  receipt: Receipt;
   receiptStatus: Receipt['status'];
+  onDownload?: (receipt: Receipt) => void;
+  onPay?: (receipt: Receipt) => void | Promise<void>;
+  isPaying?: boolean;
 };
 
 type ResidentReceiptDetailViewProps = {
@@ -351,44 +362,53 @@ export function AdminReceiptHeaderActions({
   pendingActionId,
   onMarkPaid,
   onCancelReceipt,
+  onEdit,
+  onPrint,
+  onDownload,
+  onSend,
+  isSending,
 }: AdminReceiptHeaderActionsProps) {
   return (
     <>
       <button
         type="button"
-        disabled
-        aria-disabled="true"
-        title="Proximamente"
-        className="p-2.5 bg-white border border-slate-200 text-slate-400 rounded-xl shadow-sm cursor-not-allowed opacity-70"
+        onClick={() => onEdit?.(receipt)}
+        disabled={!onEdit}
+        aria-disabled={!onEdit}
+        title={onEdit ? 'Editar recibo' : 'No disponible'}
+        className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm ${onEdit ? 'text-slate-600 hover:text-primary' : 'text-slate-400 cursor-not-allowed opacity-70'}`}
       >
         <Edit2 className="w-4 h-4 group-hover:text-primary transition-colors" />
       </button>
       <button
         type="button"
-        disabled
-        aria-disabled="true"
-        title="Proximamente"
-        className="p-2.5 bg-white border border-slate-200 text-slate-400 rounded-xl shadow-sm cursor-not-allowed opacity-70"
+        onClick={() => onPrint?.(receipt)}
+        disabled={!onPrint}
+        aria-disabled={!onPrint}
+        title={onPrint ? 'Imprimir recibo' : 'No disponible'}
+        className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm ${onPrint ? 'text-slate-600 hover:text-primary' : 'text-slate-400 cursor-not-allowed opacity-70'}`}
       >
         <Printer className="w-4 h-4 group-hover:text-primary transition-colors" />
       </button>
       <button
         type="button"
-        disabled
-        aria-disabled="true"
-        title="Proximamente"
-        className="p-2.5 bg-white border border-slate-200 text-slate-400 rounded-xl shadow-sm cursor-not-allowed opacity-70"
+        onClick={() => onDownload?.(receipt)}
+        disabled={!onDownload}
+        aria-disabled={!onDownload}
+        title={onDownload ? 'Descargar recibo' : 'No disponible'}
+        className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm ${onDownload ? 'text-slate-600 hover:text-primary' : 'text-slate-400 cursor-not-allowed opacity-70'}`}
       >
         <Download className="w-4 h-4 group-hover:text-primary transition-colors" />
       </button>
       <button
         type="button"
-        disabled
-        aria-disabled="true"
-        title="Proximamente"
-        className="flex items-center px-4 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
+        onClick={() => void onSend?.(receipt)}
+        disabled={!onSend || Boolean(isSending)}
+        aria-disabled={!onSend || Boolean(isSending)}
+        title={onSend ? 'Enviar recibo' : 'No disponible'}
+        className={`flex items-center px-4 py-2.5 rounded-xl font-bold text-sm ${onSend ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-slate-100 text-slate-500 cursor-not-allowed'} ${isSending ? 'opacity-70' : ''}`}
       >
-        <Send className="w-4 h-4 mr-2" /> Proximamente
+        <Send className="w-4 h-4 mr-2" /> {isSending ? 'Enviando...' : 'Enviar'}
       </button>
       <PendingReceiptActions
         receipt={receipt}
@@ -400,7 +420,7 @@ export function AdminReceiptHeaderActions({
   );
 }
 
-export function AdminReceiptDetailView({ receipt, building, unit, actions }: AdminReceiptDetailViewProps) {
+export function AdminReceiptDetailView({ receipt, building, unit, actions, onDelete, isDeleting = false }: AdminReceiptDetailViewProps) {
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
       <div className="bg-white border-b border-slate-200">
@@ -497,12 +517,17 @@ export function AdminReceiptDetailView({ receipt, building, unit, actions }: Adm
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Acciones Criticas</p>
                 <button
                   type="button"
-                  disabled
-                  aria-disabled="true"
-                  title="Proximamente"
-                  className="w-full flex items-center justify-center px-4 py-3 bg-slate-100 text-slate-500 rounded-2xl font-bold text-xs cursor-not-allowed border border-slate-200"
+                  onClick={() => void onDelete?.(receipt)}
+                  disabled={!onDelete || isDeleting}
+                  aria-disabled={!onDelete || isDeleting}
+                  title={onDelete ? 'Eliminar recibo' : 'No disponible'}
+                  className={`w-full flex items-center justify-center px-4 py-3 rounded-2xl font-bold text-xs border transition-all ${
+                    onDelete
+                      ? 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100'
+                      : 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                  } ${isDeleting ? 'opacity-70' : ''}`}
                 >
-                  <Trash2 className="w-4 h-4 mr-2" /> Proximamente
+                  <Trash2 className="w-4 h-4 mr-2" /> {isDeleting ? 'Eliminando...' : 'Eliminar recibo'}
                 </button>
               </div>
             </div>
@@ -569,27 +594,35 @@ export function ResidentReceiptsList({ receipts, onView }: ResidentReceiptsListP
   );
 }
 
-export function ResidentReceiptHeaderActions({ receiptStatus }: ResidentReceiptHeaderActionsProps) {
+export function ResidentReceiptHeaderActions({
+  receipt,
+  receiptStatus,
+  onDownload,
+  onPay,
+  isPaying,
+}: ResidentReceiptHeaderActionsProps) {
   return (
     <>
       <button
         type="button"
-        disabled
-        aria-disabled="true"
-        title="Proximamente"
-        className="flex items-center px-4 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm cursor-not-allowed"
+        onClick={() => onDownload?.(receipt)}
+        disabled={!onDownload}
+        aria-disabled={!onDownload}
+        title={onDownload ? 'Descargar recibo' : 'No disponible'}
+        className={`flex items-center px-4 py-2.5 rounded-xl font-bold text-sm ${onDownload ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}
       >
-        <Download className="w-4 h-4 mr-2" /> Proximamente
+        <Download className="w-4 h-4 mr-2" /> Descargar
       </button>
       {receiptStatus !== 'PAID' ? (
         <button
           type="button"
-          disabled
-          aria-disabled="true"
-          title="Proximamente"
-          className="flex items-center px-6 py-2.5 bg-slate-100 text-slate-500 rounded-xl font-black text-sm cursor-not-allowed"
+          onClick={() => void onPay?.(receipt)}
+          disabled={!onPay || Boolean(isPaying)}
+          aria-disabled={!onPay || Boolean(isPaying)}
+          title={onPay ? 'Registrar pago' : 'No disponible'}
+          className={`flex items-center px-6 py-2.5 rounded-xl font-black text-sm ${onPay ? 'bg-primary text-white hover:bg-primary/90' : 'bg-slate-100 text-slate-500 cursor-not-allowed'} ${isPaying ? 'opacity-70' : ''}`}
         >
-          <CreditCard className="w-4 h-4 mr-2" /> Proximamente
+          <CreditCard className="w-4 h-4 mr-2" /> {isPaying ? 'Procesando...' : 'Pagar'}
         </button>
       ) : null}
     </>

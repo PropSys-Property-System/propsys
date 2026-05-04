@@ -120,6 +120,32 @@ export async function updateCommonAreaApprovalForUser(user: User, id: string, re
   return commonAreasRepo.updateRequiresApprovalForUser(user, id, requiresApproval);
 }
 
+export async function listArchivedCommonAreasForBuilding(user: User, buildingId: string): Promise<CommonArea[]> {
+  return commonAreasRepo.listArchivedForBuilding(user, buildingId);
+}
+
+export async function createCommonAreaForUser(
+  user: User,
+  input: { buildingId: string; name: string; capacity: number; requiresApproval: boolean }
+): Promise<CommonArea> {
+  return commonAreasRepo.createForUser(user, input);
+}
+
+export async function updateCommonAreaForUser(
+  user: User,
+  input: { id: string; name: string; capacity: number; requiresApproval: boolean }
+): Promise<CommonArea> {
+  return commonAreasRepo.updateForUser(user, input);
+}
+
+export async function archiveCommonAreaForUser(user: User, id: string): Promise<CommonArea> {
+  return commonAreasRepo.archiveForUser(user, id);
+}
+
+export async function restoreCommonAreaForUser(user: User, id: string): Promise<CommonArea> {
+  return commonAreasRepo.restoreForUser(user, id);
+}
+
 export async function loadResidentUnitsPageData(user: User): Promise<ResidentUnitsPageData> {
   const [units, buildings] = await Promise.all([unitsRepo.listForUser(user), buildingsRepo.listForUser(user)]);
 

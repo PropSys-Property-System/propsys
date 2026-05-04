@@ -581,6 +581,43 @@ describe('operation checklists API (route handlers)', () => {
     expect(params?.[7]).toBeNull();
   });
 
+  it('blocks STAFF save when checklist is already approved', async () => {
+    query.mockReset();
+    (sessionUser as unknown as { internalRole: string }).internalRole = 'STAFF';
+    (sessionUser as unknown as { id: string }).id = 'u3';
+
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'chkexec_test',
+          client_id: 'client_001',
+          building_id: 'b1',
+          unit_id: null,
+          task_id: 'task-qa-1',
+          template_id: 'chk-tpl-qa-b1',
+          assigned_to_user_id: 'u3',
+          status: 'APPROVED',
+          results: [{ itemId: 'req-1', value: true }],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: new Date().toISOString(),
+          approved_at: new Date().toISOString(),
+          deleted_at: null,
+        },
+      ],
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/checklist-executions/chkexec_test', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'SAVE', results: [{ itemId: 'req-1', value: true }] }),
+    });
+    const res = await patchExecution(req, { params: Promise.resolve({ id: 'chkexec_test' }) });
+    expect(res.status).toBe(403);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe('No puedes modificar un checklist aprobado.');
+  });
+
   it('adds evidence for a checklist execution (STAFF)', async () => {
     query.mockReset();
     storageMocks.saveEvidenceFile.mockReset();

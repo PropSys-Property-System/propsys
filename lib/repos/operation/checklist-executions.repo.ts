@@ -9,6 +9,20 @@ import { fetchJsonOrThrow } from '@/lib/repos/http';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function canReviewChecklist(user: User): boolean {
+  return user.internalRole === 'BUILDING_ADMIN' || user.internalRole === 'CLIENT_MANAGER' || user.internalRole === 'ROOT_ADMIN';
+}
+
+function canCompleteChecklist(params: {
+  templateItems: Array<{ id: string; required: boolean }>;
+  results: ChecklistExecution['results'];
+}): boolean {
+  const requiredIds = params.templateItems.filter((it) => it.required).map((it) => it.id);
+  if (requiredIds.length === 0) return true;
+  const resultByItemId = new Map(params.results.map((r) => [r.itemId, Boolean(r.value)]));
+  return requiredIds.every((itemId) => resultByItemId.get(itemId) === true);
+}
+
 export const checklistExecutionsRepo = {
   async listForUser(user: User): Promise<ChecklistExecution[]> {
     if (isDbMode()) {
@@ -19,7 +33,7 @@ export const checklistExecutionsRepo = {
     }
     await sleep(200);
 
-    const tenantScoped = filterItemsByTenant(MOCK_CHECKLIST_EXECUTIONS, user);
+    const tenantScoped = filterItemsByTenant(MOCK_CHECKLIST_EXECUTIONS, user).filter((execution) => !execution.deletedAt);
 
     if (accessScope(user) === 'PORTFOLIO') return tenantScoped;
 
@@ -61,7 +75,57 @@ export const checklistExecutionsRepo = {
       return data.execution;
     }
     await sleep(200);
-    throw new Error('No disponible en mock');
+
+    if (user.internalRole !== 'STAFF') throw new Error('No autorizado');
+    const task = MOCK_TASKS_V1.find((item) => item.id === input.taskId);
+    if (!task) throw new Error('No encontrado');
+    if (!canAccessClientRecord(user, task.clientId)) throw new Error('No autorizado');
+    if (task.assignedToUserId !== user.id) throw new Error('No autorizado');
+    if (!task.checklistTemplateId || task.checklistTemplateId !== input.templateId) {
+      throw new Error('Selecciona un checklist.');
+    }
+
+    const template = MOCK_CHECKLIST_TEMPLATES.find((item) => item.id === input.templateId && !item.deletedAt);
+    if (!template) throw new Error('No encontrado');
+    if (!canAccessClientRecord(user, template.clientId)) throw new Error('No autorizado');
+    if (template.buildingId !== task.buildingId) throw new Error('No autorizado');
+
+    const current = MOCK_CHECKLIST_EXECUTIONS.find(
+      (item) =>
+        !item.deletedAt &&
+        item.taskId === input.taskId &&
+        item.templateId === input.templateId &&
+        item.assignedToUserId === user.id &&
+        item.status !== 'APPROVED'
+    );
+    if (current) return { ...current };
+
+    const now = new Date().toISOString();
+    const created: ChecklistExecution = {
+      id: `chkexec_${Date.now()}`,
+      clientId: task.clientId,
+      buildingId: task.buildingId,
+      taskId: task.id,
+      templateId: template.id,
+      assignedToUserId: user.id,
+      status: 'PENDING',
+      results: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    MOCK_CHECKLIST_EXECUTIONS.unshift(created);
+
+    auditService.logAction({
+      userId: user.id,
+      clientId: created.clientId,
+      action: 'CREATE',
+      entity: 'ChecklistExecution',
+      entityId: created.id,
+      newData: created,
+      metadata: { buildingId: created.buildingId, templateId: created.templateId, taskId: created.taskId ?? null },
+    });
+
+    return { ...created };
   },
 
   async saveResultsForUser(user: User, id: string, results: ChecklistExecution['results']): Promise<ChecklistExecution | null> {
@@ -78,7 +142,36 @@ export const checklistExecutionsRepo = {
       return data?.execution ?? null;
     }
     await sleep(150);
-    throw new Error('No disponible en mock');
+    const idx = MOCK_CHECKLIST_EXECUTIONS.findIndex((item) => item.id === id);
+    if (idx === -1) return null;
+
+    const current = MOCK_CHECKLIST_EXECUTIONS[idx];
+    if (current.deletedAt) return null;
+    if (!canAccessClientRecord(user, current.clientId)) return null;
+    if (user.internalRole !== 'STAFF') throw new Error('No autorizado');
+    if (current.assignedToUserId !== user.id) throw new Error('No autorizado');
+    if (current.status === 'APPROVED') throw new Error('No puedes guardar un checklist aprobado.');
+
+    const now = new Date().toISOString();
+    const updated: ChecklistExecution = {
+      ...current,
+      results,
+      updatedAt: now,
+    };
+    MOCK_CHECKLIST_EXECUTIONS[idx] = updated;
+
+    auditService.logAction({
+      userId: user.id,
+      clientId: updated.clientId,
+      action: 'UPDATE',
+      entity: 'ChecklistExecution',
+      entityId: updated.id,
+      oldData: current,
+      newData: updated,
+      metadata: { buildingId: updated.buildingId, templateId: updated.templateId, taskId: updated.taskId ?? null, action: 'SAVE' },
+    });
+
+    return { ...updated };
   },
 
   async completeForUser(user: User, id: string, results: ChecklistExecution['results']): Promise<ChecklistExecution | null> {
@@ -100,15 +193,14 @@ export const checklistExecutionsRepo = {
 
     const current = MOCK_CHECKLIST_EXECUTIONS[idx];
     if (!canAccessClientRecord(user, current.clientId)) return null;
+    if (current.deletedAt) return null;
     if (user.internalRole !== 'STAFF') throw new Error('No autorizado');
     if (current.assignedToUserId !== user.id) throw new Error('No autorizado');
+    if (current.status === 'APPROVED') throw new Error('No puedes modificar un checklist aprobado.');
 
     const template = MOCK_CHECKLIST_TEMPLATES.find((t) => t.id === current.templateId);
-    const requiredIds = (template?.items ?? []).filter((it) => it.required).map((it) => it.id);
-    if (requiredIds.length > 0) {
-      const resultByItemId = new Map(results.map((r) => [r.itemId, Boolean(r.value)]));
-      const ok = requiredIds.every((itemId) => resultByItemId.get(itemId) === true);
-      if (!ok) throw new Error('Marca todos los items requeridos para completar el checklist.');
+    if (!canCompleteChecklist({ templateItems: template?.items ?? [], results })) {
+      throw new Error('Marca todos los items requeridos para completar el checklist.');
     }
 
     const now = new Date().toISOString();
@@ -165,9 +257,11 @@ export const checklistExecutionsRepo = {
 
     const current = MOCK_CHECKLIST_EXECUTIONS[idx];
     if (!canAccessClientRecord(user, current.clientId)) return null;
-    if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
+    if (current.deletedAt) return null;
+    if (!canReviewChecklist(user)) {
       throw new Error('No autorizado');
     }
+    if (current.status !== 'COMPLETED') throw new Error('No autorizado');
 
     const now = new Date().toISOString();
     const updated: ChecklistExecution = {
@@ -223,7 +317,8 @@ export const checklistExecutionsRepo = {
 
     const current = MOCK_CHECKLIST_EXECUTIONS[idx];
     if (!canAccessClientRecord(user, current.clientId)) return null;
-    if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') {
+    if (current.deletedAt) return null;
+    if (!canReviewChecklist(user)) {
       throw new Error('No autorizado');
     }
     if (current.status !== 'COMPLETED' && current.status !== 'APPROVED') {

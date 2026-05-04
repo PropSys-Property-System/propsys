@@ -10,7 +10,7 @@ import {
   DashboardKpiGrid,
   DashboardQuickLinks,
   DashboardRecentActivityPanel,
-  DashboardStatsPlaceholder,
+  DashboardStatsPanel,
 } from '@/lib/features/dashboard/admin-dashboard.ui';
 import { useAuth } from '@/lib/auth/auth-context';
 
@@ -20,6 +20,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<AdminDashboardData | null>(null);
   const [isApprovingChecklistId, setIsApprovingChecklistId] = useState<string | null>(null);
+  const [onlyPendingView, setOnlyPendingView] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -52,6 +53,13 @@ export default function AdminDashboard() {
   }, [user]);
 
   const hasBuildings = (dashboardData?.buildingsCount ?? 0) > 0;
+  const filteredRecentReceipts = (dashboardData?.recentReceipts ?? []).filter((receipt) =>
+    onlyPendingView ? receipt.status === 'PENDING' || receipt.status === 'OVERDUE' : true,
+  );
+
+  const filteredUpcomingReceipts = (dashboardData?.upcomingDueReceipts ?? []).filter((receipt) =>
+    onlyPendingView ? receipt.status === 'PENDING' || receipt.status === 'OVERDUE' : true,
+  );
 
   const approveChecklist = async (id: string) => {
     if (!user) return;
@@ -76,12 +84,40 @@ export default function AdminDashboard() {
     }
   };
 
+  const exportSnapshot = () => {
+    if (!dashboardData) return;
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      buildingsCount: dashboardData.buildingsCount,
+      pendingReceiptsCount: dashboardData.pendingReceiptsCount,
+      requestedReservationsCount: dashboardData.requestedReservationsCount,
+      openIncidentsCount: dashboardData.openIncidentsCount,
+      receiptStatusCounts: dashboardData.receiptStatusCounts,
+      recentReceipts: filteredRecentReceipts,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const stamp = new Date().toISOString().slice(0, 10);
+    link.download = `dashboard-resumen-${stamp}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex h-full flex-col bg-slate-50/50">
       <PageHeader
         title="Dashboard Administrativo"
         description={`Bienvenido de nuevo, ${user?.name}. Aqui tienes un resumen de tu alcance en PropSys.`}
-        actions={<DashboardHeaderActions />}
+        actions={
+          <DashboardHeaderActions
+            disabled={isLoading || !dashboardData}
+            isPendingOnly={onlyPendingView}
+            onExport={exportSnapshot}
+            onTogglePending={() => setOnlyPendingView((current) => !current)}
+          />
+        }
       />
 
       <div className="mx-auto w-full max-w-7xl space-y-8 p-6 md:p-8">
@@ -102,15 +138,21 @@ export default function AdminDashboard() {
               requestedReservationsCount={dashboardData?.requestedReservationsCount ?? null}
               openIncidentsCount={dashboardData?.openIncidentsCount ?? null}
             />
+            {onlyPendingView ? (
+              <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+                Vista filtrada: mostrando solo recibos en estado pendiente o vencido.
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-              <DashboardStatsPlaceholder
-                title="Estadisticas"
-                description="Los graficos historicos se habilitaran cuando exista backend persistente. Este resumen muestra solo datos disponibles para tu alcance."
-              />
+              <DashboardStatsPanel receiptStatusCounts={dashboardData?.receiptStatusCounts ?? { pending: 0, overdue: 0, paid: 0, cancelled: 0 }} />
 
               <div>
-                <DashboardRecentActivityPanel receipts={dashboardData?.recentReceipts ?? []} />
+                <DashboardRecentActivityPanel
+                  receipts={filteredRecentReceipts}
+                  upcomingDueReceipts={filteredUpcomingReceipts}
+                  isPendingOnly={onlyPendingView}
+                />
                 <DashboardChecklistPanel
                   user={user}
                   checklistError={dashboardData?.checklistError ?? null}

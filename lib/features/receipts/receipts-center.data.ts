@@ -1,4 +1,9 @@
-import { receiptsRepo, type CreateReceiptInput, type UpdateReceiptStatusInput } from '@/lib/repos/finance/receipts.repo';
+import {
+  receiptsRepo,
+  type CreateReceiptInput,
+  type EditReceiptInput,
+  type UpdateReceiptStatusInput,
+} from '@/lib/repos/finance/receipts.repo';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { unitsRepo } from '@/lib/repos/physical/units.repo';
 import type { Building, Receipt, Unit, User } from '@/lib/types';
@@ -84,4 +89,16 @@ export async function createAdminReceipt(user: User, input: CreateReceiptInput):
 
 export async function updateAdminReceiptStatus(user: User, input: UpdateReceiptStatusInput): Promise<Receipt> {
   return receiptsRepo.updateStatusForUser(user, input);
+}
+
+export async function editAdminReceipt(user: User, input: EditReceiptInput): Promise<Receipt> {
+  return receiptsRepo.editForUser(user, input);
+}
+
+export async function reportResidentReceiptPayment(user: User, receiptId: string): Promise<Receipt> {
+  return receiptsRepo.reportPaymentForUser(user, receiptId);
+}
+
+export async function removeAdminReceipt(user: User, receiptId: string): Promise<void> {
+  return receiptsRepo.removeForUser(user, receiptId);
 }

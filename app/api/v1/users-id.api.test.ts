@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PATCH as patchUser } from './users/[id]/route';
+import { PUT as updateUser } from './users/[id]/route';
 
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
@@ -177,5 +178,49 @@ describe('users [id] API', () => {
     const res = await patchUser(req, { params: Promise.resolve({ id: 'u_root' }) });
     expect(res.status).toBe(400);
     expect(clientQuery).not.toHaveBeenCalled();
+  });
+
+  it('updates profile for manageable user and writes audit log', async () => {
+    sessionUser.id = 'u_mgr';
+    sessionUser.clientId = 'client_001';
+    sessionUser.internalRole = 'CLIENT_MANAGER';
+    sessionUser.scope = 'client';
+
+    const current = {
+      id: 'u_staff',
+      email: 'staff@propsys.com',
+      name: 'Staff',
+      internal_role: 'STAFF',
+      client_id: 'client_001',
+      scope: 'client',
+      status: 'ACTIVE',
+    };
+
+    let auditParams: unknown[] | null = null;
+
+    poolQuery.mockResolvedValueOnce({ rows: [current] });
+    clientQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+      if (sql.includes('UPDATE users')) {
+        return { rows: [{ ...current, name: 'Staff Editado', email: 'staff.editado@propsys.com' }] };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) {
+        auditParams = params ?? null;
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/users/u_staff', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Staff Editado', email: 'staff.editado@propsys.com' }),
+    });
+    const res = await updateUser(req, { params: Promise.resolve({ id: 'u_staff' }) });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { user: { name: string; email: string } };
+    expect(data.user.name).toBe('Staff Editado');
+    expect(data.user.email).toBe('staff.editado@propsys.com');
+    expect(auditParams?.[3]).toBe('UPDATE');
   });
 });

@@ -240,6 +240,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (user.internalRole !== 'STAFF') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (current.assigned_to_user_id !== user.id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (!results) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+  if (current.status === 'APPROVED') return NextResponse.json({ error: 'No puedes modificar un checklist aprobado.' }, { status: 403 });
 
   if (action === 'COMPLETE') {
     const tplRes = await pool.query<{ items: unknown }>(
