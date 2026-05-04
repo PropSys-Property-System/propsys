@@ -44,4 +44,6 @@ next-env.d.ts
 
 .tmp-dev.log
 public/uploads/
+ROADMAP_PRIVADO_BETA.md
+.data/
 
