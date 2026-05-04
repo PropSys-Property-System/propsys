@@ -290,6 +290,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     const updated = await withTransaction(pool, async (db) => {
       const res = await db.query<{
         id: string;
+        client_id: string;
         building_id: string;
         unit_id: string;
         number: string;
@@ -303,7 +304,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         `UPDATE receipts
          SET amount = $2, currency = $3, description = $4, issue_date = $5, due_date = $6, updated_at = $7
          WHERE id = $1
-         RETURNING id, building_id, unit_id, number, description, amount::text as amount, currency, issue_date::text as issue_date, due_date::text as due_date, status`,
+         RETURNING id, client_id, building_id, unit_id, number, description, amount::text as amount, currency, issue_date::text as issue_date, due_date::text as due_date, status`,
         [id, amount, currency, description, issueDate, dueDate, now]
       );
       const updatedRow = res.rows[0];
@@ -316,13 +317,13 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         entityId: id,
         metadata: { fields: ['amount', 'currency', 'description', 'issueDate', 'dueDate'] },
         oldData: toLegacy(current),
-        newData: toLegacy({ ...updatedRow, client_id: current.client_id }),
+        newData: toLegacy(updatedRow),
       });
 
       return updatedRow;
     });
 
-    return NextResponse.json({ receipt: toLegacy({ ...updated, client_id: current.client_id }) });
+    return NextResponse.json({ receipt: toLegacy(updated) });
   } catch {
     return NextResponse.json({ error: 'No pudimos registrar la auditoria.' }, { status: 500 });
   }
