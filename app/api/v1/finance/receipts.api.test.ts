@@ -372,7 +372,7 @@ describe('finance receipts API (route handlers)', () => {
     expect(res.status).toBe(500);
   });
 
-  it('allows resident to mark own receipt as paid', async () => {
+  it('rejects resident direct PAID transition because payment proofs own the beta flow', async () => {
     query.mockReset();
     (sessionUser as { internalRole: string }).internalRole = 'OWNER';
     (sessionUser as { role: string }).role = 'OWNER';
@@ -380,60 +380,14 @@ describe('finance receipts API (route handlers)', () => {
     (sessionUser as { clientId: string | null }).clientId = 'client_001';
     (sessionUser as { id: string }).id = 'u4';
 
-    query.mockImplementation(async (sql: string) => {
-      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
-      if (sql.includes('FROM receipts') && sql.includes('SELECT')) {
-        return {
-          rows: [
-            {
-              id: 'r1',
-              client_id: 'client_001',
-              building_id: 'b1',
-              unit_id: 'unit-101',
-              number: 'REC-001',
-              description: 'Recibo de prueba',
-              amount: '150.00',
-              currency: 'PEN',
-              issue_date: '2026-04-01',
-              due_date: '2026-04-10',
-              status: 'PENDING',
-            },
-          ],
-        };
-      }
-      if (sql.includes('FROM user_unit_assignments')) return { rows: [{ ok: true }] };
-      if (sql.includes('UPDATE receipts')) {
-        return {
-          rows: [
-            {
-              id: 'r1',
-              client_id: 'client_001',
-              building_id: 'b1',
-              unit_id: 'unit-101',
-              number: 'REC-001',
-              description: 'Recibo de prueba',
-              amount: '150.00',
-              currency: 'PEN',
-              issue_date: '2026-04-01',
-              due_date: '2026-04-10',
-              status: 'PAID',
-            },
-          ],
-        };
-      }
-      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
-      return { rows: [] };
-    });
-
     const req = new Request('http://localhost/api/v1/finance/receipts/r1', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status: 'PAID' }),
     });
     const res = await patchReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as { receipt: { status: string } };
-    expect(data.receipt.status).toBe('PAID');
+    expect(res.status).toBe(403);
+    expect(query).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE receipts'), expect.anything());
   });
 
   it('updates receipt fields with PUT for manager', async () => {
