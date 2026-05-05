@@ -918,11 +918,11 @@ export function ResidentReceiptHeaderActions({
       {receiptStatus !== 'PAID' && onPay ? (
         <button
           type="button"
-          onClick={() => void onPay?.(receipt)}
-          disabled={!onPay || Boolean(isPaying)}
-          aria-disabled={!onPay || Boolean(isPaying)}
-          title={onPay ? 'Registrar pago' : 'No disponible'}
-          className={`flex items-center px-6 py-2.5 rounded-xl font-black text-sm ${onPay ? 'bg-primary text-white hover:bg-primary/90' : 'bg-slate-100 text-slate-500 cursor-not-allowed'} ${isPaying ? 'opacity-70' : ''}`}
+          onClick={() => void onPay(receipt)}
+          disabled={Boolean(isPaying)}
+          aria-disabled={Boolean(isPaying)}
+          title="Registrar pago"
+          className={`flex items-center px-6 py-2.5 rounded-xl bg-primary text-white font-black text-sm hover:bg-primary/90 ${isPaying ? 'opacity-70' : ''}`}
         >
           <CreditCard className="w-4 h-4 mr-2" /> {isPaying ? 'Procesando...' : 'Pagar'}
         </button>

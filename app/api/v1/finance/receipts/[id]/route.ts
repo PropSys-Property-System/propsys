@@ -176,14 +176,6 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (!ok.rows[0]) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
   }
 
-  if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
-    if (nextStatus !== 'PAID') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    }
-    const hasAccess = await hasUnitAssignment(pool, user, current.unit_id);
-    if (!hasAccess) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
-  }
-
   if (current.status !== 'PENDING' && current.status !== 'OVERDUE') {
     return NextResponse.json({ error: `No se puede modificar un recibo que está ${current.status}` }, { status: 400 });
   }
@@ -219,7 +211,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         action: nextStatus === 'PAID' ? 'MARK_PAID' : 'CANCEL',
         entity: 'Receipt',
         entityId: id,
-        metadata: { status: nextStatus, source: user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT' ? 'RESIDENT' : 'ADMIN' },
+        metadata: { status: nextStatus, source: 'ADMIN' },
         oldData: toLegacy(current),
         newData: toLegacy(updatedRow),
       });
