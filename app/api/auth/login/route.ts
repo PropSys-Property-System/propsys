@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     const userRes = await pool.query<{
       id: string;
       client_id: string | null;
-      password_hash: string;
+      password_hash: string | null;
       status: string;
     }>('SELECT id, client_id, password_hash, status FROM users WHERE email = $1 LIMIT 1', [email]);
 
@@ -63,6 +63,10 @@ export async function POST(req: Request) {
 
     if (row.status !== 'ACTIVE') {
       return rejectLogin('Usuario inactivo', 403);
+    }
+
+    if (!row.password_hash) {
+      return rejectLogin('Credenciales invÃ¡lidas', 401);
     }
 
     const ok = await argon2.verify(row.password_hash, password).catch(() => false);

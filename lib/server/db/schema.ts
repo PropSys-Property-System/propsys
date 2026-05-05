@@ -15,7 +15,7 @@ export const users = pgTable(
     id: text('id').primaryKey(),
     clientId: text('client_id'),
     email: text('email').notNull(),
-    passwordHash: text('password_hash').notNull(),
+    passwordHash: text('password_hash'),
     name: text('name').notNull(),
     role: text('role').notNull(),
     internalRole: text('internal_role').notNull(),
@@ -26,6 +26,53 @@ export const users = pgTable(
   },
   (t) => ({
     emailIdx: uniqueIndex('users_email_unique').on(t.email),
+  })
+);
+
+export const userInvitations = pgTable(
+  'user_invitations',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id'),
+    userId: text('user_id').notNull(),
+    invitedByUserId: text('invited_by_user_id'),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    status: text('status').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tokenHashUnique: uniqueIndex('user_invitations_token_hash_unique').on(t.tokenHash),
+    userIdx: index('user_invitations_user_idx').on(t.userId),
+    clientStatusIdx: index('user_invitations_client_status_idx').on(t.clientId, t.status, t.expiresAt),
+    emailIdx: index('user_invitations_email_idx').on(t.email),
+  })
+);
+
+export const passwordResetTokens = pgTable(
+  'password_reset_tokens',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id'),
+    userId: text('user_id').notNull(),
+    email: text('email').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    tokenHashUnique: uniqueIndex('password_reset_tokens_token_hash_unique').on(t.tokenHash),
+    userIdx: index('password_reset_tokens_user_idx').on(t.userId),
+    emailCreatedIdx: index('password_reset_tokens_email_created_idx').on(t.email, t.createdAt.desc()),
+    activeIdx: index('password_reset_tokens_active_idx')
+      .on(t.userId, t.expiresAt)
+      .where(sql`${t.usedAt} IS NULL AND ${t.revokedAt} IS NULL`),
   })
 );
 

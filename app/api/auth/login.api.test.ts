@@ -91,6 +91,34 @@ describe('POST /api/auth/login', () => {
     expect(insertAuditLog).not.toHaveBeenCalled();
   });
 
+  it('rejects ACTIVE users without password hash as invalid credentials', async () => {
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'u_pending',
+          client_id: 'client_001',
+          password_hash: null,
+          status: 'ACTIVE',
+        },
+      ],
+    });
+
+    const { POST } = await import('./login/route');
+
+    const req = new Request('http://localhost/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'pending@propsys.com', password: TEST_PASSWORD_INPUT }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe('Credenciales invÃ¡lidas');
+    expect(verify).not.toHaveBeenCalled();
+    expect(insertAuditLog).not.toHaveBeenCalled();
+  });
+
   it('rate limits repeated failed login attempts by client and email', async () => {
     query.mockResolvedValue({ rows: [] });
 

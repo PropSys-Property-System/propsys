@@ -3,6 +3,7 @@ export * from './physical';
 export * from './operation';
 export * from './communication';
 export * from './reservations';
+export type { PasswordResetToken, UserInvitation, UserInvitationStatus } from './auth';
 
 export type UserRole =
   | 'MANAGER'

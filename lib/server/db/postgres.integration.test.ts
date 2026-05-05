@@ -43,6 +43,8 @@ if (!shouldRun) {
         'evidence_attachments',
         'receipts',
         'receipt_payment_proofs',
+        'user_invitations',
+        'password_reset_tokens',
         'auth_sessions',
         'audit_logs',
         'schema_migrations',
@@ -116,6 +118,81 @@ if (!shouldRun) {
           'receipt_payment_proofs_receipt_idx',
           'receipt_payment_proofs_uploaded_by_idx',
           'receipt_payment_proofs_receipt_active_unique',
+        ])
+      );
+    });
+
+    it('expone foundation de onboarding tokens', async () => {
+      const passwordHashColumn = await pool.query<{ is_nullable: string }>(
+        `SELECT is_nullable
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'users'
+           AND column_name = 'password_hash'`
+      );
+      expect(passwordHashColumn.rows[0]?.is_nullable).toBe('YES');
+
+      const constraints = await pool.query<{ conname: string; contype: string }>(
+        `SELECT conname, contype
+         FROM pg_constraint
+         WHERE conrelid IN ('user_invitations'::regclass, 'password_reset_tokens'::regclass)
+           AND conname = ANY($1::text[])`,
+        [
+          [
+            'user_invitations_token_hash_unique',
+            'user_invitations_status_check',
+            'user_invitations_client_fk',
+            'user_invitations_user_fk',
+            'user_invitations_invited_by_fk',
+            'password_reset_tokens_token_hash_unique',
+            'password_reset_tokens_client_fk',
+            'password_reset_tokens_user_fk',
+          ],
+        ]
+      );
+
+      const constraintNames = new Set(constraints.rows.map((row) => row.conname));
+      expect(constraintNames).toEqual(
+        new Set([
+          'user_invitations_token_hash_unique',
+          'user_invitations_status_check',
+          'user_invitations_client_fk',
+          'user_invitations_user_fk',
+          'user_invitations_invited_by_fk',
+          'password_reset_tokens_token_hash_unique',
+          'password_reset_tokens_client_fk',
+          'password_reset_tokens_user_fk',
+        ])
+      );
+
+      const indexes = await pool.query<{ indexname: string }>(
+        `SELECT indexname
+         FROM pg_indexes
+         WHERE schemaname = 'public'
+           AND tablename = ANY($1::text[])
+           AND indexname = ANY($2::text[])`,
+        [
+          ['user_invitations', 'password_reset_tokens'],
+          [
+            'user_invitations_user_idx',
+            'user_invitations_client_status_idx',
+            'user_invitations_email_idx',
+            'password_reset_tokens_user_idx',
+            'password_reset_tokens_email_created_idx',
+            'password_reset_tokens_active_idx',
+          ],
+        ]
+      );
+
+      const indexNames = new Set(indexes.rows.map((row) => row.indexname));
+      expect(indexNames).toEqual(
+        new Set([
+          'user_invitations_user_idx',
+          'user_invitations_client_status_idx',
+          'user_invitations_email_idx',
+          'password_reset_tokens_user_idx',
+          'password_reset_tokens_email_created_idx',
+          'password_reset_tokens_active_idx',
         ])
       );
     });
