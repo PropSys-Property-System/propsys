@@ -71,13 +71,6 @@ export async function listStaffForBuilding(user: User, buildingId: string): Prom
   return staffRepo.listForBuilding(user, buildingId);
 }
 
-export async function createStaffForBuilding(
-  user: User,
-  input: Parameters<typeof staffRepo.createForBuilding>[1]
-): Promise<Awaited<ReturnType<typeof staffRepo.createForBuilding>>> {
-  return staffRepo.createForBuilding(user, input);
-}
-
 export async function listUnitsForBuilding(user: User, buildingId: string): Promise<Unit[]> {
   return unitsRepo.listForBuilding(user, buildingId);
 }
