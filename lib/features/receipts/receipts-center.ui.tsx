@@ -7,13 +7,11 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
-  Download,
   Edit2,
   ExternalLink,
   FileText,
   Home,
   Printer,
-  Send,
   Trash2,
   Upload,
   XCircle,
@@ -99,15 +97,12 @@ type AdminReceiptHeaderActionsProps = {
   onCancelReceipt?: (receipt: Receipt) => void | Promise<void>;
   onEdit?: (receipt: Receipt) => void;
   onPrint?: (receipt: Receipt) => void;
-  onDownload?: (receipt: Receipt) => void;
-  onSend?: (receipt: Receipt) => void | Promise<void>;
-  isSending?: boolean;
 };
 
 type ResidentReceiptHeaderActionsProps = {
   receipt: Receipt;
   receiptStatus: Receipt['status'];
-  onDownload?: (receipt: Receipt) => void;
+  onPrint?: (receipt: Receipt) => void;
   onPay?: (receipt: Receipt) => void | Promise<void>;
   isPaying?: boolean;
 };
@@ -415,7 +410,6 @@ export function AdminReceiptHeaderActions({
   onCancelReceipt,
   onEdit,
   onPrint,
-  onDownload,
 }: AdminReceiptHeaderActionsProps) {
   return (
     <>
@@ -434,29 +428,10 @@ export function AdminReceiptHeaderActions({
         onClick={() => onPrint?.(receipt)}
         disabled={!onPrint}
         aria-disabled={!onPrint}
-        title={onPrint ? 'Imprimir recibo' : 'No disponible'}
+        title={onPrint ? 'Imprimir / guardar PDF' : 'No disponible'}
         className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm ${onPrint ? 'text-slate-600 hover:text-primary' : 'text-slate-400 cursor-not-allowed opacity-70'}`}
       >
         <Printer className="w-4 h-4 group-hover:text-primary transition-colors" />
-      </button>
-      <button
-        type="button"
-        onClick={() => onDownload?.(receipt)}
-        disabled={!onDownload}
-        aria-disabled={!onDownload}
-        title={onDownload ? 'Descargar resumen (TXT)' : 'No disponible'}
-        className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm ${onDownload ? 'text-slate-600 hover:text-primary' : 'text-slate-400 cursor-not-allowed opacity-70'}`}
-      >
-        <Download className="w-4 h-4 group-hover:text-primary transition-colors" />
-      </button>
-      <button
-        type="button"
-        disabled
-        aria-disabled
-        title="Próximamente: envío por canales oficiales."
-        className="flex items-center px-4 py-2.5 rounded-xl bg-slate-100 text-slate-500 cursor-not-allowed font-bold text-sm"
-      >
-        <Send className="w-4 h-4 mr-2" /> Enviar (próximamente)
       </button>
       <PendingReceiptActions
         receipt={receipt}
@@ -924,7 +899,7 @@ export function AdminPaymentProofsPanel({
 export function ResidentReceiptHeaderActions({
   receipt,
   receiptStatus,
-  onDownload,
+  onPrint,
   onPay,
   isPaying,
 }: ResidentReceiptHeaderActionsProps) {
@@ -932,13 +907,13 @@ export function ResidentReceiptHeaderActions({
     <>
       <button
         type="button"
-        onClick={() => onDownload?.(receipt)}
-        disabled={!onDownload}
-        aria-disabled={!onDownload}
-        title={onDownload ? 'Descargar resumen (TXT)' : 'No disponible'}
-        className={`flex items-center px-4 py-2.5 rounded-xl font-bold text-sm ${onDownload ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}
+        onClick={() => onPrint?.(receipt)}
+        disabled={!onPrint}
+        aria-disabled={!onPrint}
+        title={onPrint ? 'Imprimir / guardar PDF' : 'No disponible'}
+        className={`flex items-center px-4 py-2.5 rounded-xl font-bold text-sm ${onPrint ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}
       >
-        <Download className="w-4 h-4 mr-2" /> Descargar resumen (TXT)
+        <Printer className="w-4 h-4 mr-2" /> Imprimir / guardar PDF
       </button>
       {receiptStatus !== 'PAID' && onPay ? (
         <button

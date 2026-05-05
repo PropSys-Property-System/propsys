@@ -3,10 +3,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState, ErrorState, LoadingState } from "@/components/States";
-import { Search, Filter } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
-import { listReceiptPaymentProofsForReceipt, loadResidentReceiptsPageData } from '@/lib/features/receipts/receipts-center.data';
+import {
+  buildResidentUnitFilterOptions,
+  filterAndSortResidentReceipts,
+  listReceiptPaymentProofsForReceipt,
+  loadResidentReceiptsPageData,
+  type ResidentReceiptsSortOrder,
+  type ResidentReceiptsStatusFilter,
+} from '@/lib/features/receipts/receipts-center.data';
 import { ResidentReceiptsList, ResidentReceiptsOverview } from '@/lib/features/receipts/receipts-center.ui';
 import { Receipt, ReceiptPaymentProofView } from '@/lib/types';
 import { formatReceiptAmount, summarizeReceiptTotalsByCurrency } from '@/lib/presentation/receipts';
@@ -14,6 +21,9 @@ import { formatReceiptAmount, summarizeReceiptTotalsByCurrency } from '@/lib/pre
 export default function ResidentReceiptsPage() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ResidentReceiptsStatusFilter>('ALL');
+  const [unitFilter, setUnitFilter] = useState<string>('ALL');
+  const [sortOrder, setSortOrder] = useState<ResidentReceiptsSortOrder>('DUE_ASC');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [buildings, setBuildings] = useState<{ id: string; name: string; clientId?: string }[]>([]);
   const [units, setUnits] = useState<{ id: string; buildingId: string; number: string }[]>([]);
@@ -55,13 +65,13 @@ export default function ResidentReceiptsPage() {
     };
   }, [user]);
 
+  const buildingById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
+  const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
+  const residentUnitOptions = useMemo(() => buildResidentUnitFilterOptions(units, buildings), [units, buildings]);
+  const unitLabelById = useMemo(() => new Map(residentUnitOptions.map((option) => [option.id, option.label])), [residentUnitOptions]);
   const filteredReceipts = useMemo(
-    () =>
-      receipts.filter((receipt) =>
-        receipt.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        receipt.description.toLowerCase().includes(searchTerm.toLowerCase())
-      ),
-    [receipts, searchTerm]
+    () => filterAndSortResidentReceipts(receipts, searchTerm, statusFilter, unitFilter, sortOrder),
+    [receipts, searchTerm, statusFilter, unitFilter, sortOrder]
   );
 
   const pendingAmount = useMemo(
@@ -86,9 +96,6 @@ export default function ResidentReceiptsPage() {
     [receipts]
   );
 
-  const buildingById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
-  const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
-
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
       <PageHeader 
@@ -101,21 +108,54 @@ export default function ResidentReceiptsPage() {
           pendingAmountLabel={pendingAmountLabel}
           latestPaidAmountLabel={latestPaidReceipt ? formatReceiptAmount(latestPaidReceipt.amount, latestPaidReceipt.currency) : formatReceiptAmount(0, 'PEN')}
         />
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between border-b border-slate-100 pb-6">
-          <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mr-auto">Historial Reciente</h3>
-          <div className="relative group w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-            <input 
-              type="text" 
-              placeholder="Buscar por recibo..." 
-              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-              value={searchTerm}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-            />
+        <div className="space-y-3 border-b border-slate-100 pb-6">
+          <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Historial Reciente</h3>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+              <input
+                type="text"
+                placeholder="Buscar por recibo..."
+                className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                value={searchTerm}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as ResidentReceiptsStatusFilter)}
+              className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
+            >
+              <option value="ALL">Todos los estados</option>
+              <option value="PENDING">Pendiente</option>
+              <option value="PAID">Pagado</option>
+              <option value="CANCELLED">Anulado</option>
+            </select>
+            <select
+              value={unitFilter}
+              onChange={(event) => setUnitFilter(event.target.value)}
+              className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
+            >
+              <option value="ALL">Todas las unidades</option>
+              {residentUnitOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value as ResidentReceiptsSortOrder)}
+              className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
+            >
+              <option value="DUE_ASC">Vence primero</option>
+              <option value="DUE_DESC">Vence despues</option>
+              <option value="ISSUE_DESC">Emision mas reciente</option>
+              <option value="ISSUE_ASC">Emision mas antigua</option>
+              <option value="AMOUNT_DESC">Monto mayor</option>
+              <option value="AMOUNT_ASC">Monto menor</option>
+            </select>
           </div>
-          <button className="p-3 bg-white border border-slate-200 text-slate-400 rounded-xl hover:text-primary hover:border-primary/20 transition-all">
-            <Filter className="w-5 h-5" />
-          </button>
         </div>
 
         <div className="space-y-4">
@@ -133,9 +173,15 @@ export default function ResidentReceiptsPage() {
             />
           ) : (
             <div className="py-12 bg-white rounded-3xl border border-dashed border-slate-200">
-              <EmptyState 
-                title="No tienes recibos" 
-                description={searchTerm ? `No hay resultados para "${searchTerm}"` : "Aún no se han emitido recibos para tu unidad."}
+              <EmptyState
+                title="No tienes recibos"
+                description={
+                  searchTerm
+                    ? `No hay resultados para "${searchTerm}"`
+                    : unitFilter !== 'ALL'
+                      ? `No hay recibos para ${unitLabelById.get(unitFilter) ?? 'la unidad seleccionada'}.`
+                      : "Aún no se han emitido recibos para tu unidad."
+                }
               />
             </div>
           )}
@@ -144,4 +190,5 @@ export default function ResidentReceiptsPage() {
     </div>
   );
 }
+
 

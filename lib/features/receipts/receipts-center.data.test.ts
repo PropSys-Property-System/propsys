@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadResidentReceiptDetailData, reviewReceiptPaymentProof, uploadReceiptPaymentProof } from './receipts-center.data';
+import {
+  buildResidentUnitFilterOptions,
+  filterAndSortResidentReceipts,
+  loadResidentReceiptDetailData,
+  reviewReceiptPaymentProof,
+  uploadReceiptPaymentProof,
+} from './receipts-center.data';
 import { receiptsRepo } from '@/lib/repos/finance/receipts.repo';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { unitsRepo } from '@/lib/repos/physical/units.repo';
@@ -96,6 +102,72 @@ describe('receipts center payment proof data layer', () => {
     expect(receiptsRepo.getByIdForUser).toHaveBeenCalledWith(user, 'rect_1');
     expect(detail.receipt?.id).toBe('rect_1');
     expect(detail.receipt?.number).toBe('REC-001');
+  });
+
+  it('builds resident unit filter options from assigned units, including units without receipts', () => {
+    const options = buildResidentUnitFilterOptions(
+      [
+        { id: 'unit_1', buildingId: 'b1', number: '101' },
+        { id: 'unit_2', buildingId: 'b2', number: '201' },
+      ],
+      [
+        { id: 'b1', name: 'Torre Norte' },
+        { id: 'b2', name: 'Torre Sur' },
+      ]
+    );
+
+    expect(options).toEqual([
+      { id: 'unit_1', label: 'Depto 101 · Torre Norte' },
+      { id: 'unit_2', label: 'Depto 201 · Torre Sur' },
+    ]);
+  });
+
+  it('keeps resident status/sort filters while allowing unit filters with zero receipts', () => {
+    const receipts = [
+      {
+        id: 'rect_1',
+        buildingId: 'b1',
+        unitId: 'unit_1',
+        number: 'REC-001',
+        description: 'Mantenimiento enero',
+        amount: 100,
+        currency: 'PEN' as const,
+        issueDate: '2026-01-01',
+        dueDate: '2026-01-10',
+        status: 'PENDING' as const,
+      },
+      {
+        id: 'rect_2',
+        buildingId: 'b1',
+        unitId: 'unit_1',
+        number: 'REC-002',
+        description: 'Mantenimiento febrero',
+        amount: 220,
+        currency: 'PEN' as const,
+        issueDate: '2026-02-01',
+        dueDate: '2026-02-10',
+        status: 'OVERDUE' as const,
+      },
+      {
+        id: 'rect_3',
+        buildingId: 'b1',
+        unitId: 'unit_1',
+        number: 'REC-003',
+        description: 'Mantenimiento marzo',
+        amount: 90,
+        currency: 'PEN' as const,
+        issueDate: '2026-03-01',
+        dueDate: '2026-03-10',
+        status: 'PAID' as const,
+      },
+    ];
+
+    const unitWithoutReceipts = filterAndSortResidentReceipts(receipts, '', 'ALL', 'unit_2', 'DUE_ASC');
+    expect(unitWithoutReceipts).toHaveLength(0);
+
+    const pendingSortedByAmount = filterAndSortResidentReceipts(receipts, '', 'PENDING', 'ALL', 'AMOUNT_DESC');
+    expect(pendingSortedByAmount.map((receipt) => receipt.id)).toEqual(['rect_2', 'rect_1']);
+    expect(pendingSortedByAmount.every((receipt) => receipt.status === 'PENDING' || receipt.status === 'OVERDUE')).toBe(true);
   });
 
 });

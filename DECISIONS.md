@@ -289,3 +289,15 @@ Esta sección consolida las definiciones arquitectónicas y funcionales para el 
 - **Planes y límites:** Se manejarán manualmente a nivel comercial para la beta. El enforcement técnico se difiere para post-beta.
 - **Auditoría Staff:** Sigue pendiente el audit log explícito en `POST /api/v1/physical/staff`. Se mantiene como un bloque pequeño recomendado de implementación futura.
 
+
+### 15.7 UX de Recibos (mini bloque de polish)
+- El boton `Enviar recibo` queda fuera de beta y se elimina de la UI actual.
+- El envio futuro (email/app/WhatsApp) se modelara dentro del bloque de notificaciones financieras, no como boton aislado.
+- La descarga TXT deja de ser la accion principal visible.
+- La accion visible en beta para exportar es `Imprimir / guardar PDF`, usando impresion del navegador.
+- No se implementara PDF avanzado con librerias en esta fase.
+- `Pagar todo` queda diferido para post-beta.
+- En beta actual entran filtros y ordenamiento de recibos (admin y resident).
+- Plantillas de cobro quedan registradas como siguiente bloque financiero grande.
+- La generacion masiva de recibos queda despues del bloque de plantillas.
+- Notificaciones financieras, cobros por reservas, pagos online, conciliacion bancaria y facturacion electronica se mantienen en roadmap futuro/post-beta.

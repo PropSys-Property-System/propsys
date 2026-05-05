@@ -175,27 +175,6 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
     }
   }
 
-  function downloadReceipt(target: Receipt) {
-    const lines = [
-      'Resumen de recibo (beta). No reemplaza un PDF oficial.',
-      `Recibo: ${target.number}`,
-      `Descripcion: ${target.description}`,
-      `Monto: ${target.amount} ${target.currency}`,
-      `Emision: ${target.issueDate}`,
-      `Vencimiento: ${target.dueDate}`,
-      `Estado: ${target.status}`,
-      `Edificio: ${building?.name ?? target.buildingId}`,
-      `Unidad: ${unit?.number ?? target.unitId}`,
-    ];
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `${target.number}-resumen.txt`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-
   function printReceipt() {
     window.print();
   }
@@ -297,7 +276,6 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
             onMarkPaid={(item) => handleReceiptStatusChange(item, 'PAID')}
             onCancelReceipt={(item) => handleReceiptStatusChange(item, 'CANCELLED')}
             onEdit={openEdit}
-            onDownload={downloadReceipt}
             onPrint={printReceipt}
           />
         }

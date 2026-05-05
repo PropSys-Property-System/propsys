@@ -31,7 +31,12 @@ export default function AdminReceiptsPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'OVERDUE' | 'PAID' | 'CANCELLED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'PAID' | 'CANCELLED'>('ALL');
+  const [buildingFilter, setBuildingFilter] = useState<string>('ALL');
+  const [unitSearch, setUnitSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState<'ISSUE_DESC' | 'ISSUE_ASC' | 'DUE_ASC' | 'DUE_DESC' | 'AMOUNT_DESC' | 'AMOUNT_ASC'>(
+    'ISSUE_DESC'
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [allReceipts, setAllReceipts] = useState<Receipt[]>([]);
@@ -86,20 +91,51 @@ export default function AdminReceiptsPage() {
     };
   }, [user]);
 
-  const receipts = useMemo(() => {
-    const normalizedTerm = searchTerm.toLowerCase();
-    return allReceipts.filter((receipt) => {
-      const matchesTerm =
-        receipt.number.toLowerCase().includes(normalizedTerm) ||
-        receipt.description.toLowerCase().includes(normalizedTerm);
-      const matchesStatus = statusFilter === 'ALL' || receipt.status === statusFilter;
-      return matchesTerm && matchesStatus;
-    });
-  }, [allReceipts, searchTerm, statusFilter]);
-
-  const receiptsById = useMemo(() => new Map(allReceipts.map((receipt) => [receipt.id, receipt])), [allReceipts]);
   const buildingById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
   const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
+  const receipts = useMemo(() => {
+    const normalizedTerm = searchTerm.trim().toLowerCase();
+    const normalizedUnitSearch = unitSearch.trim().toLowerCase();
+    const filtered = allReceipts.filter((receipt) => {
+      const unitNumber = unitById.get(receipt.unitId)?.number ?? '';
+      const matchesTerm =
+        normalizedTerm.length === 0 ||
+        receipt.number.toLowerCase().includes(normalizedTerm) ||
+        receipt.description.toLowerCase().includes(normalizedTerm);
+      const matchesStatus =
+        statusFilter === 'ALL'
+          ? true
+          : statusFilter === 'PENDING'
+            ? receipt.status === 'PENDING' || receipt.status === 'OVERDUE'
+            : receipt.status === statusFilter;
+      const matchesBuilding = buildingFilter === 'ALL' || receipt.buildingId === buildingFilter;
+      const matchesUnit =
+        normalizedUnitSearch.length === 0 ||
+        receipt.unitId.toLowerCase().includes(normalizedUnitSearch) ||
+        unitNumber.toLowerCase().includes(normalizedUnitSearch);
+      return matchesTerm && matchesStatus && matchesBuilding && matchesUnit;
+    });
+
+    return filtered.sort((a, b) => {
+      switch (sortOrder) {
+        case 'ISSUE_ASC':
+          return new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime();
+        case 'DUE_ASC':
+          return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+        case 'DUE_DESC':
+          return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+        case 'AMOUNT_ASC':
+          return a.amount - b.amount;
+        case 'AMOUNT_DESC':
+          return b.amount - a.amount;
+        case 'ISSUE_DESC':
+        default:
+          return new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime();
+      }
+    });
+  }, [allReceipts, searchTerm, statusFilter, buildingFilter, unitSearch, sortOrder, unitById]);
+
+  const receiptsById = useMemo(() => new Map(allReceipts.map((receipt) => [receipt.id, receipt])), [allReceipts]);
   const canManageReceipts =
     user?.internalRole === 'ROOT_ADMIN' || user?.internalRole === 'CLIENT_MANAGER' || user?.internalRole === 'BUILDING_ADMIN';
 
@@ -283,7 +319,7 @@ export default function AdminReceiptsPage() {
       <PageHeader title="Gestion de Recibos" description="Administra, emite y controla los pagos de la comunidad" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="relative flex-1 group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
             <input
@@ -296,14 +332,48 @@ export default function AdminReceiptsPage() {
           </div>
           <select
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as 'ALL' | 'PENDING' | 'OVERDUE' | 'PAID' | 'CANCELLED')}
+            onChange={(event) => setStatusFilter(event.target.value as 'ALL' | 'PENDING' | 'PAID' | 'CANCELLED')}
             className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
           >
             <option value="ALL">Todos los estados</option>
             <option value="PENDING">Pendiente</option>
-            <option value="OVERDUE">Vencido</option>
             <option value="PAID">Pagado</option>
-            <option value="CANCELLED">Cancelado</option>
+            <option value="CANCELLED">Anulado</option>
+          </select>
+          <select
+            value={buildingFilter}
+            onChange={(event) => setBuildingFilter(event.target.value)}
+            className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
+          >
+            <option value="ALL">Todos los edificios</option>
+            {buildings.map((building) => (
+              <option key={building.id} value={building.id}>
+                {building.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={unitSearch}
+            onChange={(event) => setUnitSearch(event.target.value)}
+            placeholder="Buscar unidad..."
+            className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-medium text-sm"
+          />
+          <select
+            value={sortOrder}
+            onChange={(event) =>
+              setSortOrder(
+                event.target.value as 'ISSUE_DESC' | 'ISSUE_ASC' | 'DUE_ASC' | 'DUE_DESC' | 'AMOUNT_DESC' | 'AMOUNT_ASC'
+              )
+            }
+            className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
+          >
+            <option value="ISSUE_DESC">Emision mas reciente</option>
+            <option value="ISSUE_ASC">Emision mas antigua</option>
+            <option value="DUE_ASC">Vence primero</option>
+            <option value="DUE_DESC">Vence despues</option>
+            <option value="AMOUNT_DESC">Monto mayor</option>
+            <option value="AMOUNT_ASC">Monto menor</option>
           </select>
         </div>
 

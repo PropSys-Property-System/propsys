@@ -33,6 +33,14 @@ export type ResidentReceiptsPageData = {
   units: ReceiptUnitOption[];
 };
 
+export type ResidentReceiptsStatusFilter = 'ALL' | 'PENDING' | 'PAID' | 'CANCELLED';
+export type ResidentReceiptsSortOrder = 'DUE_ASC' | 'DUE_DESC' | 'ISSUE_DESC' | 'ISSUE_ASC' | 'AMOUNT_DESC' | 'AMOUNT_ASC';
+
+export type ResidentUnitFilterOption = {
+  id: string;
+  label: string;
+};
+
 export type ReceiptDetailData = {
   receipt: Receipt | null;
   building: Building | null;
@@ -92,6 +100,70 @@ export async function loadResidentReceiptsPageData(user: User): Promise<Resident
     buildings: buildings.map((building) => ({ id: building.id, name: building.name, clientId: building.clientId })),
     units: units.map((unit) => ({ id: unit.id, buildingId: unit.buildingId, number: unit.number })),
   };
+}
+
+export function buildResidentUnitFilterOptions(
+  units: ReceiptUnitOption[],
+  buildings: ReceiptBuildingOption[]
+): ResidentUnitFilterOption[] {
+  const buildingNameById = new Map(buildings.map((building) => [building.id, building.name]));
+  const seen = new Set<string>();
+  const options: ResidentUnitFilterOption[] = [];
+
+  for (const unit of units) {
+    if (seen.has(unit.id)) continue;
+    seen.add(unit.id);
+    const buildingName = buildingNameById.get(unit.buildingId);
+    const unitLabel = `Depto ${unit.number}`;
+    options.push({
+      id: unit.id,
+      label: buildingName ? `${unitLabel} · ${buildingName}` : unitLabel,
+    });
+  }
+
+  return options.sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
+}
+
+export function filterAndSortResidentReceipts(
+  receipts: Receipt[],
+  searchTerm: string,
+  statusFilter: ResidentReceiptsStatusFilter,
+  unitFilter: string,
+  sortOrder: ResidentReceiptsSortOrder
+): Receipt[] {
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filtered = receipts.filter((receipt) => {
+    const matchesSearch =
+      normalizedSearch.length === 0 ||
+      receipt.number.toLowerCase().includes(normalizedSearch) ||
+      receipt.description.toLowerCase().includes(normalizedSearch);
+    const matchesStatus =
+      statusFilter === 'ALL'
+        ? true
+        : statusFilter === 'PENDING'
+          ? receipt.status === 'PENDING' || receipt.status === 'OVERDUE'
+          : receipt.status === statusFilter;
+    const matchesUnit = unitFilter === 'ALL' || receipt.unitId === unitFilter;
+    return matchesSearch && matchesStatus && matchesUnit;
+  });
+
+  return filtered.sort((a, b) => {
+    switch (sortOrder) {
+      case 'DUE_DESC':
+        return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
+      case 'ISSUE_DESC':
+        return new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime();
+      case 'ISSUE_ASC':
+        return new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime();
+      case 'AMOUNT_DESC':
+        return b.amount - a.amount;
+      case 'AMOUNT_ASC':
+        return a.amount - b.amount;
+      case 'DUE_ASC':
+      default:
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    }
+  });
 }
 
 async function loadReceiptDetailData(user: User, receiptId: string): Promise<ReceiptDetailData> {
