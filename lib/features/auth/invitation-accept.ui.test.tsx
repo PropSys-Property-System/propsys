@@ -57,7 +57,9 @@ describe('InvitationAcceptView', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ token: 'secret-token', password: 'StrongPassword#2026' }),
     });
-    expect(screen.getByRole('link', { name: /ir a iniciar sesión/i })).toHaveAttribute('href', '/login');
+    const loginLink = screen.getByRole('link', { name: /ir a iniciar sesión/i });
+    expect(loginLink).toHaveAttribute('href', '/');
+    expect(loginLink).not.toHaveAttribute('href', '/login');
   });
 
   it('muestra error genérico cuando el endpoint falla', async () => {

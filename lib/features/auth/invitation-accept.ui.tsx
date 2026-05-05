@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { CheckCircle2, Loader2, LockKeyhole, ShieldCheck } from 'lucide-react';
 
@@ -88,12 +89,12 @@ export function InvitationAcceptView({ token }: InvitationAcceptViewProps) {
               <CheckCircle2 className="w-12 h-12 text-emerald-600" />
             </div>
             <p className="text-slate-700 font-bold">Cuenta activada correctamente. Ya puedes iniciar sesión.</p>
-            <a
-              href="/login"
+            <Link
+              href="/"
               className="inline-flex w-full items-center justify-center rounded-2xl bg-primary px-6 py-4 text-sm font-black text-white shadow-xl shadow-primary/20 transition hover:bg-primary/90"
             >
               Ir a iniciar sesión
-            </a>
+            </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
