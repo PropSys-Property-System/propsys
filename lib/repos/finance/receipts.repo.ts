@@ -14,7 +14,7 @@ export type CreateReceiptInput = {
   unitId: string;
   amount: number;
   currency: string;
-  description: string;
+  description?: string | null;
   issueDate: string;
   dueDate: string;
 };
@@ -98,7 +98,7 @@ export const receiptsRepo = {
       buildingId: input.buildingId,
       unitId: input.unitId,
       number: `REC-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`,
-      description: input.description,
+      description: input.description?.trim() ?? '',
       amount: input.amount,
       currency: input.currency,
       issueDate: input.issueDate,

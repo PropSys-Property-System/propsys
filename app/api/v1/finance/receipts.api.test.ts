@@ -252,6 +252,54 @@ describe('finance receipts API (route handlers)', () => {
     expect(auditCall).toBeDefined();
   });
 
+  it('creates a receipt with optional empty description', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u_mgr';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM units')) {
+        return { rows: [{ client_id: 'client_001', building_id: 'b1' }] };
+      }
+      if (sql.includes('INSERT INTO receipts')) {
+        return {
+          rows: [
+            {
+              id: 'new-rect',
+              client_id: 'client_001',
+              building_id: 'b1',
+              unit_id: 'u1',
+              number: 'REC-NEW',
+              description: null,
+              amount: '150.00',
+              currency: 'PEN',
+              issue_date: '2026-04-01',
+              due_date: '2026-05-01',
+              status: 'PENDING',
+            },
+          ],
+        };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'u1', amount: 150, issueDate: '2026-04-01', dueDate: '2026-05-01' }),
+    });
+    const res = await createReceipt(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { receipt: { description: string } };
+    expect(data.receipt.description).toBe('');
+
+    const insertCall = query.mock.calls.find(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO receipts'));
+    expect(insertCall?.[1]?.[5]).toBeNull();
+  });
+
   it('returns 500 when POST audit fails', async () => {
     query.mockReset();
     (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';

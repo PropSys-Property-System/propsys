@@ -154,11 +154,12 @@ export async function POST(req: Request) {
   const unitId = typeof body?.unitId === 'string' ? body.unitId : '';
   const amount = typeof body?.amount === 'number' ? body.amount : null;
   const currency = typeof body?.currency === 'string' ? body.currency : 'PEN';
-  const description = typeof body?.description === 'string' ? body.description.trim() : '';
+  const descriptionRaw = typeof body?.description === 'string' ? body.description.trim() : '';
+  const description = descriptionRaw.length > 0 ? descriptionRaw : null;
   const issueDate = typeof body?.issueDate === 'string' ? body.issueDate : '';
   const dueDate = typeof body?.dueDate === 'string' ? body.dueDate : '';
 
-  if (!buildingId || !unitId || amount === null || !description || !issueDate || !dueDate) {
+  if (!buildingId || !unitId || amount === null || !issueDate || !dueDate) {
     return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
   }
 
