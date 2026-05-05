@@ -1,0 +1,101 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { loadResidentReceiptDetailData, reviewReceiptPaymentProof, uploadReceiptPaymentProof } from './receipts-center.data';
+import { receiptsRepo } from '@/lib/repos/finance/receipts.repo';
+import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
+import { unitsRepo } from '@/lib/repos/physical/units.repo';
+import type { User } from '@/lib/types';
+
+const user: User = {
+  id: 'u_owner',
+  email: 'owner@propsys.com',
+  name: 'Owner',
+  role: 'OWNER',
+  internalRole: 'OWNER',
+  clientId: 'client_001',
+  scope: 'client',
+  status: 'ACTIVE',
+};
+
+describe('receipts center payment proof data layer', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uploads a resident payment proof as multipart form data', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ proof: { id: 'rpp_1', status: 'PENDING_REVIEW' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const file = new File([new Uint8Array([1, 2, 3])], 'comprobante.pdf', { type: 'application/pdf' });
+    const proof = await uploadReceiptPaymentProof(user, { receiptId: 'rect_1', file, note: 'Transferencia' });
+
+    expect(proof.id).toBe('rpp_1');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/finance/receipts/rect_1/payment-proofs',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: expect.any(FormData),
+      })
+    );
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain('/REC-');
+    const body = fetchMock.mock.calls[0][1]?.body as FormData;
+    expect(body.get('file')).toBe(file);
+    expect(body.get('note')).toBe('Transferencia');
+  });
+
+  it('reviews a payment proof with action and comment', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ proof: { id: 'rpp_1', status: 'APPROVED' }, receipt: { id: 'rect_1', status: 'PAID' } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await reviewReceiptPaymentProof(user, { proofId: 'rpp_1', action: 'APPROVE', reviewComment: 'Validado' });
+
+    expect(result.receipt.status).toBe('PAID');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/finance/payment-proofs/rpp_1',
+      expect.objectContaining({
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'APPROVE', reviewComment: 'Validado' }),
+      })
+    );
+  });
+
+  it('loads receipt detail using receipt.id as canonical identifier', async () => {
+    vi.spyOn(receiptsRepo, 'getByIdForUser').mockResolvedValue({
+      id: 'rect_1',
+      buildingId: 'b1',
+      unitId: 'unit_1',
+      number: 'REC-001',
+      description: 'Mantenimiento',
+      amount: 120,
+      currency: 'PEN',
+      issueDate: '2026-05-01',
+      dueDate: '2026-06-01',
+      status: 'PENDING',
+    });
+    vi.spyOn(buildingsRepo, 'listForUser').mockResolvedValue([
+      { id: 'b1', clientId: 'client_001', name: 'Torres Norte', address: 'Av. Central 123', city: 'Lima' },
+    ]);
+    vi.spyOn(unitsRepo, 'listForUser').mockResolvedValue([
+      { id: 'unit_1', clientId: 'client_001', buildingId: 'b1', number: '101', floor: '1' },
+    ]);
+
+    const detail = await loadResidentReceiptDetailData(user, 'rect_1');
+
+    expect(receiptsRepo.getByIdForUser).toHaveBeenCalledWith(user, 'rect_1');
+    expect(detail.receipt?.id).toBe('rect_1');
+    expect(detail.receipt?.number).toBe('REC-001');
+  });
+
+});

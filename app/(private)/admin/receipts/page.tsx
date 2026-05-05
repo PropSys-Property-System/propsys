@@ -6,9 +6,26 @@ import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
-import { createAdminReceipt, loadAdminReceiptsPageData, updateAdminReceiptStatus } from '@/lib/features/receipts/receipts-center.data';
-import { AdminReceiptsList, ReceiptComposerDialog } from '@/lib/features/receipts/receipts-center.ui';
-import type { Receipt } from '@/lib/types';
+import {
+  createAdminReceipt,
+  listAdminReceiptPaymentProofs,
+  loadAdminReceiptsPageData,
+  reviewReceiptPaymentProof,
+  updateAdminReceiptStatus,
+} from '@/lib/features/receipts/receipts-center.data';
+import { AdminPaymentProofsPanel, AdminReceiptsList, ReceiptComposerDialog } from '@/lib/features/receipts/receipts-center.ui';
+import type { Receipt, ReceiptPaymentProofReviewAction, ReceiptPaymentProofView } from '@/lib/types';
+
+function addOneMonthFromDateInput(dateInput: string): string {
+  const [year, month, day] = dateInput.split('-').map((value) => Number(value));
+  if (!year || !month || !day) return dateInput;
+  const next = new Date(Date.UTC(year, month - 1, day));
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  const outYear = String(next.getUTCFullYear());
+  const outMonth = String(next.getUTCMonth() + 1).padStart(2, '0');
+  const outDay = String(next.getUTCDate()).padStart(2, '0');
+  return `${outYear}-${outMonth}-${outDay}`;
+}
 
 export default function AdminReceiptsPage() {
   const { user } = useAuth();
@@ -28,9 +45,13 @@ export default function AdminReceiptsPage() {
   const [createDescription, setCreateDescription] = useState('');
   const [createIssueDate, setCreateIssueDate] = useState('');
   const [createDueDate, setCreateDueDate] = useState('');
+  const [isCreateDueDateCustomized, setIsCreateDueDateCustomized] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreateSubmitting, setIsCreateSubmitting] = useState(false);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+  const [pendingProofActionId, setPendingProofActionId] = useState<string | null>(null);
+  const [pendingProofs, setPendingProofs] = useState<ReceiptPaymentProofView[]>([]);
+  const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -43,11 +64,12 @@ export default function AdminReceiptsPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const data = await loadAdminReceiptsPageData(user);
+        const [data, proofs] = await Promise.all([loadAdminReceiptsPageData(user), listAdminReceiptPaymentProofs(user)]);
         if (!isMounted) return;
         setAllReceipts(data.receipts);
         setBuildings(data.buildings);
         setUnits(data.units);
+        setPendingProofs(proofs);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los recibos. Intenta nuevamente.');
@@ -75,6 +97,7 @@ export default function AdminReceiptsPage() {
     });
   }, [allReceipts, searchTerm, statusFilter]);
 
+  const receiptsById = useMemo(() => new Map(allReceipts.map((receipt) => [receipt.id, receipt])), [allReceipts]);
   const buildingById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
   const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
   const canManageReceipts =
@@ -93,7 +116,8 @@ export default function AdminReceiptsPage() {
     setCreateCurrency('PEN');
     setCreateDescription('');
     setCreateIssueDate(today);
-    setCreateDueDate(today);
+    setCreateDueDate(addOneMonthFromDateInput(today));
+    setIsCreateDueDateCustomized(false);
     setCreateError(null);
     setIsCreateOpen(true);
   }
@@ -103,12 +127,24 @@ export default function AdminReceiptsPage() {
     setCreateUnitId(units.find((unit) => unit.buildingId === buildingId)?.id ?? '');
   }
 
+  function handleCreateIssueDateChange(value: string) {
+    setCreateIssueDate(value);
+    if (!isCreateDueDateCustomized) {
+      setCreateDueDate(addOneMonthFromDateInput(value));
+    }
+  }
+
+  function handleCreateDueDateChange(value: string) {
+    setCreateDueDate(value);
+    setIsCreateDueDateCustomized(true);
+  }
+
   async function handleCreateReceipt() {
     if (!user) return;
 
     const amount = Number(createAmount);
-    if (!createBuildingId || !createUnitId || !createDescription.trim() || !createIssueDate || !createDueDate || !Number.isFinite(amount) || amount <= 0) {
-      setCreateError('Completa edificio, unidad, monto, descripcion y fechas.');
+    if (!createBuildingId || !createUnitId || !createIssueDate || !createDueDate || !Number.isFinite(amount) || amount <= 0) {
+      setCreateError('Completa edificio, unidad, monto y fechas.');
       return;
     }
 
@@ -133,6 +169,44 @@ export default function AdminReceiptsPage() {
       setCreateError(err instanceof Error ? err.message : 'No pudimos emitir el recibo.');
     } finally {
       setIsCreateSubmitting(false);
+    }
+  }
+
+  function openProof(proof: ReceiptPaymentProofView) {
+    window.open(proof.fileUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  function handleReviewCommentChange(proofId: string, comment: string) {
+    setReviewComments((current) => ({ ...current, [proofId]: comment }));
+  }
+
+  async function handleReviewProof(proofId: string, action: ReceiptPaymentProofReviewAction) {
+    if (!user) return;
+
+    const nextActionId = `${proofId}:${action}`;
+    try {
+      setPendingProofActionId(nextActionId);
+      setActionError(null);
+      setActionMessage(null);
+      const result = await reviewReceiptPaymentProof(user, {
+        proofId,
+        action,
+        reviewComment: reviewComments[proofId],
+      });
+      setPendingProofs((current) => current.filter((proof) => proof.id !== proofId));
+      setReviewComments((current) => {
+        const next = { ...current };
+        delete next[proofId];
+        return next;
+      });
+      setAllReceipts((current) =>
+        current.map((receipt) => (receipt.id === result.receipt.id ? { ...receipt, status: result.receipt.status } : receipt))
+      );
+      setActionMessage(action === 'APPROVE' ? 'Comprobante aprobado y recibo marcado como pagado.' : 'Comprobante rechazado. El recibo permanece pendiente.');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'No pudimos revisar el comprobante.');
+    } finally {
+      setPendingProofActionId(null);
     }
   }
 
@@ -244,6 +318,22 @@ export default function AdminReceiptsPage() {
               {actionError}
             </div>
           ) : null}
+          {!error && !isLoading ? (
+            <AdminPaymentProofsPanel
+              title="Comprobantes pendientes"
+              emptyDescription="No hay comprobantes pendientes de revisión."
+              proofs={pendingProofs}
+              pendingActionId={pendingProofActionId}
+              reviewComments={reviewComments}
+              receiptsById={receiptsById}
+              buildingById={buildingById}
+              unitById={unitById}
+              onOpenProof={openProof}
+              onReviewCommentChange={handleReviewCommentChange}
+              onApprove={(proofId) => handleReviewProof(proofId, 'APPROVE')}
+              onReject={(proofId) => handleReviewProof(proofId, 'REJECT')}
+            />
+          ) : null}
 
           {error ? (
             <div className="py-12">
@@ -292,8 +382,8 @@ export default function AdminReceiptsPage() {
         onAmountChange={setCreateAmount}
         onCurrencyChange={setCreateCurrency}
         onDescriptionChange={setCreateDescription}
-        onIssueDateChange={setCreateIssueDate}
-        onDueDateChange={setCreateDueDate}
+        onIssueDateChange={handleCreateIssueDateChange}
+        onDueDateChange={handleCreateDueDateChange}
         onSubmit={handleCreateReceipt}
       />
     </div>

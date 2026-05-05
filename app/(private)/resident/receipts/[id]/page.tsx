@@ -4,9 +4,13 @@ import React, { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
-import { loadResidentReceiptDetailData, reportResidentReceiptPayment } from '@/lib/features/receipts/receipts-center.data';
-import { ResidentReceiptDetailView, ResidentReceiptHeaderActions } from '@/lib/features/receipts/receipts-center.ui';
-import type { Building as BuildingType, Receipt, Unit as UnitType } from '@/lib/types';
+import {
+  listReceiptPaymentProofsForReceipt,
+  loadResidentReceiptDetailData,
+  uploadReceiptPaymentProof,
+} from '@/lib/features/receipts/receipts-center.data';
+import { ResidentPaymentProofPanel, ResidentReceiptDetailView, ResidentReceiptHeaderActions } from '@/lib/features/receipts/receipts-center.ui';
+import type { Building as BuildingType, Receipt, ReceiptPaymentProofView, Unit as UnitType } from '@/lib/types';
 
 interface PageParams {
   id: string;
@@ -23,7 +27,10 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [isPaying, setIsPaying] = useState(false);
+  const [proofs, setProofs] = useState<ReceiptPaymentProofView[]>([]);
+  const [selectedProofFile, setSelectedProofFile] = useState<File | null>(null);
+  const [proofNote, setProofNote] = useState('');
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -35,10 +42,12 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
         setIsLoading(true);
         setLoadError(null);
         const data = await loadResidentReceiptDetailData(user, resolvedParams.id);
+        const loadedProofs = data.receipt ? await listReceiptPaymentProofsForReceipt(user, data.receipt.id).catch(() => []) : [];
         if (!isMounted) return;
         setReceipt(data.receipt);
         setBuilding(data.building);
         setUnit(data.unit);
+        setProofs(loadedProofs);
       } catch {
         if (!isMounted) return;
         setLoadError('No pudimos cargar el recibo.');
@@ -103,6 +112,7 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
 
   function downloadReceipt(target: Receipt) {
     const lines = [
+      'Resumen de recibo (beta). No reemplaza un PDF oficial.',
       `Recibo: ${target.number}`,
       `Descripcion: ${target.description}`,
       `Monto: ${target.amount} ${target.currency}`,
@@ -116,27 +126,35 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${target.number}.txt`;
+    anchor.download = `${target.number}-resumen.txt`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
 
-  async function handlePay(target: Receipt) {
+  async function handleUploadProof(target: Receipt) {
     if (!user) return;
-    const confirmed = window.confirm(`Confirmas el pago del recibo ${target.number}?`);
-    if (!confirmed) return;
+    if (!selectedProofFile) {
+      setActionError('Selecciona un archivo PDF o imagen del comprobante.');
+      return;
+    }
     try {
-      setIsPaying(true);
+      setIsUploadingProof(true);
       setActionError(null);
       setActionMessage(null);
-      const updated = await reportResidentReceiptPayment(user, target.id);
-      setReceipt(updated);
-      setActionMessage(`Pago registrado para ${updated.number}.`);
+      const proof = await uploadReceiptPaymentProof(user, { receiptId: target.id, file: selectedProofFile, note: proofNote });
+      setProofs((current) => [proof, ...current]);
+      setSelectedProofFile(null);
+      setProofNote('');
+      setActionMessage('Comprobante enviado. Queda pendiente de revisión por la administración.');
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'No pudimos registrar el pago.');
+      setActionError(err instanceof Error ? err.message : 'No pudimos subir el comprobante.');
     } finally {
-      setIsPaying(false);
+      setIsUploadingProof(false);
     }
+  }
+
+  function openProof(proof: ReceiptPaymentProofView) {
+    window.open(proof.fileUrl, '_blank', 'noopener,noreferrer');
   }
 
   return (
@@ -151,13 +169,24 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
         receipt={receipt}
         building={building}
         unit={unit}
+        paymentProofPanel={
+          <ResidentPaymentProofPanel
+            receipt={receipt}
+            proofs={proofs}
+            selectedFile={selectedProofFile}
+            note={proofNote}
+            isSubmitting={isUploadingProof}
+            onFileChange={setSelectedProofFile}
+            onNoteChange={setProofNote}
+            onUpload={() => handleUploadProof(receipt)}
+            onOpenProof={openProof}
+          />
+        }
         actions={
           <ResidentReceiptHeaderActions
             receipt={receipt}
             receiptStatus={receipt.status}
             onDownload={downloadReceipt}
-            onPay={handlePay}
-            isPaying={isPaying}
           />
         }
       />

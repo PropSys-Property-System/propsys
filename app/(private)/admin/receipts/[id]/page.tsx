@@ -4,9 +4,16 @@ import React, { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
-import { editAdminReceipt, loadAdminReceiptDetailData, removeAdminReceipt, updateAdminReceiptStatus } from '@/lib/features/receipts/receipts-center.data';
-import { AdminReceiptDetailView, AdminReceiptHeaderActions } from '@/lib/features/receipts/receipts-center.ui';
-import type { Building as BuildingType, Receipt, Unit as UnitType } from '@/lib/types';
+import {
+  editAdminReceipt,
+  listReceiptPaymentProofsForReceipt,
+  loadAdminReceiptDetailData,
+  removeAdminReceipt,
+  reviewReceiptPaymentProof,
+  updateAdminReceiptStatus,
+} from '@/lib/features/receipts/receipts-center.data';
+import { AdminPaymentProofsPanel, AdminReceiptDetailView, AdminReceiptHeaderActions } from '@/lib/features/receipts/receipts-center.ui';
+import type { Building as BuildingType, Receipt, ReceiptPaymentProofReviewAction, ReceiptPaymentProofView, Unit as UnitType } from '@/lib/types';
 
 export default function AdminReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -20,7 +27,9 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
-  const [isSending, setIsSending] = useState(false);
+  const [pendingProofActionId, setPendingProofActionId] = useState<string | null>(null);
+  const [proofs, setProofs] = useState<ReceiptPaymentProofView[]>([]);
+  const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editAmount, setEditAmount] = useState('');
   const [editCurrency, setEditCurrency] = useState('PEN');
@@ -40,10 +49,12 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
         setIsLoading(true);
         setLoadError(null);
         const data = await loadAdminReceiptDetailData(user, resolvedParams.id);
+        const loadedProofs = data.receipt ? await listReceiptPaymentProofsForReceipt(user, data.receipt.id).catch(() => []) : [];
         if (!isMounted) return;
         setReceipt(data.receipt);
         setBuilding(data.building);
         setUnit(data.unit);
+        setProofs(loadedProofs);
       } catch {
         if (!isMounted) return;
         setLoadError('No pudimos cargar el recibo.');
@@ -128,8 +139,45 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
     }
   }
 
+  function openProof(proof: ReceiptPaymentProofView) {
+    window.open(proof.fileUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  function handleReviewCommentChange(proofId: string, comment: string) {
+    setReviewComments((current) => ({ ...current, [proofId]: comment }));
+  }
+
+  async function handleReviewProof(proofId: string, action: ReceiptPaymentProofReviewAction) {
+    if (!user) return;
+
+    const nextActionId = `${proofId}:${action}`;
+    try {
+      setPendingProofActionId(nextActionId);
+      setActionError(null);
+      setActionMessage(null);
+      const result = await reviewReceiptPaymentProof(user, {
+        proofId,
+        action,
+        reviewComment: reviewComments[proofId],
+      });
+      setProofs((current) => current.map((proof) => (proof.id === result.proof.id ? result.proof : proof)));
+      setReviewComments((current) => {
+        const next = { ...current };
+        delete next[proofId];
+        return next;
+      });
+      setReceipt((current) => (current && current.id === result.receipt.id ? { ...current, status: result.receipt.status } : current));
+      setActionMessage(action === 'APPROVE' ? 'Comprobante aprobado y recibo marcado como pagado.' : 'Comprobante rechazado. El recibo permanece pendiente.');
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'No pudimos revisar el comprobante.');
+    } finally {
+      setPendingProofActionId(null);
+    }
+  }
+
   function downloadReceipt(target: Receipt) {
     const lines = [
+      'Resumen de recibo (beta). No reemplaza un PDF oficial.',
       `Recibo: ${target.number}`,
       `Descripcion: ${target.description}`,
       `Monto: ${target.amount} ${target.currency}`,
@@ -143,27 +191,13 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `${target.number}.txt`;
+    anchor.download = `${target.number}-resumen.txt`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
 
   function printReceipt() {
     window.print();
-  }
-
-  async function sendReceipt(target: Receipt) {
-    try {
-      setIsSending(true);
-      setActionError(null);
-      setActionMessage(null);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setActionMessage(`Recibo ${target.number} enviado al canal del residente.`);
-    } catch {
-      setActionError('No pudimos enviar el recibo.');
-    } finally {
-      setIsSending(false);
-    }
   }
 
   function openEdit(target: Receipt) {
@@ -241,6 +275,21 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
         unit={unit}
         onDelete={handleDelete}
         isDeleting={isDeleting}
+        paymentProofPanel={
+          <AdminPaymentProofsPanel
+            emptyDescription="Este recibo aún no tiene comprobantes registrados."
+            proofs={proofs}
+            pendingActionId={pendingProofActionId}
+            reviewComments={reviewComments}
+            receiptsById={new Map([[receipt.id, receipt]])}
+            buildingById={new Map(building ? [[building.id, { id: building.id, name: building.name }]] : [])}
+            unitById={new Map(unit ? [[unit.id, { id: unit.id, buildingId: unit.buildingId, number: unit.number }]] : [])}
+            onOpenProof={openProof}
+            onReviewCommentChange={handleReviewCommentChange}
+            onApprove={(proofId) => handleReviewProof(proofId, 'APPROVE')}
+            onReject={(proofId) => handleReviewProof(proofId, 'REJECT')}
+          />
+        }
         actions={
           <AdminReceiptHeaderActions
             receipt={receipt}
@@ -250,8 +299,6 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
             onEdit={openEdit}
             onDownload={downloadReceipt}
             onPrint={printReceipt}
-            onSend={sendReceipt}
-            isSending={isSending}
           />
         }
       />

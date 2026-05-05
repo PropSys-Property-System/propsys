@@ -1,10 +1,27 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Building as BuildingIcon, Calendar, CheckCircle2, CreditCard, Download, Edit2, Home, Printer, Send, Trash2, XCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building as BuildingIcon,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  CreditCard,
+  Download,
+  Edit2,
+  ExternalLink,
+  FileText,
+  Home,
+  Printer,
+  Send,
+  Trash2,
+  Upload,
+  XCircle,
+} from 'lucide-react';
 import { ReceiptRow, StatusBadge } from '@/components/Receipts';
 import { formatReceiptAmount, formatReceiptDate } from '@/lib/presentation/receipts';
 import { labelClient } from '@/lib/presentation/labels';
-import type { Building, Receipt, Unit } from '@/lib/types';
+import type { Building, Receipt, ReceiptPaymentProofView, Unit } from '@/lib/types';
 
 type ReceiptBuildingLookup = {
   id: string;
@@ -33,6 +50,7 @@ type AdminReceiptDetailViewProps = {
   building: Building | null;
   unit: Unit | null;
   actions: ReactNode;
+  paymentProofPanel?: ReactNode;
   onDelete?: (receipt: Receipt) => void | Promise<void>;
   isDeleting?: boolean;
 };
@@ -44,6 +62,9 @@ type ResidentReceiptsOverviewProps = {
 
 type ResidentReceiptsListProps = {
   receipts: Receipt[];
+  proofsByReceiptId?: Record<string, ReceiptPaymentProofView[]>;
+  buildingById?: Map<string, ReceiptBuildingLookup>;
+  unitById?: Map<string, ReceiptUnitLookup>;
   onView: (receiptId: string) => void;
 };
 
@@ -96,6 +117,36 @@ type ResidentReceiptDetailViewProps = {
   building: Building | null;
   unit: Unit | null;
   actions: ReactNode;
+  paymentProofPanel?: ReactNode;
+};
+
+type ResidentPaymentProofPanelProps = {
+  receipt: Receipt;
+  proofs: ReceiptPaymentProofView[];
+  selectedFile: File | null;
+  note: string;
+  isSubmitting: boolean;
+  error?: string | null;
+  message?: string | null;
+  onFileChange: (file: File | null) => void;
+  onNoteChange: (note: string) => void;
+  onUpload: () => void | Promise<void>;
+  onOpenProof?: (proof: ReceiptPaymentProofView) => void;
+};
+
+type AdminPaymentProofsPanelProps = {
+  proofs: ReceiptPaymentProofView[];
+  pendingActionId?: string | null;
+  reviewComments: Record<string, string>;
+  title?: string;
+  emptyDescription?: string;
+  receiptsById?: Map<string, Receipt>;
+  buildingById?: Map<string, ReceiptBuildingLookup>;
+  unitById?: Map<string, ReceiptUnitLookup>;
+  onOpenProof: (proof: ReceiptPaymentProofView) => void;
+  onReviewCommentChange: (proofId: string, comment: string) => void;
+  onApprove: (proofId: string) => void | Promise<void>;
+  onReject: (proofId: string) => void | Promise<void>;
 };
 
 function receiptActionKey(receiptId: string, action: 'PAID' | 'CANCELLED') {
@@ -322,7 +373,7 @@ export function ReceiptComposerDialog({
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripcion</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripcion (opcional)</label>
             <input
               value={description}
               onChange={(event) => onDescriptionChange(event.target.value)}
@@ -365,8 +416,6 @@ export function AdminReceiptHeaderActions({
   onEdit,
   onPrint,
   onDownload,
-  onSend,
-  isSending,
 }: AdminReceiptHeaderActionsProps) {
   return (
     <>
@@ -395,20 +444,19 @@ export function AdminReceiptHeaderActions({
         onClick={() => onDownload?.(receipt)}
         disabled={!onDownload}
         aria-disabled={!onDownload}
-        title={onDownload ? 'Descargar recibo' : 'No disponible'}
+        title={onDownload ? 'Descargar resumen (TXT)' : 'No disponible'}
         className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm ${onDownload ? 'text-slate-600 hover:text-primary' : 'text-slate-400 cursor-not-allowed opacity-70'}`}
       >
         <Download className="w-4 h-4 group-hover:text-primary transition-colors" />
       </button>
       <button
         type="button"
-        onClick={() => void onSend?.(receipt)}
-        disabled={!onSend || Boolean(isSending)}
-        aria-disabled={!onSend || Boolean(isSending)}
-        title={onSend ? 'Enviar recibo' : 'No disponible'}
-        className={`flex items-center px-4 py-2.5 rounded-xl font-bold text-sm ${onSend ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-slate-100 text-slate-500 cursor-not-allowed'} ${isSending ? 'opacity-70' : ''}`}
+        disabled
+        aria-disabled
+        title="Próximamente: envío por canales oficiales."
+        className="flex items-center px-4 py-2.5 rounded-xl bg-slate-100 text-slate-500 cursor-not-allowed font-bold text-sm"
       >
-        <Send className="w-4 h-4 mr-2" /> {isSending ? 'Enviando...' : 'Enviar'}
+        <Send className="w-4 h-4 mr-2" /> Enviar (próximamente)
       </button>
       <PendingReceiptActions
         receipt={receipt}
@@ -420,7 +468,15 @@ export function AdminReceiptHeaderActions({
   );
 }
 
-export function AdminReceiptDetailView({ receipt, building, unit, actions, onDelete, isDeleting = false }: AdminReceiptDetailViewProps) {
+export function AdminReceiptDetailView({
+  receipt,
+  building,
+  unit,
+  actions,
+  paymentProofPanel,
+  onDelete,
+  isDeleting = false,
+}: AdminReceiptDetailViewProps) {
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
       <div className="bg-white border-b border-slate-200">
@@ -509,6 +565,7 @@ export function AdminReceiptDetailView({ receipt, building, unit, actions, onDel
                 </div>
               </div>
             </div>
+            {paymentProofPanel}
           </div>
 
           <div className="space-y-6">
@@ -575,22 +632,292 @@ export function ResidentReceiptsOverview({
   );
 }
 
-export function ResidentReceiptsList({ receipts, onView }: ResidentReceiptsListProps) {
+export function ResidentReceiptsList({
+  receipts,
+  proofsByReceiptId = {},
+  buildingById = new Map(),
+  unitById = new Map(),
+  onView,
+}: ResidentReceiptsListProps) {
   return (
     <div className="grid grid-cols-1 gap-4 max-w-4xl">
-      {receipts.map((receipt) => (
-        <ReceiptRow
-          key={receipt.id}
-          number={receipt.number}
-          date={receipt.issueDate}
-          amount={receipt.amount}
-          currency={receipt.currency}
-          status={receipt.status}
-          description={receipt.description}
-          onView={() => onView(receipt.id)}
-        />
-      ))}
+      {receipts.map((receipt) => {
+        const proof = latestPaymentProof(proofsByReceiptId[receipt.id] ?? []);
+        const buildingName = buildingById.get(receipt.buildingId)?.name ?? receipt.buildingId;
+        const unitNumber = unitById.get(receipt.unitId)?.number ?? receipt.unitId;
+        const dueDateLabel = formatReceiptDate(receipt.dueDate);
+
+        const meta = (
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap gap-1.5">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-600">
+                {buildingName}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-600">
+                Unidad {unitNumber}
+              </span>
+              <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Vence {dueDateLabel}
+              </span>
+            </div>
+            {proof ? <PaymentProofStatusPill status={proof.status} /> : null}
+          </div>
+        );
+
+        return (
+          <ReceiptRow
+            key={receipt.id}
+            number={receipt.number}
+            date={receipt.issueDate}
+            amount={receipt.amount}
+            currency={receipt.currency}
+            status={receipt.status}
+            description={receipt.description}
+            meta={meta}
+            onView={() => onView(receipt.id)}
+          />
+        );
+      })}
     </div>
+  );
+}
+
+function paymentProofStatusLabel(status: ReceiptPaymentProofView['status']) {
+  if (status === 'PENDING_REVIEW') return 'Pendiente de revisión';
+  if (status === 'APPROVED') return 'Aprobado';
+  return 'Rechazado';
+}
+
+function paymentProofStatusClasses(status: ReceiptPaymentProofView['status']) {
+  if (status === 'PENDING_REVIEW') return 'bg-amber-50 text-amber-700 border-amber-100';
+  if (status === 'APPROVED') return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+  return 'bg-rose-50 text-rose-700 border-rose-100';
+}
+
+function latestPaymentProof(proofs: ReceiptPaymentProofView[]) {
+  return [...proofs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
+}
+
+function PaymentProofStatusPill({ status }: { status: ReceiptPaymentProofView['status'] }) {
+  return (
+    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${paymentProofStatusClasses(status)}`}>
+      {status === 'PENDING_REVIEW' ? <Clock className="mr-1.5 h-3 w-3" /> : null}
+      {status === 'APPROVED' ? <CheckCircle2 className="mr-1.5 h-3 w-3" /> : null}
+      {status === 'REJECTED' ? <XCircle className="mr-1.5 h-3 w-3" /> : null}
+      {paymentProofStatusLabel(status)}
+    </span>
+  );
+}
+
+function PaymentProofSummary({ proof, onOpenProof }: { proof: ReceiptPaymentProofView; onOpenProof?: (proof: ReceiptPaymentProofView) => void }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <PaymentProofStatusPill status={proof.status} />
+          <div className="mt-3 flex items-center gap-2 text-sm font-bold text-slate-800">
+            <FileText className="h-4 w-4 text-primary" />
+            <span className="truncate">{proof.fileName}</span>
+          </div>
+          {proof.note ? <p className="mt-2 text-xs font-medium text-slate-500">{proof.note}</p> : null}
+          {proof.reviewComment ? (
+            <p className="mt-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-600">Comentario: {proof.reviewComment}</p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenProof?.(proof)}
+          disabled={!onOpenProof}
+          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver archivo
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function ResidentPaymentProofPanel({
+  receipt,
+  proofs,
+  selectedFile,
+  note,
+  isSubmitting,
+  error,
+  message,
+  onFileChange,
+  onNoteChange,
+  onUpload,
+  onOpenProof,
+}: ResidentPaymentProofPanelProps) {
+  const activeProof = proofs.find((proof) => proof.status === 'PENDING_REVIEW' || proof.status === 'APPROVED') ?? null;
+  const latestProof = latestPaymentProof(proofs);
+  const canUpload = receipt.status === 'PENDING' && !activeProof;
+
+  return (
+    <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-lg font-black text-slate-900">Comprobante de pago</p>
+          <p className="mt-1 text-sm font-medium text-slate-500">Sube el archivo luego de pagar por transferencia o canal externo.</p>
+        </div>
+        {latestProof ? <PaymentProofStatusPill status={latestProof.status} /> : null}
+      </div>
+
+      <div className="mt-5 space-y-4">
+        {latestProof ? <PaymentProofSummary proof={latestProof} onOpenProof={onOpenProof} /> : null}
+
+        {activeProof?.status === 'PENDING_REVIEW' ? (
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
+            Ya existe un comprobante pendiente de revisión. La administración debe aprobarlo o rechazarlo.
+          </div>
+        ) : null}
+
+        {canUpload ? (
+          <div className="space-y-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
+            <div>
+              <label htmlFor="payment-proof-file" className="mb-2 block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                Archivo del comprobante
+              </label>
+              <input
+                id="payment-proof-file"
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 file:mr-4 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-black file:text-primary"
+              />
+              {selectedFile ? <p className="mt-2 text-xs font-bold text-slate-500">Seleccionado: {selectedFile.name}</p> : null}
+            </div>
+            <textarea
+              value={note}
+              onChange={(event) => onNoteChange(event.target.value)}
+              rows={3}
+              placeholder="Nota opcional: banco, operación o referencia"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/5"
+            />
+            <button
+              type="button"
+              onClick={() => void onUpload()}
+              disabled={isSubmitting}
+              className="inline-flex items-center rounded-xl bg-primary px-5 py-3 text-sm font-black text-white shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-60"
+            >
+              <Upload className="mr-2 h-4 w-4" /> {isSubmitting ? 'Subiendo...' : 'Subir comprobante'}
+            </button>
+          </div>
+        ) : null}
+
+        {!canUpload && !activeProof && receipt.status !== 'PENDING' ? (
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600">
+            Este recibo no admite nuevos comprobantes porque su estado actual es {receipt.status}.
+          </div>
+        ) : null}
+
+        {message ? <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{message}</div> : null}
+        {error ? <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div> : null}
+      </div>
+    </section>
+  );
+}
+
+export function AdminPaymentProofsPanel({
+  proofs,
+  pendingActionId,
+  reviewComments,
+  title = 'Comprobantes de pago',
+  emptyDescription = 'No hay comprobantes registrados para revisar.',
+  receiptsById,
+  buildingById,
+  unitById,
+  onOpenProof,
+  onReviewCommentChange,
+  onApprove,
+  onReject,
+}: AdminPaymentProofsPanelProps) {
+  return (
+    <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+      <div className="flex flex-col gap-1">
+        <p className="text-lg font-black text-slate-900">{title}</p>
+        <p className="text-sm font-medium text-slate-500">Revisa archivos subidos por residentes antes de marcar un recibo como pagado.</p>
+      </div>
+
+      <div className="mt-5 space-y-4">
+        {proofs.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center text-sm font-bold text-slate-500">
+            {emptyDescription}
+          </div>
+        ) : null}
+
+        {proofs.map((proof) => {
+          const isPending = proof.status === 'PENDING_REVIEW';
+          const approveId = `${proof.id}:APPROVE`;
+          const rejectId = `${proof.id}:REJECT`;
+          const receipt = receiptsById?.get(proof.receiptId);
+          const receiptLabel = receipt?.number ?? proof.receiptId;
+          const isFallbackReceiptLabel = !receipt?.number;
+          const buildingId = receipt?.buildingId ?? proof.buildingId;
+          const unitId = receipt?.unitId ?? proof.unitId;
+          const buildingName = buildingById?.get(buildingId)?.name ?? buildingId;
+          const unitNumber = unitById?.get(unitId)?.number ?? unitId;
+
+          return (
+            <div key={proof.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <PaymentProofStatusPill status={proof.status} />
+                  <p className="mt-3 text-sm font-black text-slate-900">{proof.fileName}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">
+                    Recibo: {isFallbackReceiptLabel ? `ID técnico ${receiptLabel}` : receiptLabel}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    {buildingName} · Unidad {unitNumber}
+                  </p>
+                  {proof.note ? <p className="mt-2 text-xs font-medium text-slate-500">{proof.note}</p> : null}
+                  {proof.reviewComment ? <p className="mt-2 text-xs font-bold text-slate-500">Comentario: {proof.reviewComment}</p> : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onOpenProof(proof)}
+                    className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                  >
+                    <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver archivo
+                  </button>
+                  {isPending ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void onApprove(proof.id)}
+                        disabled={Boolean(pendingActionId)}
+                        className="inline-flex items-center rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                      >
+                        <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> {pendingActionId === approveId ? 'Aprobando...' : 'Aprobar'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onReject(proof.id)}
+                        disabled={Boolean(pendingActionId)}
+                        className="inline-flex items-center rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                      >
+                        <XCircle className="mr-2 h-3.5 w-3.5" /> {pendingActionId === rejectId ? 'Rechazando...' : 'Rechazar'}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              {isPending ? (
+                <textarea
+                  value={reviewComments[proof.id] ?? ''}
+                  onChange={(event) => onReviewCommentChange(proof.id, event.target.value)}
+                  rows={2}
+                  placeholder="Comentario opcional para la revisión"
+                  className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/5"
+                />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -608,12 +935,12 @@ export function ResidentReceiptHeaderActions({
         onClick={() => onDownload?.(receipt)}
         disabled={!onDownload}
         aria-disabled={!onDownload}
-        title={onDownload ? 'Descargar recibo' : 'No disponible'}
+        title={onDownload ? 'Descargar resumen (TXT)' : 'No disponible'}
         className={`flex items-center px-4 py-2.5 rounded-xl font-bold text-sm ${onDownload ? 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50' : 'bg-slate-100 text-slate-500 cursor-not-allowed'}`}
       >
-        <Download className="w-4 h-4 mr-2" /> Descargar
+        <Download className="w-4 h-4 mr-2" /> Descargar resumen (TXT)
       </button>
-      {receiptStatus !== 'PAID' ? (
+      {receiptStatus !== 'PAID' && onPay ? (
         <button
           type="button"
           onClick={() => void onPay?.(receipt)}
@@ -634,6 +961,7 @@ export function ResidentReceiptDetailView({
   building,
   unit,
   actions,
+  paymentProofPanel,
 }: ResidentReceiptDetailViewProps) {
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
@@ -729,6 +1057,8 @@ export function ResidentReceiptDetailView({
               </div>
             </div>
           </div>
+
+          {paymentProofPanel}
 
           <div className="flex items-center justify-center p-6 bg-primary/5 rounded-3xl border border-primary/10">
             <p className="text-xs text-slate-600 font-medium">

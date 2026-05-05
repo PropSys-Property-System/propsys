@@ -6,7 +6,8 @@ import {
 } from '@/lib/repos/finance/receipts.repo';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { unitsRepo } from '@/lib/repos/physical/units.repo';
-import type { Building, Receipt, Unit, User } from '@/lib/types';
+import { fetchJsonOrThrow } from '@/lib/repos/http';
+import type { Building, Receipt, ReceiptPaymentProofReviewAction, ReceiptPaymentProofView, Unit, User } from '@/lib/types';
 
 export type ReceiptBuildingOption = {
   id: string;
@@ -28,6 +29,8 @@ export type AdminReceiptsPageData = {
 
 export type ResidentReceiptsPageData = {
   receipts: Receipt[];
+  buildings: ReceiptBuildingOption[];
+  units: ReceiptUnitOption[];
 };
 
 export type ReceiptDetailData = {
@@ -35,6 +38,33 @@ export type ReceiptDetailData = {
   building: Building | null;
   unit: Unit | null;
 };
+
+export type UploadReceiptPaymentProofInput = {
+  receiptId: string;
+  file: File;
+  note?: string;
+};
+
+export type ReviewReceiptPaymentProofInput = {
+  proofId: string;
+  action: ReceiptPaymentProofReviewAction;
+  reviewComment?: string;
+};
+
+export type ReceiptPaymentProofReviewResult = {
+  proof: ReceiptPaymentProofView;
+  receipt: Pick<Receipt, 'id' | 'status'> & Partial<Receipt>;
+};
+
+function maybeReceiptNumber(value: string) {
+  return /^REC-/i.test(value);
+}
+
+async function resolveReceiptId(user: User, receiptIdentifier: string) {
+  if (!maybeReceiptNumber(receiptIdentifier)) return receiptIdentifier;
+  const receipts = await receiptsRepo.listForUser(user);
+  return receipts.find((receipt) => receipt.number === receiptIdentifier)?.id ?? receiptIdentifier;
+}
 
 export async function loadAdminReceiptsPageData(user: User): Promise<AdminReceiptsPageData> {
   const [receipts, buildings, units] = await Promise.all([
@@ -51,13 +81,22 @@ export async function loadAdminReceiptsPageData(user: User): Promise<AdminReceip
 }
 
 export async function loadResidentReceiptsPageData(user: User): Promise<ResidentReceiptsPageData> {
+  const [receipts, buildings, units] = await Promise.all([
+    receiptsRepo.listForUser(user),
+    buildingsRepo.listForUser(user),
+    unitsRepo.listForUser(user),
+  ]);
+
   return {
-    receipts: await receiptsRepo.listForUser(user),
+    receipts,
+    buildings: buildings.map((building) => ({ id: building.id, name: building.name, clientId: building.clientId })),
+    units: units.map((unit) => ({ id: unit.id, buildingId: unit.buildingId, number: unit.number })),
   };
 }
 
 async function loadReceiptDetailData(user: User, receiptId: string): Promise<ReceiptDetailData> {
-  const receipt = await receiptsRepo.getByIdForUser(user, receiptId);
+  const resolvedReceiptId = await resolveReceiptId(user, receiptId);
+  const receipt = await receiptsRepo.getByIdForUser(user, resolvedReceiptId);
   if (!receipt) {
     return {
       receipt: null,
@@ -95,10 +134,62 @@ export async function editAdminReceipt(user: User, input: EditReceiptInput): Pro
   return receiptsRepo.editForUser(user, input);
 }
 
-export async function reportResidentReceiptPayment(user: User, receiptId: string): Promise<Receipt> {
-  return receiptsRepo.reportPaymentForUser(user, receiptId);
-}
-
 export async function removeAdminReceipt(user: User, receiptId: string): Promise<void> {
   return receiptsRepo.removeForUser(user, receiptId);
+}
+
+export async function listReceiptPaymentProofsForReceipt(_user: User, receiptId: string): Promise<ReceiptPaymentProofView[]> {
+  const data = await fetchJsonOrThrow<{ proofs: ReceiptPaymentProofView[] }>(
+    `/api/v1/finance/receipts/${encodeURIComponent(receiptId)}/payment-proofs`,
+    { credentials: 'include' }
+  );
+  return data.proofs;
+}
+
+export async function listAdminReceiptPaymentProofs(
+  _user: User,
+  status: ReceiptPaymentProofView['status'] = 'PENDING_REVIEW'
+): Promise<ReceiptPaymentProofView[]> {
+  const data = await fetchJsonOrThrow<{ proofs: ReceiptPaymentProofView[] }>(
+    `/api/v1/finance/payment-proofs?status=${encodeURIComponent(status)}`,
+    { credentials: 'include' }
+  );
+  return data.proofs;
+}
+
+export async function uploadReceiptPaymentProof(_user: User, input: UploadReceiptPaymentProofInput): Promise<ReceiptPaymentProofView> {
+  const resolvedReceiptId = await resolveReceiptId(_user, input.receiptId);
+  const formData = new FormData();
+  formData.set('file', input.file);
+  if (input.note?.trim()) {
+    formData.set('note', input.note.trim());
+  }
+
+  const data = await fetchJsonOrThrow<{ proof: ReceiptPaymentProofView }>(
+    `/api/v1/finance/receipts/${encodeURIComponent(resolvedReceiptId)}/payment-proofs`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    }
+  );
+  return data.proof;
+}
+
+export async function reviewReceiptPaymentProof(
+  _user: User,
+  input: ReviewReceiptPaymentProofInput
+): Promise<ReceiptPaymentProofReviewResult> {
+  return fetchJsonOrThrow<ReceiptPaymentProofReviewResult>(
+    `/api/v1/finance/payment-proofs/${encodeURIComponent(input.proofId)}`,
+    {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: input.action,
+        reviewComment: input.reviewComment?.trim() || undefined,
+      }),
+    }
+  );
 }

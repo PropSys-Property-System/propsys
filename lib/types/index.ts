@@ -43,6 +43,7 @@ export interface Receipt {
 }
 
 export type ReceiptPaymentProofStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+export type ReceiptPaymentProofReviewAction = 'APPROVE' | 'REJECT';
 
 export interface ReceiptPaymentProof {
   id: string;
@@ -63,6 +64,10 @@ export interface ReceiptPaymentProof {
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReceiptPaymentProofView extends Omit<ReceiptPaymentProof, 'storagePath'> {
+  fileUrl: string;
 }
 
 export interface Building {
