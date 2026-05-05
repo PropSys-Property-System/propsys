@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, UserPlus } from 'lucide-react';
+import { Send, Search, UserPlus } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -11,6 +11,7 @@ import {
   updateAdminUserProfile,
   updateAdminUserStatus,
 } from '@/lib/features/users/users-center.data';
+import { InvitationCreationDialog } from '@/lib/features/users/invitations.ui';
 import { UserCard, buildBuildingNameMap, buildUnitLabelMap } from '@/lib/features/users/users-center.ui';
 import { labelUserRole } from '@/lib/presentation/labels';
 import type { Building, Unit, User } from '@/lib/types';
@@ -51,6 +52,7 @@ export default function UsersPage() {
   const [formState, setFormState] = useState<UserFormState>(INITIAL_FORM);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [tempPasswordNotice, setTempPasswordNotice] = useState<string | null>(null);
+  const [isInvitationOpen, setIsInvitationOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -214,14 +216,26 @@ export default function UsersPage() {
     });
   }, [allUsers, buildingNameById, searchTerm, unitLabelById]);
 
+  const canInviteUsers = user?.internalRole === 'ROOT_ADMIN' || user?.internalRole === 'CLIENT_MANAGER';
   const actions = (
-    <button
-      type="button"
-      onClick={handleOpenCreateForm}
-      className="flex items-center px-4 py-2 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/90 transition"
-    >
-      <UserPlus className="w-4 h-4 mr-2" /> Nuevo Usuario
-    </button>
+    <div className="flex flex-wrap items-center gap-2">
+      {canInviteUsers ? (
+        <button
+          type="button"
+          onClick={() => setIsInvitationOpen(true)}
+          className="flex items-center px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition"
+        >
+          <Send className="w-4 h-4 mr-2" /> Invitar usuario
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={handleOpenCreateForm}
+        className="flex items-center px-4 py-2 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/90 transition"
+      >
+        <UserPlus className="w-4 h-4 mr-2" /> Nuevo Usuario
+      </button>
+    </div>
   );
 
   return (
@@ -403,6 +417,23 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      {canInviteUsers ? (
+        <InvitationCreationDialog
+          isOpen={isInvitationOpen}
+          title="Invitar usuario"
+          description="Crea una invitacion para que el usuario defina su contrasena."
+          roleOptions={['BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT']}
+          buildings={buildings}
+          units={units}
+          onClose={() => setIsInvitationOpen(false)}
+          onInvitationCreated={(result) => {
+            const invitedUser = result.user;
+            if (!invitedUser) return;
+            setAllUsers((current) => [invitedUser, ...current.filter((item) => item.id !== invitedUser.id)]);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

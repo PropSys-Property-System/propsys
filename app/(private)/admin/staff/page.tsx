@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Send } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import { createStaffForBuilding, listStaffForBuilding, loadAdminStaffPageData } from '@/lib/features/physical/physical-center.data';
+import { InvitationCreationDialog } from '@/lib/features/users/invitations.ui';
 import { BuildingScopeToolbar, StaffCard, buildingToolbarIcon } from '@/lib/features/physical/physical-center.ui';
 import type { Building, StaffMember } from '@/lib/types';
 
@@ -24,6 +25,7 @@ export default function AdminStaffPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [createdStaff, setCreatedStaff] = useState<{ staff: StaffMember; tempPassword?: string } | null>(null);
+  const [isInvitationOpen, setIsInvitationOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -98,25 +100,39 @@ export default function AdminStaffPage() {
     Boolean(selectedBuildingId);
 
   const actions = (
-    <button
-      type="button"
-      disabled={!canCreateStaff}
-      onClick={() => {
-        setCreateError(null);
-        setCreateName('');
-        setCreateEmail('');
-        setCreatePassword('');
-        setCreatedStaff(null);
-        setIsCreateOpen(true);
-      }}
-      className={`flex items-center px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-        canCreateStaff
-          ? 'bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90'
-          : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-      }`}
-    >
-      <Plus className="w-4 h-4 mr-2" /> Nuevo Staff
-    </button>
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        disabled={!canCreateStaff}
+        onClick={() => setIsInvitationOpen(true)}
+        className={`flex items-center px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+          canCreateStaff
+            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700'
+            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+        }`}
+      >
+        <Send className="w-4 h-4 mr-2" /> Invitar staff
+      </button>
+      <button
+        type="button"
+        disabled={!canCreateStaff}
+        onClick={() => {
+          setCreateError(null);
+          setCreateName('');
+          setCreateEmail('');
+          setCreatePassword('');
+          setCreatedStaff(null);
+          setIsCreateOpen(true);
+        }}
+        className={`flex items-center px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+          canCreateStaff
+            ? 'bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90'
+            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+        }`}
+      >
+        <Plus className="w-4 h-4 mr-2" /> Nuevo Staff
+      </button>
+    </div>
   );
 
   return (
@@ -334,6 +350,32 @@ export default function AdminStaffPage() {
           </div>
         </div>
       )}
+
+      <InvitationCreationDialog
+        isOpen={isInvitationOpen}
+        title="Invitar staff"
+        description="Invita a un miembro del staff para que defina su contrasena."
+        roleOptions={['STAFF']}
+        buildings={buildings}
+        units={[]}
+        defaultRole="STAFF"
+        defaultBuildingId={selectedBuildingId}
+        onClose={() => setIsInvitationOpen(false)}
+        onInvitationCreated={(result) => {
+          const invitedUser = result.user;
+          if (!invitedUser) return;
+          setStaff((current) => [
+            {
+              id: invitedUser.id,
+              buildingId: invitedUser.buildingId ?? selectedBuildingId,
+              name: invitedUser.name,
+              role: 'Personal',
+              status: invitedUser.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE',
+            },
+            ...current.filter((item) => item.id !== invitedUser.id),
+          ]);
+        }}
+      />
     </div>
   );
 }
