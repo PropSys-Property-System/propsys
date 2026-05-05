@@ -105,7 +105,7 @@ describe('users API', () => {
     sessionUser.scope = 'platform';
   });
 
-  it('creates staff user with building assignment and generated password', async () => {
+  it('blocks direct user creation in favor of invitations without returning a temp password', async () => {
     sessionUser.id = 'u_mgr';
     sessionUser.clientId = 'client_001';
     sessionUser.internalRole = 'CLIENT_MANAGER';
@@ -114,13 +114,9 @@ describe('users API', () => {
     query.mockResolvedValueOnce({
       rows: [{ id: 'b1', client_id: 'client_001' }],
     });
-
-    let userInsertParams: unknown[] | null = null;
-    let assignmentInsertParams: unknown[] | null = null;
-    clientQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
+    clientQuery.mockImplementation(async (sql: string) => {
       if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
       if (sql.includes('INSERT INTO users')) {
-        userInsertParams = params ?? null;
         return {
           rows: [
             {
@@ -135,11 +131,6 @@ describe('users API', () => {
           ],
         };
       }
-      if (sql.includes('INSERT INTO user_building_assignments')) {
-        assignmentInsertParams = params ?? null;
-        return { rows: [] };
-      }
-      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
       return { rows: [] };
     });
 
@@ -154,14 +145,12 @@ describe('users API', () => {
       }),
     });
     const res = await createUser(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(410);
     expect(res.headers.get('Cache-Control')).toBe('no-store');
-    const data = (await res.json()) as { user: { role: string; buildingId?: string }; tempPassword?: string };
-    expect(data.user.role).toBe('STAFF');
-    expect(data.user.buildingId).toBe('b1');
-    expect(data.tempPassword).toBeDefined();
-    expect(argon2.hash).toHaveBeenCalledWith(data.tempPassword, { type: argon2.argon2id });
-    expect(userInsertParams?.[1]).toBe('client_001');
-    expect(assignmentInsertParams?.[3]).toBe('b1');
+    const data = (await res.json()) as { error: string; tempPassword?: string };
+    expect(data.error).toBe('La creacion directa de usuarios fue reemplazada por invitaciones. Usa /api/v1/users/invitations.');
+    expect(data.tempPassword).toBeUndefined();
+    expect(connect).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
   });
 });
