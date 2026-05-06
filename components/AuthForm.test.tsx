@@ -1,55 +1,78 @@
-﻿import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+﻿import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthForm } from './AuthForm';
 
 const loginMock = vi.fn(async () => undefined);
-const TEST_PASSWORD_INPUT = 'test-password-input';
+const TEST_PASSWORD_INPUT = 'StrongPassword#2026';
 
 vi.mock('@/lib/auth/auth-context', () => ({
-  useAuth: () => ({ login: loginMock, isLoading: false }),
+  useAuth: () => ({
+    login: loginMock,
+    isLoading: false,
+  }),
 }));
 
-vi.mock('lucide-react', () => ({
-  Mail: () => <div />,
-  Loader2: () => <div />,
-  ArrowRight: () => <div />,
-  ShieldCheck: () => <div />,
-}));
-
-describe('AuthForm (QA demo accounts)', () => {
-  it('renders email and password fields', async () => {
-    render(<AuthForm />);
-    expect(screen.getByPlaceholderText('Correo electrónico')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Contraseña')).toBeInTheDocument();
+describe('AuthForm', () => {
+  beforeEach(() => {
+    loginMock.mockReset();
+    loginMock.mockResolvedValue(undefined);
   });
 
-  it('submits email/password and calls login', async () => {
+  it('renderiza campos de email y contrasena', () => {
     render(<AuthForm />);
 
-    const email = screen.getByPlaceholderText('Correo electrónico') as HTMLInputElement;
-    const password = screen.getByPlaceholderText('Contraseña') as HTMLInputElement;
+    expect(screen.getByPlaceholderText(/correo electr/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/contrase/i)).toBeInTheDocument();
+  });
+
+  it('permite escribir email y contrasena', () => {
+    render(<AuthForm />);
+
+    const email = screen.getByPlaceholderText(/correo electr/i) as HTMLInputElement;
+    const password = screen.getByPlaceholderText(/contrase/i) as HTMLInputElement;
+
     fireEvent.change(email, { target: { value: 'manager@propsys.com' } });
     fireEvent.change(password, { target: { value: TEST_PASSWORD_INPUT } });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Entrar ahora' }));
-    expect(loginMock).toHaveBeenCalledWith('manager@propsys.com', TEST_PASSWORD_INPUT);
+    expect(email).toHaveValue('manager@propsys.com');
+    expect(password).toHaveValue(TEST_PASSWORD_INPUT);
   });
 
-  it('shows backend error messages when login fails', async () => {
-    loginMock.mockRejectedValueOnce(new Error('Usuario inactivo'));
+  it('envia email y contrasena al flujo de login', async () => {
     render(<AuthForm />);
 
-    fireEvent.change(screen.getByPlaceholderText('Correo electrónico'), {
-      target: { value: 'inactive@propsys.com' },
+    fireEvent.change(screen.getByPlaceholderText(/correo electr/i), {
+      target: { value: 'manager@propsys.com' },
     });
-    fireEvent.change(screen.getByPlaceholderText('Contraseña'), {
+    fireEvent.change(screen.getByPlaceholderText(/contrase/i), {
       target: { value: TEST_PASSWORD_INPUT },
     });
+    fireEvent.click(screen.getByRole('button', { name: /entrar ahora/i }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Entrar ahora' }));
+    await waitFor(() => {
+      expect(loginMock).toHaveBeenCalledWith('manager@propsys.com', TEST_PASSWORD_INPUT);
+    });
+  });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Usuario inactivo');
+  it('muestra error de login si las credenciales fallan', async () => {
+    loginMock.mockRejectedValueOnce(new Error('Credenciales invalidas'));
+    render(<AuthForm />);
+
+    fireEvent.change(screen.getByPlaceholderText(/correo electr/i), {
+      target: { value: 'manager@propsys.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/contrase/i), {
+      target: { value: 'wrong-password' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /entrar ahora/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Credenciales invalidas');
+  });
+
+  it('muestra enlace para recuperar contrasena', () => {
+    render(<AuthForm />);
+
+    const link = screen.getByRole('link', { name: /olvid/i });
+    expect(link).toHaveAttribute('href', '/password-reset/request');
   });
 });
-

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { Mail, Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
 
 export function AuthForm() {
   const { login, isLoading } = useAuth();
@@ -83,6 +84,9 @@ export function AuthForm() {
       </form>
       
       <div className="mt-10 text-center border-t border-slate-100 pt-8 flex flex-col space-y-3">
+        <Link href="/password-reset/request" className="text-xs font-black text-primary hover:text-primary/80 uppercase tracking-widest">
+          Olvidé mi contraseña
+        </Link>
         <span className="text-xs font-bold text-slate-400">
           Si no tienes acceso, solicita credenciales a administracion.
         </span>

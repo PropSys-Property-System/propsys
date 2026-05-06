@@ -1,39 +1,16 @@
-'use client';
+import { PasswordResetConfirmView, PasswordResetRequestView } from '@/lib/features/auth/password-reset.ui';
 
-import React, { useState } from 'react';
-import {
-  ResetPasswordRequestView,
-  ResetPasswordShell,
-  ResetPasswordSuccessView,
-} from '@/lib/features/auth/reset-password.ui';
+type LegacyResetPasswordPageProps = {
+  searchParams?: Promise<{
+    token?: string | string[];
+  }>;
+};
 
-export default function ResetPasswordPage() {
-  const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSent, setIsSent] = useState(false);
+export default async function LegacyResetPasswordPage({ searchParams }: LegacyResetPasswordPageProps) {
+  const params = await searchParams;
+  const tokenParam = params?.token;
+  const token = Array.isArray(tokenParam) ? tokenParam[0] ?? '' : tokenParam ?? '';
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!email) return;
-
-    setIsLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsLoading(false);
-    setIsSent(true);
-  };
-
-  return (
-    <ResetPasswordShell>
-      {isSent ? (
-        <ResetPasswordSuccessView email={email} />
-      ) : (
-        <ResetPasswordRequestView
-          email={email}
-          isLoading={isLoading}
-          onEmailChange={setEmail}
-          onSubmit={handleSubmit}
-        />
-      )}
-    </ResetPasswordShell>
-  );
+  if (token) return <PasswordResetConfirmView token={token} />;
+  return <PasswordResetRequestView />;
 }
