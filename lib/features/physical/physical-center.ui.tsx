@@ -48,9 +48,7 @@ type BuildingUnitsDialogProps = {
   canCreate: boolean;
   assigningUnit: Unit | null;
   assignmentType: UnitAssignmentType | null;
-  assignmentName: string;
   assignmentEmail: string;
-  assignmentPassword: string;
   assignmentMessage: string | null;
   isAssigning: boolean;
   isUnassigningResident: boolean;
@@ -60,10 +58,9 @@ type BuildingUnitsDialogProps = {
   onSubmit: () => void | Promise<void>;
   onStartAssignment: (unit: Unit, assignmentType: UnitAssignmentType) => void | Promise<void>;
   onCancelAssignment: () => void;
-  onAssignmentNameChange: (value: string) => void;
   onAssignmentEmailChange: (value: string) => void;
-  onAssignmentPasswordChange: (value: string) => void;
   onAssignUser: () => void | Promise<void>;
+  onInviteUser: (unit: Unit, assignmentType: UnitAssignmentType) => void | Promise<void>;
   onAssignOwnerAsResident: (unit: Unit) => void | Promise<void>;
   onUnassignResident: (unit: Unit) => void | Promise<void>;
 };
@@ -171,9 +168,7 @@ export function BuildingUnitsDialog({
   canCreate,
   assigningUnit,
   assignmentType,
-  assignmentName,
   assignmentEmail,
-  assignmentPassword,
   assignmentMessage,
   isAssigning,
   isUnassigningResident,
@@ -183,10 +178,9 @@ export function BuildingUnitsDialog({
   onSubmit,
   onStartAssignment,
   onCancelAssignment,
-  onAssignmentNameChange,
   onAssignmentEmailChange,
-  onAssignmentPasswordChange,
   onAssignUser,
+  onInviteUser,
   onAssignOwnerAsResident,
   onUnassignResident,
 }: BuildingUnitsDialogProps) {
@@ -281,43 +275,40 @@ export function BuildingUnitsDialog({
                 </div>
                 {assigningUnit?.id === unit.id && assignmentType ? (
                   <div className="mt-4 rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Nuevo {assignmentLabel}</p>
-                    <input
-                      value={assignmentName}
-                      onChange={(event) => onAssignmentNameChange(event.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                      placeholder="Nombre completo"
-                    />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Vincular {assignmentLabel} existente
+                    </p>
                     <input
                       value={assignmentEmail}
                       onChange={(event) => onAssignmentEmailChange(event.target.value)}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                      placeholder="email@dominio.com"
+                      placeholder="Email del usuario existente"
                       type="email"
                     />
-                    <input
-                      value={assignmentPassword}
-                      onChange={(event) => onAssignmentPasswordChange(event.target.value)}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                      placeholder="Contrasena opcional; si queda vacio se genera una temporal"
-                      type="text"
-                    />
-                    <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                    <div className="flex flex-col gap-2 mt-2 sm:flex-row sm:flex-wrap sm:justify-end w-full">
                       <button
                         type="button"
                         onClick={onCancelAssignment}
                         disabled={isAssigning}
-                        className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-xs hover:bg-slate-50 transition-all disabled:opacity-70"
+                        className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-xs hover:bg-slate-50 transition-all disabled:opacity-70 sm:w-auto"
                       >
                         Cancelar
                       </button>
                       <button
                         type="button"
+                        onClick={() => void onInviteUser(unit, assignmentType)}
+                        disabled={isAssigning}
+                        className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-xs hover:bg-slate-50 transition-all disabled:opacity-70 sm:w-auto"
+                      >
+                        Invitar nuevo {assignmentLabel}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => void onAssignUser()}
                         disabled={isAssigning}
-                        className="px-4 py-2 rounded-xl bg-primary text-white font-black text-xs shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
+                        className="w-full px-4 py-2 rounded-xl bg-primary text-white font-black text-xs shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70 sm:w-auto"
                       >
-                        {isAssigning ? 'Asignando...' : `Asignar ${assignmentLabel}`}
+                        {isAssigning ? 'Vinculando...' : `Vincular ${assignmentLabel}`}
                       </button>
                     </div>
                   </div>
@@ -330,24 +321,30 @@ export function BuildingUnitsDialog({
         {canCreate ? (
           <div className="mt-6 border-t border-slate-100 pt-5">
             <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Nueva unidad</p>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3">
-              <input
-                value={number}
-                onChange={(event) => onNumberChange(event.target.value)}
-                className="px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                placeholder="Numero, ej: 101"
-              />
-              <input
-                value={floor}
-                onChange={(event) => onFloorChange(event.target.value)}
-                className="px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-                placeholder="Piso, ej: 1"
-              />
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Numero de unidad</label>
+                <input
+                  value={number}
+                  onChange={(event) => onNumberChange(event.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                  placeholder="Ej: 101"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Piso</label>
+                <input
+                  value={floor}
+                  onChange={(event) => onFloorChange(event.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+                  placeholder="Ej: 1"
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => void onSubmit()}
                 disabled={isSubmitting}
-                className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
+                className="w-full px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70 h-[46px]"
               >
                 {isSubmitting ? 'Guardando...' : 'Crear'}
               </button>

@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import argon2 from 'argon2';
 import { randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
@@ -7,10 +6,6 @@ import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
-import {
-  generateStaffPassword as generateUserPassword,
-  validateStaffPassword as validateUserPassword,
-} from '@/lib/server/auth/staff-password';
 import type { User } from '@/lib/types';
 
 type AssignmentType = 'OWNER' | 'OCCUPANT';
@@ -52,10 +47,9 @@ export async function POST(req: Request) {
   const unitId = typeof body?.unitId === 'string' ? body.unitId.trim() : '';
   const assignmentType: AssignmentType | null = body?.assignmentType === 'OWNER' || body?.assignmentType === 'OCCUPANT' ? body.assignmentType : null;
   const ownerAsResident = body?.ownerAsResident === true;
-  const name = typeof body?.name === 'string' ? body.name.trim() : '';
   const email = normalizeEmail(body?.email);
 
-  if (!unitId || !assignmentType || (!ownerAsResident && (!name || !email))) {
+  if (!unitId || !assignmentType || (!ownerAsResident && !email)) {
     return NextResponse.json({ error: 'Datos invalidos' }, { status: 400 });
   }
 
@@ -174,62 +168,22 @@ export async function POST(req: Request) {
     [email]
   );
   const existingUser = existingUserRes.rows[0];
-  if (existingUser && (existingUser.client_id !== unit.client_id || existingUser.internal_role !== internalRole)) {
-    return NextResponse.json({ error: 'Ese email ya existe con otro rol o cliente.' }, { status: 409 });
+  if (!existingUser || existingUser.client_id !== unit.client_id) {
+    return NextResponse.json({ error: 'Usuario no encontrado. Invítalo primero.' }, { status: 404 });
   }
-  if (existingUser && existingUser.status !== 'ACTIVE') {
+  if (existingUser.internal_role !== internalRole) {
+    return NextResponse.json({ error: 'El usuario existente no tiene un rol compatible para esta asignacion.' }, { status: 409 });
+  }
+  if (existingUser.status !== 'ACTIVE') {
     return NextResponse.json({ error: 'Ese usuario existe pero no esta activo; reactivarlo antes de asignarlo.' }, { status: 409 });
   }
 
-  const manualPassword = typeof body?.password === 'string' && body.password.trim() ? body.password : null;
-  if (!existingUser && manualPassword && !validateUserPassword(manualPassword)) {
-    return NextResponse.json(
-      { error: 'La contrasena debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
-      { status: 400 }
-    );
-  }
-
-  const password = manualPassword ?? generateUserPassword();
-  const userId = existingUser?.id ?? `u_${Date.now()}_${randomUUID().slice(0, 8)}`;
-  const tempPassword = existingUser ? undefined : password;
-
   try {
-    const result = await withTransaction(pool, async (db) => {
-      let assignedUser = existingUser;
-
-      if (!assignedUser) {
-        const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-        const createdUserRes = await db.query<{
-          id: string;
-          email: string;
-          name: string;
-          internal_role: string;
-          client_id: string | null;
-          scope: string;
-          status: string;
-        }>(
-          `INSERT INTO users (id, client_id, email, password_hash, name, role, internal_role, scope, status, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'client', 'ACTIVE', $8, $8)
-           RETURNING id, email, name, internal_role, client_id, scope, status`,
-          [userId, unit.client_id, email, passwordHash, name, mapInternalRoleToUIRole(internalRole), internalRole, now]
-        );
-        assignedUser = createdUserRes.rows[0];
-
-        await insertAuditLog(db, {
-          clientId: unit.client_id,
-          userId: actor.id,
-          action: 'CREATE',
-          entity: 'User',
-          entityId: assignedUser.id,
-          metadata: { internalRole, unitId },
-          newData: assignedUser,
-        });
-      }
-
+    await withTransaction(pool, async (db) => {
       await db.query(
         `INSERT INTO user_unit_assignments (id, client_id, user_id, unit_id, assignment_type, status, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, 'ACTIVE', $6, $6)`,
-        [assignmentId, unit.client_id, assignedUser.id, unitId, assignmentType, now]
+        [assignmentId, unit.client_id, existingUser.id, unitId, assignmentType, now]
       );
 
       await insertAuditLog(db, {
@@ -238,24 +192,24 @@ export async function POST(req: Request) {
         action: 'ASSIGN',
         entity: 'Unit',
         entityId: unitId,
-        metadata: { assignmentType, assignedUserId: assignedUser.id },
-        newData: { assignmentId, unitId, assignmentType, userId: assignedUser.id },
+        metadata: { assignmentType, assignedUserId: existingUser.id },
+        newData: { assignmentId, unitId, assignmentType, userId: existingUser.id },
       });
-
-      return assignedUser;
     });
 
-    const res = NextResponse.json({
-      user: toUser(result, unitId),
+    return NextResponse.json({
+      user: toUser(existingUser, unitId),
       unitId,
       assignmentType,
-      tempPassword,
     });
-    if (tempPassword) res.headers.set('Cache-Control', 'no-store');
-    return res;
   } catch (e: unknown) {
     const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code) : '';
-    if (code === '23505') return NextResponse.json({ error: 'Ese email ya existe' }, { status: 409 });
+    if (code === '23505') {
+      return NextResponse.json(
+        { error: assignmentType === 'OWNER' ? 'La unidad ya tiene propietario asignado.' : 'La unidad ya tiene inquilino asignado.' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json({ error: 'No pudimos registrar la asignacion.' }, { status: 500 });
   }
 }

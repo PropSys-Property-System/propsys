@@ -16,6 +16,7 @@ import {
   unassignUnitResident,
 } from '@/lib/features/physical/physical-center.data';
 import { BuildingCard, BuildingComposerDialog, BuildingUnitsDialog } from '@/lib/features/physical/physical-center.ui';
+import { InvitationCreationDialog } from '@/lib/features/users/invitations.ui';
 import type { Building, Unit } from '@/lib/types';
 import { labelClient } from '@/lib/presentation/labels';
 
@@ -48,12 +49,12 @@ export default function BuildingsPage() {
   const [isUnitSubmitting, setIsUnitSubmitting] = useState(false);
   const [assigningUnit, setAssigningUnit] = useState<Unit | null>(null);
   const [assignmentType, setAssignmentType] = useState<UnitAssignmentType | null>(null);
-  const [assignmentName, setAssignmentName] = useState('');
   const [assignmentEmail, setAssignmentEmail] = useState('');
-  const [assignmentPassword, setAssignmentPassword] = useState('');
   const [assignmentMessage, setAssignmentMessage] = useState<string | null>(null);
   const [isAssignmentSubmitting, setIsAssignmentSubmitting] = useState(false);
   const [isResidentUnassigning, setIsResidentUnassigning] = useState(false);
+  const [invitationUnit, setInvitationUnit] = useState<Unit | null>(null);
+  const [invitationRole, setInvitationRole] = useState<UnitAssignmentType | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -228,10 +229,10 @@ export default function BuildingsPage() {
     setUnitError(null);
     setAssigningUnit(null);
     setAssignmentType(null);
-    setAssignmentName('');
     setAssignmentEmail('');
-    setAssignmentPassword('');
     setAssignmentMessage(null);
+    setInvitationUnit(null);
+    setInvitationRole(null);
 
     try {
       setIsUnitsLoading(true);
@@ -278,9 +279,7 @@ export default function BuildingsPage() {
   function handleStartUnitAssignment(unit: Unit, nextAssignmentType: UnitAssignmentType) {
     setAssigningUnit(unit);
     setAssignmentType(nextAssignmentType);
-    setAssignmentName('');
     setAssignmentEmail('');
-    setAssignmentPassword('');
     setAssignmentMessage(null);
     setUnitError(null);
   }
@@ -288,16 +287,25 @@ export default function BuildingsPage() {
   function handleCancelUnitAssignment() {
     setAssigningUnit(null);
     setAssignmentType(null);
-    setAssignmentName('');
     setAssignmentEmail('');
-    setAssignmentPassword('');
+  }
+
+  function handleOpenUnitInvitation(unit: Unit, nextAssignmentType: UnitAssignmentType) {
+    setInvitationUnit(unit);
+    setInvitationRole(nextAssignmentType);
+    setUnitError(null);
+  }
+
+  function handleCloseUnitInvitation() {
+    setInvitationUnit(null);
+    setInvitationRole(null);
   }
 
   async function handleAssignUserToUnit() {
     if (!user || !assigningUnit || !assignmentType) return;
 
-    if (!assignmentName.trim() || !assignmentEmail.trim()) {
-      setUnitError('Completa nombre y email para asignar el usuario.');
+    if (!assignmentEmail.trim()) {
+      setUnitError('Ingresa el email del usuario existente.');
       return;
     }
 
@@ -309,9 +317,7 @@ export default function BuildingsPage() {
       const result = await assignUserToUnit(user, {
         unitId: assigningUnit.id,
         assignmentType,
-        name: assignmentName.trim(),
         email: assignmentEmail.trim(),
-        password: assignmentPassword.trim() || undefined,
       });
 
       setBuildingUnits((current) =>
@@ -325,11 +331,7 @@ export default function BuildingsPage() {
             : unit
         )
       );
-      setAssignmentMessage(
-        result.tempPassword
-          ? `Usuario creado y asignado. Contrasena temporal: ${result.tempPassword}`
-          : 'Usuario existente asignado correctamente.'
-      );
+      setAssignmentMessage('Usuario existente asignado correctamente.');
       handleCancelUnitAssignment();
     } catch (err) {
       setUnitError(err instanceof Error ? err.message : 'No pudimos asignar el usuario a la unidad.');
@@ -535,21 +537,49 @@ export default function BuildingsPage() {
         onSubmit={handleCreateUnit}
         assigningUnit={assigningUnit}
         assignmentType={assignmentType}
-        assignmentName={assignmentName}
         assignmentEmail={assignmentEmail}
-        assignmentPassword={assignmentPassword}
         assignmentMessage={assignmentMessage}
         isAssigning={isAssignmentSubmitting}
         isUnassigningResident={isResidentUnassigning}
         onStartAssignment={handleStartUnitAssignment}
         onCancelAssignment={handleCancelUnitAssignment}
-        onAssignmentNameChange={setAssignmentName}
         onAssignmentEmailChange={setAssignmentEmail}
-        onAssignmentPasswordChange={setAssignmentPassword}
         onAssignUser={handleAssignUserToUnit}
+        onInviteUser={handleOpenUnitInvitation}
         onAssignOwnerAsResident={handleAssignOwnerAsResident}
         onUnassignResident={handleUnassignResident}
       />
+
+      {unitBuilding && invitationUnit && invitationRole ? (
+        <InvitationCreationDialog
+          isOpen={Boolean(invitationUnit && invitationRole)}
+          title={invitationRole === 'OWNER' ? 'Invitar propietario' : 'Invitar inquilino'}
+          description="Invita al usuario para que defina su contrasena y quede vinculado a esta unidad."
+          roleOptions={[invitationRole]}
+          buildings={[unitBuilding]}
+          units={buildingUnits}
+          defaultRole={invitationRole}
+          defaultUnitId={invitationUnit.id}
+          onClose={handleCloseUnitInvitation}
+          onInvitationCreated={(result) => {
+            const invitedUser = result.user;
+            if (!invitedUser || !invitationUnit || !invitationRole) return;
+            setBuildingUnits((current) =>
+              current.map((unit) =>
+                unit.id === invitationUnit.id
+                  ? {
+                      ...unit,
+                      ownerId: invitationRole === 'OWNER' ? invitedUser.id : unit.ownerId,
+                      residentId: invitationRole === 'OCCUPANT' ? invitedUser.id : unit.residentId,
+                    }
+                  : unit
+              )
+            );
+            setAssignmentMessage('Invitacion creada. Comparte el enlace para activar la cuenta.');
+            handleCancelUnitAssignment();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

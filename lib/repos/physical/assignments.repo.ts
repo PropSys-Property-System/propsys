@@ -4,7 +4,6 @@ import { canAccessClientRecord, canBypassTenantScope } from '@/lib/auth/access-r
 import { isDbMode } from '@/lib/config/data-mode';
 import { getBuildingAssignments, getUnitAssignments } from '@/lib/access/assignments-cache';
 import { fetchJsonOrThrow } from '@/lib/repos/http';
-import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
 
 function isActiveAssignment(a: { status: string; deletedAt?: string | null }) {
   return a.status === 'ACTIVE' && !a.deletedAt;
@@ -13,9 +12,7 @@ function isActiveAssignment(a: { status: string; deletedAt?: string | null }) {
 export type AssignUnitUserInput = {
   unitId: string;
   assignmentType: 'OWNER' | 'OCCUPANT';
-  name?: string;
   email?: string;
-  password?: string;
   ownerAsResident?: boolean;
 };
 
@@ -23,7 +20,6 @@ export type AssignUnitUserResult = {
   user: User;
   unitId: string;
   assignmentType: 'OWNER' | 'OCCUPANT';
-  tempPassword?: string;
   ownerAsResident?: boolean;
 };
 
@@ -162,34 +158,18 @@ export const assignmentsRepo = {
     }
 
     const email = input.email?.trim().toLowerCase() ?? '';
-    const name = input.name?.trim() ?? '';
-    if (!name || !email) throw new Error('Completa nombre y email para asignar el usuario.');
+    if (!email) throw new Error('Ingresa el email del usuario existente.');
 
     const internalRole = input.assignmentType === 'OWNER' ? 'OWNER' : 'OCCUPANT';
-    let target = MOCK_USERS.find((item) => item.email.toLowerCase() === email);
-    let tempPassword: string | undefined;
-
-    if (target) {
-      if (target.clientId !== unit.clientId || target.internalRole !== internalRole) {
-        throw new Error('Ese email ya existe con otro rol o cliente.');
-      }
-      if (target.status !== 'ACTIVE') {
-        throw new Error('Ese usuario existe pero no esta activo; reactivarlo antes de asignarlo.');
-      }
-    } else {
-      tempPassword = input.password?.trim() || `Ps${Math.random().toString(36).slice(2, 10)}!`;
-      target = {
-        id: `u_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-        email,
-        name,
-        role: mapInternalRoleToUIRole(internalRole),
-        internalRole,
-        clientId: unit.clientId,
-        scope: 'client',
-        status: 'ACTIVE',
-        unitId: unit.id,
-      };
-      MOCK_USERS.push(target);
+    const target = MOCK_USERS.find((item) => item.email.toLowerCase() === email);
+    if (!target || target.clientId !== unit.clientId) {
+      throw new Error('Usuario no encontrado. Invítalo primero.');
+    }
+    if (target.internalRole !== internalRole) {
+      throw new Error('El usuario existente no tiene un rol compatible para esta asignacion.');
+    }
+    if (target.status !== 'ACTIVE') {
+      throw new Error('Ese usuario existe pero no esta activo; reactivarlo antes de asignarlo.');
     }
 
     MOCK_USER_UNIT_ASSIGNMENTS.unshift({
@@ -207,7 +187,6 @@ export const assignmentsRepo = {
       user: { ...target, unitId: unit.id },
       unitId: unit.id,
       assignmentType: input.assignmentType,
-      tempPassword,
     };
   },
 
