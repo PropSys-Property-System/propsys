@@ -301,3 +301,30 @@ Esta sección consolida las definiciones arquitectónicas y funcionales para el 
 - Plantillas de cobro quedan registradas como siguiente bloque financiero grande.
 - La generacion masiva de recibos queda despues del bloque de plantillas.
 - Notificaciones financieras, cobros por reservas, pagos online, conciliacion bancaria y facturacion electronica se mantienen en roadmap futuro/post-beta.
+
+
+## 16. Estado Final de Bloques Financiero y Auth (2026-05-05)
+
+Esta sección actualiza el estado de las decisiones confirmadas en las secciones 14 y 15, tras la implementación exitosa de los bloques correspondientes.
+
+### 16.1 Flujo Financiero y Comprobantes (Cerrado)
+- Se completó el modelo de comprobantes (`receipt_payment_proofs`) y su flujo UI (subida por resident/owner, revisión por admin).
+- Los recibos transicionan correctamente a estado `PAID` al aprobarse el comprobante.
+- El polish UX de recibos (filtros, ordenamiento y acciones en tablas) ha sido completado.
+
+### 16.2 Autenticación y Onboarding Seguro (Cerrado)
+- **Invitaciones por link:** El flujo de invitaciones se cerró exitosamente tanto en UI como en backend.
+- **Deprecación de contraseñas temporales:** Se eliminó por completo la generación y retorno de `tempPassword` en los endpoints de creación genérica (`POST /api/v1/users`), altas de staff (`POST /api/v1/physical/staff`), y asignaciones de unidades (`POST /api/v1/physical/unit-assignments`). Todo nuevo usuario entra por invitación.
+- **Reset Password:** El flujo backend y UI para solicitar y confirmar reinicio de contraseña con token está cerrado.
+- *Nota transaccional:* Ambos flujos (invitaciones y reset) funcionan de manera real pero, al carecer de proveedor de correo implementado, exponen los links generados en modo desarrollo/beta (ej. impresión en consola o en UI) temporalmente.
+
+### 16.3 Ajustes de Alcance (Pendientes vs Futuro)
+- **Pendientes Críticos antes de la Beta Externa:**
+  - Implementar el proveedor de correo real.
+  - Rate limiting estricto para rutas públicas de invitación y reset.
+  - Interfaz/backend para revocar o reemitir invitaciones caducadas.
+  - Plantillas de cobro y emisión masiva.
+  - Cloud object storage (reemplazo imperativo de `.data` para archivos).
+  - Polish en edición de usuarios (conversión a modal) y script de bootstrap para el primer tenant.
+- **Post-Beta (Diferidos):**
+  - Pagos online (pasarela), conciliación bancaria y facturación electrónica siguen diferidos. Notificaciones financieras quedan post-beta.
