@@ -614,12 +614,12 @@ export default function AdminTasksPage() {
                     {canEditAssignee && (
                       <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
                         <select
-                          value={assigneeByTaskId[task.id] ?? task.assignedToUserId}
+                          value={assigneeByTaskId[task.id] ?? task.assignedToUserId ?? ''}
                           onChange={(e) => setAssigneeByTaskId((prev) => ({ ...prev, [task.id]: e.target.value }))}
                           className="w-full sm:w-72 px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-xs font-bold"
                         >
                           {staff.length === 0 ? (
-                            <option value={task.assignedToUserId}>Sin staff activo</option>
+                            <option value={task.assignedToUserId ?? ''}>Sin staff activo</option>
                           ) : (
                             staff.map((m) => (
                               <option key={m.id} value={m.id}>
