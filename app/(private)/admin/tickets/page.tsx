@@ -9,7 +9,6 @@ import {
   assignTicketForUser,
   createTicketForUser,
   loadAdminTicketsPageData,
-  listTicketsForUser,
   updateTicketStatusForUser,
 } from '@/lib/features/tickets/ticket-center.data';
 import { AdminTicketCard, TicketComposerDialog } from '@/lib/features/tickets/ticket-center.ui';

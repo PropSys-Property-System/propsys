@@ -275,7 +275,6 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
             proofs={proofs}
             pendingActionId={pendingProofActionId}
             reviewComments={reviewComments}
-            receiptsById={new Map([[receipt.id, receipt]])}
             buildingById={new Map(building ? [[building.id, { id: building.id, name: building.name }]] : [])}
             unitById={new Map(unit ? [[unit.id, { id: unit.id, buildingId: unit.buildingId, number: unit.number }]] : [])}
             onOpenProof={openProof}

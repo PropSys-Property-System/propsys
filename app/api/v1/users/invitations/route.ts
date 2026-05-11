@@ -7,6 +7,7 @@ import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
 import { withTransaction } from '@/lib/server/db/tx';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { addAccountTokenExpiry, generateAccountToken, hashAccountToken } from '@/lib/server/auth/account-token';
+import { isEmailProviderConfigured, sendInvitationEmail, shouldExposeEmailDebugLinks } from '@/lib/server/email/resend';
 import type { InternalRole, UserInvitationStatus } from '@/lib/types/auth';
 import type { User } from '@/lib/types';
 
@@ -28,12 +29,8 @@ function parseInvitableRole(input: unknown): InvitableInternalRole | null {
   return INVITABLE_INTERNAL_ROLES.find((role) => role === input) ?? null;
 }
 
-function canExposeRawInvitationToken(): boolean {
-  return process.env.NODE_ENV !== 'production' || process.env.PROPSYS_EXPOSE_AUTH_TOKENS === '1';
-}
-
-function deliveryMode(): 'development_link' | 'explicit_token' {
-  return process.env.NODE_ENV === 'production' ? 'explicit_token' : 'development_link';
+function deliveryMode(): 'resend' {
+  return 'resend';
 }
 
 function buildInviteLink(req: Request, token: string): string {
@@ -104,8 +101,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Selecciona una unidad para ese rol.' }, { status: 400 });
   }
 
-  if (!canExposeRawInvitationToken()) {
-    return NextResponse.json({ error: 'No hay proveedor de email configurado para enviar invitaciones.' }, { status: 503 });
+  if (!isEmailProviderConfigured()) {
+    return NextResponse.json(
+      { error: 'No hay proveedor de correo configurado para enviar invitaciones. Reemplaza re_xxxxxxxxx por tu API key real de Resend.' },
+      { status: 503 }
+    );
   }
 
   const pool = getPool();
@@ -283,6 +283,24 @@ export async function POST(req: Request) {
       return createdUser;
     });
 
+    const inviteLink = buildInviteLink(req, rawToken);
+    await sendInvitationEmail({
+      to: email,
+      name,
+      inviteLink,
+      internalRole,
+      expiresAt,
+    });
+
+    const delivery = shouldExposeEmailDebugLinks()
+      ? {
+          mode: deliveryMode(),
+          inviteLink,
+        }
+      : {
+          mode: deliveryMode(),
+        };
+
     const res = NextResponse.json({
       user: toUser(created, { buildingId: resolvedBuildingId, unitId: resolvedUnitId }),
       invitation: {
@@ -290,11 +308,7 @@ export async function POST(req: Request) {
         status: invitationStatus,
         expiresAt,
       },
-      delivery: {
-        mode: deliveryMode(),
-        inviteLink: buildInviteLink(req, rawToken),
-        token: rawToken,
-      },
+      delivery,
     });
     res.headers.set('Cache-Control', 'no-store');
     return res;

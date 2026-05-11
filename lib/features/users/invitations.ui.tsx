@@ -181,7 +181,7 @@ export function InvitationCreationDialog({
               </div>
             ) : (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
-                Invitacion creada. El envio por correo se conectara cuando exista proveedor configurado.
+                Invitacion creada y enviada por correo. Pide al usuario que revise su bandeja de entrada.
               </div>
             )}
             <div className="flex justify-end">

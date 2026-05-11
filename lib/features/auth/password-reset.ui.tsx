@@ -8,7 +8,8 @@ const PASSWORD_ERROR =
   'La contrasena debe tener al menos 12 caracteres, mayuscula, minuscula, numero, simbolo y no debe tener espacios.';
 const CONFIRM_ERROR = 'No pudimos restablecer la contrasena. Solicita un nuevo enlace.';
 const REQUEST_SUCCESS = 'Si el correo existe, recibiras instrucciones para restablecer tu contrasena.';
-const PROVIDER_ERROR = 'No hay proveedor de correo configurado para enviar enlaces de recuperacion.';
+const PROVIDER_ERROR =
+  'No hay proveedor de correo configurado para enviar enlaces de recuperacion. Reemplaza re_xxxxxxxxx por tu API key real de Resend.';
 
 function isStrongPassword(password: string): boolean {
   return (

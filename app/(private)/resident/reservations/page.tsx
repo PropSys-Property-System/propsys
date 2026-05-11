@@ -182,9 +182,13 @@ export default function ResidentReservationsPage() {
 
   const selectedUnit = createUnitId ? units.find((u) => u.id === createUnitId) : undefined;
   const selectedBuildingId = selectedUnit?.buildingId ?? '';
-  const availableAreas = selectedBuildingId
-    ? filterAvailableAreasForSlot(areas, availabilityReservations, selectedBuildingId, createStartAt, createEndAt)
-    : [];
+  const availableAreas = useMemo(
+    () =>
+      selectedBuildingId
+        ? filterAvailableAreasForSlot(areas, availabilityReservations, selectedBuildingId, createStartAt, createEndAt)
+        : [],
+    [areas, availabilityReservations, selectedBuildingId, createStartAt, createEndAt]
+  );
 
   useEffect(() => {
     if (createAreaId && !availableAreas.some((area) => area.id === createAreaId)) {

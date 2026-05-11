@@ -4,6 +4,7 @@ import { getPool } from '@/lib/server/db/client';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { addAccountTokenExpiry, generateAccountToken, hashAccountToken } from '@/lib/server/auth/account-token';
 import { withTransaction } from '@/lib/server/db/tx';
+import { isEmailProviderConfigured, sendPasswordResetEmail, shouldExposeEmailDebugLinks } from '@/lib/server/email/resend';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -11,12 +12,8 @@ function normalizeEmail(input: unknown): string {
   return typeof input === 'string' ? input.trim().toLowerCase() : '';
 }
 
-function canExposeRawResetToken(): boolean {
-  return process.env.NODE_ENV !== 'production' || process.env.PROPSYS_EXPOSE_AUTH_TOKENS === '1';
-}
-
-function deliveryMode(): 'development_link' | 'explicit_token' {
-  return process.env.NODE_ENV === 'production' ? 'explicit_token' : 'development_link';
+function deliveryMode(): 'resend' {
+  return 'resend';
 }
 
 function buildResetLink(req: Request, token: string): string {
@@ -39,9 +36,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Datos invalidos' }, { status: 400 });
   }
 
-  if (!canExposeRawResetToken()) {
+  if (!isEmailProviderConfigured()) {
     const res = NextResponse.json(
-      { error: 'No hay proveedor de correo configurado para enviar recuperacion de contrasena.' },
+      { error: 'No hay proveedor de correo configurado para enviar recuperacion de contrasena. Reemplaza re_xxxxxxxxx por tu API key real de Resend.' },
       { status: 503 }
     );
     res.headers.set('Cache-Control', 'no-store');
@@ -105,13 +102,25 @@ export async function POST(req: Request) {
       }
     });
 
+    const resetLink = buildResetLink(req, rawToken);
+    await sendPasswordResetEmail({
+      to: user.email,
+      resetLink,
+      expiresAt,
+    });
+
+    const delivery = shouldExposeEmailDebugLinks()
+      ? {
+          mode: deliveryMode(),
+          resetLink,
+        }
+      : {
+          mode: deliveryMode(),
+        };
+
     const res = NextResponse.json({
       ok: true,
-      delivery: {
-        mode: deliveryMode(),
-        resetLink: buildResetLink(req, rawToken),
-        token: rawToken,
-      },
+      delivery,
     });
     res.headers.set('Cache-Control', 'no-store');
     return res;

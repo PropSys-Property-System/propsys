@@ -99,10 +99,6 @@ export default function AdminReceiptsPage() {
 
   const buildingById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
   const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
-  const pendingProofReceiptIds = useMemo(
-    () => new Set(pendingProofs.filter((proof) => proof.status === 'PENDING_REVIEW').map((proof) => proof.receiptId)),
-    [pendingProofs]
-  );
   const rejectedReceiptIds = useMemo(() => new Set(rejectedProofReceiptIds), [rejectedProofReceiptIds]);
   const receipts = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase();
@@ -159,7 +155,6 @@ export default function AdminReceiptsPage() {
     [receipts, topPendingReceipts]
   );
 
-  const receiptsById = useMemo(() => new Map(allReceipts.map((receipt) => [receipt.id, receipt])), [allReceipts]);
   const canManageReceipts =
     user?.internalRole === 'ROOT_ADMIN' || user?.internalRole === 'CLIENT_MANAGER' || user?.internalRole === 'BUILDING_ADMIN';
 
@@ -425,7 +420,6 @@ export default function AdminReceiptsPage() {
               pendingReceipts={topPendingReceipts}
               pendingActionId={pendingProofActionId}
               reviewComments={reviewComments}
-              receiptsById={receiptsById}
               buildingById={buildingById}
               unitById={unitById}
               onOpenProof={openProof}

@@ -137,7 +137,6 @@ type AdminPaymentProofsPanelProps = {
   reviewComments: Record<string, string>;
   title?: string;
   emptyDescription?: string;
-  receiptsById?: Map<string, Receipt>;
   buildingById?: Map<string, ReceiptBuildingLookup>;
   unitById?: Map<string, ReceiptUnitLookup>;
   onOpenProof: (proof: ReceiptPaymentProofView) => void;
@@ -805,7 +804,6 @@ export function AdminPaymentProofsPanel({
   reviewComments,
   title = 'Comprobantes de pago',
   emptyDescription = 'No hay comprobantes registrados para revisar.',
-  receiptsById,
   buildingById,
   unitById,
   onOpenProof,
