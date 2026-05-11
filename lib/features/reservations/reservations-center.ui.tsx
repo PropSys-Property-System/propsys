@@ -1,0 +1,435 @@
+import { CalendarDays } from 'lucide-react';
+import { formatDateTime, formatTime } from '@/lib/presentation/dates';
+import { labelReservationStatus } from '@/lib/presentation/labels';
+import type { ReservationDisplayStatus } from '@/lib/features/reservations/reservations-center.data';
+import type { CommonArea, Reservation, Unit } from '@/lib/types';
+
+type AdminReservationCardProps = {
+  reservation: Reservation;
+  displayStatus: ReservationDisplayStatus;
+  areaName: string;
+  unitLabel: string;
+  buildingName: string;
+  canManage: boolean;
+  isSubmitting: boolean;
+  onApprove: () => void;
+  onReject: () => void;
+  onCancel: () => void;
+};
+
+type ResidentReservationCardProps = {
+  reservation: Reservation;
+  displayStatus: ReservationDisplayStatus;
+  areaName: string;
+  unitLabel: string;
+  buildingName: string;
+  canCancel: boolean;
+  isSubmitting: boolean;
+  onCancel: () => void;
+};
+
+type ReservationComposerDialogProps = {
+  isOpen: boolean;
+  isSubmitting: boolean;
+  units: Unit[];
+  availableAreas: CommonArea[];
+  buildingAreas: CommonArea[];
+  availabilityReservations: Reservation[];
+  buildingId: string;
+  unitId: string;
+  areaId: string;
+  startAt: string;
+  endAt: string;
+  minStartAt?: string;
+  minEndAt?: string;
+  onClose: () => void;
+  onUnitChange: (unitId: string) => void;
+  onAreaChange: (areaId: string) => void;
+  onStartChange: (value: string) => void;
+  onEndChange: (value: string) => void;
+  onSubmit: () => void;
+};
+
+function overlaps(startA: Date, endA: Date, startB: Date, endB: Date) {
+  return startA < endB && startB < endA;
+}
+
+function sameCalendarDay(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
+
+function buildTimeSlots(baseDate: Date) {
+  const slots: Array<{ start: Date; end: Date; key: string; label: string }> = [];
+
+  for (let hour = 6; hour < 23; hour += 1) {
+    const start = new Date(baseDate);
+    start.setHours(hour, 0, 0, 0);
+    const end = new Date(baseDate);
+    end.setHours(hour + 1, 0, 0, 0);
+    const label = `${String(hour).padStart(2, '0')}:00`;
+    slots.push({ start, end, key: label, label });
+  }
+
+  return slots;
+}
+
+function ReservationAvailabilityBoard({
+  buildingAreas,
+  reservations,
+  buildingId,
+  selectedAreaId,
+  startAt,
+  endAt,
+}: {
+  buildingAreas: CommonArea[];
+  reservations: Reservation[];
+  buildingId: string;
+  selectedAreaId: string;
+  startAt: string;
+  endAt: string;
+}) {
+  if (!buildingId) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-500">
+        Selecciona una unidad para ver la disponibilidad del edificio.
+      </div>
+    );
+  }
+
+  if (!startAt || !endAt) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-500">
+        Elige fecha y horario para ver la agenda de areas comunes.
+      </div>
+    );
+  }
+
+  const requestedStart = new Date(startAt);
+  const requestedEnd = new Date(endAt);
+  if (Number.isNaN(requestedStart.getTime()) || Number.isNaN(requestedEnd.getTime()) || requestedStart >= requestedEnd) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-500">
+        Ajusta un rango horario valido para revisar la disponibilidad.
+      </div>
+    );
+  }
+
+  const scheduleAreas = buildingAreas.filter((area) => area.buildingId === buildingId);
+  const slots = buildTimeSlots(requestedStart);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+      <div className="mb-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Agenda visual</p>
+        <p className="mt-1 text-xs font-medium text-slate-500">
+          Gris: disponible. Rosa: ocupado. Verde: tramo que estas intentando reservar.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {scheduleAreas.map((area) => {
+          const areaReservations = reservations.filter((reservation) => {
+            if (reservation.buildingId !== buildingId) return false;
+            if (reservation.commonAreaId !== area.id) return false;
+            if (reservation.status === 'CANCELLED' || reservation.status === 'REJECTED') return false;
+            const reservationStart = new Date(reservation.startAt);
+            return sameCalendarDay(reservationStart, requestedStart);
+          });
+
+          return (
+            <div key={area.id} className={`rounded-xl border px-3 py-3 ${selectedAreaId === area.id ? 'border-emerald-200 bg-white' : 'border-slate-200 bg-white'}`}>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="truncate text-sm font-black text-slate-800">{area.name}</p>
+                {selectedAreaId === area.id ? (
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+                    Seleccionada
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                {slots.map((slot) => {
+                  const isRequested =
+                    selectedAreaId === area.id && overlaps(slot.start, slot.end, requestedStart, requestedEnd);
+                  const isOccupied = areaReservations.some((reservation) =>
+                    overlaps(slot.start, slot.end, new Date(reservation.startAt), new Date(reservation.endAt))
+                  );
+
+                  let classes = 'border-slate-200 bg-slate-100 text-slate-500';
+                  if (isOccupied) classes = 'border-rose-200 bg-rose-50 text-rose-700';
+                  if (isRequested) classes = 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+                  return (
+                    <div key={`${area.id}-${slot.key}`} className={`rounded-lg border px-2 py-2 text-center ${classes}`}>
+                      <p className="text-[11px] font-black">{slot.label}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function labelReservationDisplayStatus(status: ReservationDisplayStatus) {
+  return status === 'COMPLETED' ? 'Finalizada' : labelReservationStatus(status);
+}
+
+export function reservationStatusChip(status: ReservationDisplayStatus) {
+  const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
+  if (status === 'REQUESTED') return `${base} bg-amber-50 text-amber-700`;
+  if (status === 'APPROVED') return `${base} bg-emerald-50 text-emerald-700`;
+  if (status === 'REJECTED') return `${base} bg-rose-50 text-rose-700`;
+  if (status === 'COMPLETED') return `${base} bg-sky-50 text-sky-700`;
+  return `${base} bg-slate-100 text-slate-600`;
+}
+
+export function AdminReservationCard({
+  reservation,
+  displayStatus,
+  areaName,
+  unitLabel,
+  buildingName,
+  canManage,
+  isSubmitting,
+  onApprove,
+  onReject,
+  onCancel,
+}: AdminReservationCardProps) {
+  const canManageRequest = reservation.status === 'REQUESTED';
+  const canCancelReservation =
+    (reservation.status === 'REQUESTED' || reservation.status === 'APPROVED') && displayStatus !== 'COMPLETED';
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 flex items-start justify-between gap-6">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={reservationStatusChip(displayStatus)}>{labelReservationDisplayStatus(displayStatus)}</span>
+          <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest">
+            {unitLabel}
+          </span>
+        </div>
+        <p className="mt-3 text-sm font-black text-slate-900">{areaName}</p>
+        <p className="mt-1 text-xs text-slate-500 font-medium">
+          {buildingName} · {formatDateTime(reservation.startAt)} - {formatTime(reservation.endAt)}
+        </p>
+
+        {canManage ? (
+          <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
+            {canManageRequest ? (
+              <>
+                <button
+                  disabled={isSubmitting}
+                  onClick={onApprove}
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-xs hover:bg-emerald-700 transition-all disabled:opacity-60"
+                >
+                  Aprobar
+                </button>
+                <button
+                  disabled={isSubmitting}
+                  onClick={onReject}
+                  className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
+                >
+                  Rechazar
+                </button>
+              </>
+            ) : null}
+            {canCancelReservation ? (
+              <button
+                disabled={isSubmitting}
+                onClick={onCancel}
+                className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+        <CalendarDays className="w-6 h-6 text-primary" />
+      </div>
+    </div>
+  );
+}
+
+export function ResidentReservationCard({
+  reservation,
+  displayStatus,
+  areaName,
+  unitLabel,
+  buildingName,
+  canCancel,
+  isSubmitting,
+  onCancel,
+}: ResidentReservationCardProps) {
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 flex items-start justify-between gap-6">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={reservationStatusChip(displayStatus)}>{labelReservationDisplayStatus(displayStatus)}</span>
+          <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest">
+            {unitLabel}
+          </span>
+        </div>
+        <p className="mt-3 text-sm font-black text-slate-900">{areaName}</p>
+        <p className="mt-1 text-xs text-slate-500 font-medium">
+          {buildingName} · {formatDateTime(reservation.startAt)} - {formatTime(reservation.endAt)}
+        </p>
+        {canCancel ? (
+          <div className="mt-4">
+            <button
+              disabled={isSubmitting}
+              onClick={onCancel}
+              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all disabled:opacity-60"
+            >
+              Cancelar
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+        <CalendarDays className="w-6 h-6 text-primary" />
+      </div>
+    </div>
+  );
+}
+
+export function ReservationComposerDialog({
+  isOpen,
+  isSubmitting,
+  units,
+  availableAreas,
+  buildingAreas,
+  availabilityReservations,
+  buildingId,
+  unitId,
+  areaId,
+  startAt,
+  endAt,
+  minStartAt,
+  minEndAt,
+  onClose,
+  onUnitChange,
+  onAreaChange,
+  onStartChange,
+  onEndChange,
+  onSubmit,
+}: ReservationComposerDialogProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={onClose} type="button" />
+      <div role="dialog" aria-modal="true" className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-lg font-black text-slate-900">Nueva reserva</p>
+            <p className="mt-1 text-xs text-slate-500 font-medium">Reserva un área común para tu unidad.</p>
+          </div>
+          <button type="button" onClick={onClose} className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700">
+            Cerrar
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Unidad</label>
+            <select
+              value={unitId}
+              onChange={(event) => onUnitChange(event.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            >
+              <option value="" disabled>
+                Selecciona...
+              </option>
+              {units.map((unit) => (
+                <option key={unit.id} value={unit.id}>
+                  Depto {unit.number}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Área común</label>
+            <select
+              value={areaId}
+              onChange={(event) => onAreaChange(event.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            >
+              <option value="" disabled>
+                Selecciona...
+              </option>
+              {availableAreas.map((area) => (
+                <option key={area.id} value={area.id}>
+                  {area.name}
+                </option>
+              ))}
+            </select>
+            {startAt && endAt && availableAreas.length === 0 ? (
+              <p className="mt-2 text-xs font-bold text-slate-400">No hay áreas disponibles para esa fecha y horario.</p>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Inicio</label>
+              <input
+                type="datetime-local"
+                value={startAt}
+                min={minStartAt}
+                onChange={(event) => onStartChange(event.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Termino</label>
+              <input
+                type="datetime-local"
+                value={endAt}
+                min={minEndAt}
+                onChange={(event) => onEndChange(event.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+              />
+            </div>
+          </div>
+
+          <ReservationAvailabilityBoard
+            buildingAreas={buildingAreas}
+            reservations={availabilityReservations}
+            buildingId={buildingId}
+            selectedAreaId={areaId}
+            startAt={startAt}
+            endAt={endAt}
+          />
+        </div>
+
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={onSubmit}
+            className="px-5 py-3 rounded-xl bg-emerald-600 text-white font-black text-sm shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all disabled:opacity-70"
+          >
+            Reservar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
