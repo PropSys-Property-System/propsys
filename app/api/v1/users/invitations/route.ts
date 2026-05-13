@@ -8,6 +8,7 @@ import { withTransaction } from '@/lib/server/db/tx';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { addAccountTokenExpiry, generateAccountToken, hashAccountToken } from '@/lib/server/auth/account-token';
 import { isEmailProviderConfigured, sendInvitationEmail, shouldExposeEmailDebugLinks } from '@/lib/server/email/resend';
+import { buildCanonicalAppUrl } from '@/lib/server/app-url';
 import type { InternalRole, UserInvitationStatus } from '@/lib/types/auth';
 import type { User } from '@/lib/types';
 
@@ -33,10 +34,8 @@ function deliveryMode(): 'resend' {
   return 'resend';
 }
 
-function buildInviteLink(req: Request, token: string): string {
-  const url = new URL('/invitations/accept', req.url);
-  url.searchParams.set('token', token);
-  return url.toString();
+function buildInviteLink(token: string): string {
+  return buildCanonicalAppUrl('/invitations/accept', { token });
 }
 
 function canInviteRole(actor: SessionUser, internalRole: InvitableInternalRole): boolean {
@@ -283,7 +282,7 @@ export async function POST(req: Request) {
       return createdUser;
     });
 
-    const inviteLink = buildInviteLink(req, rawToken);
+    const inviteLink = buildInviteLink(rawToken);
     await sendInvitationEmail({
       to: email,
       name,

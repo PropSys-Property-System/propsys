@@ -71,7 +71,7 @@ describe('PasswordResetRequestView', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('No hay proveedor de correo configurado para enviar enlaces de recuperacion.')).toBeInTheDocument();
+      expect(screen.getByText(/No hay proveedor de correo configurado para enviar enlaces de recuperacion\./)).toBeInTheDocument();
     });
   });
 });

@@ -1,16 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { hashAccountToken } from '@/lib/server/auth/account-token';
 import { POST as createInvitation } from './invitations/route';
 
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
 const release = vi.fn();
 const connect = vi.fn(async () => ({ query: clientQuery, release }));
+const emailMocks = vi.hoisted(() => ({
+  configured: true,
+  exposeDebugLinks: true,
+  sendInvitationEmail: vi.fn(),
+}));
 
 vi.mock('@/lib/server/db/client', () => ({
   getPool: () => ({
     query: poolQuery,
     connect,
   }),
+}));
+
+vi.mock('@/lib/server/email/resend', () => ({
+  isEmailProviderConfigured: () => emailMocks.configured,
+  sendInvitationEmail: emailMocks.sendInvitationEmail,
+  shouldExposeEmailDebugLinks: () => emailMocks.exposeDebugLinks,
 }));
 
 const sessionUser = {
@@ -97,6 +109,11 @@ describe('POST /api/v1/users/invitations', () => {
     release.mockReset();
     connect.mockClear();
     vi.unstubAllEnvs();
+    vi.stubEnv('PROPSYS_APP_URL', 'https://app.propsys.test');
+    emailMocks.configured = true;
+    emailMocks.exposeDebugLinks = true;
+    emailMocks.sendInvitationEmail.mockReset();
+    emailMocks.sendInvitationEmail.mockResolvedValue(undefined);
     sessionUser.id = 'u_mgr';
     sessionUser.clientId = 'client_001';
     sessionUser.internalRole = 'CLIENT_MANAGER';
@@ -126,7 +143,7 @@ describe('POST /api/v1/users/invitations', () => {
     const data = (await res.json()) as {
       user?: { status: string; clientId: string; internalRole: string; unitId?: string };
       invitation?: { status: string };
-      delivery?: { mode: string; inviteLink: string; token: string };
+      delivery?: { mode: string; inviteLink: string; token?: string };
     };
     expect(data.user).toMatchObject({
       status: 'INACTIVE',
@@ -135,19 +152,27 @@ describe('POST /api/v1/users/invitations', () => {
       unitId: 'unit-101',
     });
     expect(data.invitation?.status).toBe('PENDING');
-    expect(data.delivery?.mode).toBe('development_link');
-    expect(data.delivery?.token).toBeTruthy();
-    expect(data.delivery?.inviteLink).toContain(encodeURIComponent(data.delivery?.token ?? ''));
+    expect(data.delivery?.mode).toBe('resend');
+    expect(data.delivery?.inviteLink).toMatch(/^https:\/\/app\.propsys\.test\/invitations\/accept\?token=/);
+    expect(data.delivery?.token).toBeUndefined();
 
+    const rawToken = new URL(data.delivery?.inviteLink ?? '').searchParams.get('token') ?? '';
+    expect(rawToken).toBeTruthy();
     expect(tx.getUserInsertSql()).toContain("'INACTIVE'");
     expect(tx.getUserInsertParams()?.[1]).toBe('client_001');
     expect(tx.getUserInsertParams()?.[2]).toBe('owner.new@example.com');
     expect(tx.getUserInsertParams()?.[3]).toBeNull();
     expect(tx.getInvitationInsertParams()?.[6]).toBe('PENDING');
-    expect(tx.getInvitationInsertParams()?.[5]).not.toBe(data.delivery?.token);
-    expect(JSON.stringify(tx.getInvitationInsertParams())).not.toContain(data.delivery?.token ?? '');
-    expect(tx.getAuditPayloads().join('\n')).not.toContain(data.delivery?.token ?? '');
+    expect(tx.getInvitationInsertParams()?.[5]).toBe(hashAccountToken(rawToken));
+    expect(JSON.stringify(tx.getInvitationInsertParams())).not.toContain(rawToken);
+    expect(tx.getAuditPayloads().join('\n')).not.toContain(rawToken);
     expect(tx.getAuditPayloads().join('\n')).not.toContain('password');
+    expect(emailMocks.sendInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'owner.new@example.com',
+        inviteLink: expect.stringContaining('https://app.propsys.test/invitations/accept?token='),
+      })
+    );
   });
 
   it('rejects a unit outside the manager tenant', async () => {
@@ -250,6 +275,8 @@ describe('POST /api/v1/users/invitations', () => {
 
   it('does not expose raw tokens in production without an explicit flag', async () => {
     vi.stubEnv('NODE_ENV', 'production');
+    emailMocks.configured = false;
+    emailMocks.exposeDebugLinks = false;
 
     const res = await createInvitation(
       makeRequest({

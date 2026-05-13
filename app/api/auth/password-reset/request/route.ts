@@ -5,6 +5,7 @@ import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { addAccountTokenExpiry, generateAccountToken, hashAccountToken } from '@/lib/server/auth/account-token';
 import { withTransaction } from '@/lib/server/db/tx';
 import { isEmailProviderConfigured, sendPasswordResetEmail, shouldExposeEmailDebugLinks } from '@/lib/server/email/resend';
+import { buildCanonicalAppUrl } from '@/lib/server/app-url';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -16,10 +17,8 @@ function deliveryMode(): 'resend' {
   return 'resend';
 }
 
-function buildResetLink(req: Request, token: string): string {
-  const url = new URL('/reset-password', req.url);
-  url.searchParams.set('token', token);
-  return url.toString();
+function buildResetLink(token: string): string {
+  return buildCanonicalAppUrl('/reset-password', { token });
 }
 
 function genericResponse() {
@@ -102,7 +101,7 @@ export async function POST(req: Request) {
       }
     });
 
-    const resetLink = buildResetLink(req, rawToken);
+    const resetLink = buildResetLink(rawToken);
     await sendPasswordResetEmail({
       to: user.email,
       resetLink,

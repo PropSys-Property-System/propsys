@@ -8,6 +8,11 @@ const poolQuery = vi.fn();
 const clientQuery = vi.fn();
 const release = vi.fn();
 const connect = vi.fn(async () => ({ query: clientQuery, release }));
+const emailMocks = vi.hoisted(() => ({
+  configured: true,
+  exposeDebugLinks: true,
+  sendPasswordResetEmail: vi.fn(),
+}));
 
 vi.mock('argon2', () => ({
   default: {
@@ -21,6 +26,12 @@ vi.mock('@/lib/server/db/client', () => ({
     query: poolQuery,
     connect,
   }),
+}));
+
+vi.mock('@/lib/server/email/resend', () => ({
+  isEmailProviderConfigured: () => emailMocks.configured,
+  sendPasswordResetEmail: emailMocks.sendPasswordResetEmail,
+  shouldExposeEmailDebugLinks: () => emailMocks.exposeDebugLinks,
 }));
 
 const VALID_TOKEN = 'raw-reset-token';
@@ -130,6 +141,11 @@ describe('password reset backend', () => {
     connect.mockClear();
     vi.mocked(argon2.hash).mockClear();
     vi.unstubAllEnvs();
+    vi.stubEnv('PROPSYS_APP_URL', 'https://app.propsys.test');
+    emailMocks.configured = true;
+    emailMocks.exposeDebugLinks = true;
+    emailMocks.sendPasswordResetEmail.mockReset();
+    emailMocks.sendPasswordResetEmail.mockResolvedValue(undefined);
   });
 
   it('creates a reset token for an active user and exposes the dev link without returning tokenHash', async () => {
@@ -143,23 +159,30 @@ describe('password reset backend', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store');
     const data = (await res.json()) as {
       ok?: boolean;
-      delivery?: { mode?: string; resetLink?: string; token?: string; tokenHash?: string };
+      delivery?: { mode?: string; resetLink?: string; tokenHash?: string };
     };
     expect(data.ok).toBe(true);
-    expect(data.delivery?.mode).toBe('development_link');
-    expect(data.delivery?.resetLink).toContain('/reset-password?token=');
-    expect(data.delivery?.token).toBeTruthy();
+    expect(data.delivery?.mode).toBe('resend');
+    expect(data.delivery?.resetLink).toMatch(/^https:\/\/app\.propsys\.test\/reset-password\?token=/);
     expect(data.delivery?.tokenHash).toBeUndefined();
 
+    const rawToken = new URL(data.delivery?.resetLink ?? '').searchParams.get('token') ?? '';
+    expect(rawToken).toBeTruthy();
     const insertParams = tx.insertedTokenParams();
     expect(insertParams?.[1]).toBe('client_001');
     expect(insertParams?.[2]).toBe('u_active');
     expect(insertParams?.[3]).toBe('active@example.com');
-    expect(insertParams?.[4]).toBe(hashAccountToken(data.delivery?.token ?? ''));
-    expect(insertParams?.[4]).not.toBe(data.delivery?.token);
+    expect(insertParams?.[4]).toBe(hashAccountToken(rawToken));
+    expect(insertParams?.[4]).not.toBe(rawToken);
     expect(tx.revokedTokenParams()?.[0]).toBe('u_active');
-    expect(tx.auditPayloads.join('\n')).not.toContain(data.delivery?.token ?? 'raw-reset-token');
+    expect(tx.auditPayloads.join('\n')).not.toContain(rawToken);
     expect(tx.auditPayloads.join('\n')).not.toContain(String(insertParams?.[4]));
+    expect(emailMocks.sendPasswordResetEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'active@example.com',
+        resetLink: expect.stringContaining('https://app.propsys.test/reset-password?token='),
+      })
+    );
   });
 
   it('returns a generic ok response for unknown emails without creating a token', async () => {
@@ -177,12 +200,16 @@ describe('password reset backend', () => {
   it('does not expose or create reset tokens in production without explicit token exposure', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('PROPSYS_EXPOSE_AUTH_TOKENS', '');
+    emailMocks.configured = false;
+    emailMocks.exposeDebugLinks = false;
 
     const res = await requestPasswordReset(requestReset({ email: 'active@example.com' }));
 
     expect(res.status).toBe(503);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe('No hay proveedor de correo configurado para enviar recuperacion de contrasena.');
+    expect(data.error).toBe(
+      'No hay proveedor de correo configurado para enviar recuperacion de contrasena. Reemplaza re_xxxxxxxxx por tu API key real de Resend.'
+    );
     expect(poolQuery).not.toHaveBeenCalled();
     expect(connect).not.toHaveBeenCalled();
   });
