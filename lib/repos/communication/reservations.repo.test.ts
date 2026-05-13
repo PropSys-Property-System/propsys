@@ -17,6 +17,29 @@ function resetArray<T>(target: T[], snapshot: T[]) {
   target.splice(0, target.length, ...clone(snapshot));
 }
 
+function futureRange(daysFromNow: number, startHour = 18, durationHours = 1) {
+  const start = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
+  start.setUTCHours(startHour, 0, 0, 0);
+  const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
+  return { startAt: start.toISOString(), endAt: end.toISOString() };
+}
+
+function reservationFixture(overrides: Partial<ReservationEntity>): ReservationEntity {
+  const now = new Date().toISOString();
+  return {
+    id: 'resv-test',
+    clientId: 'client_001',
+    buildingId: 'b1',
+    unitId: 'unit-101',
+    commonAreaId: 'ca1',
+    createdByUserId: 'u4',
+    status: 'APPROVED',
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
 function userBase(overrides: Partial<User>): User {
   return {
     id: 'u_test',
@@ -94,25 +117,33 @@ describe('reservationsRepo (V1)', () => {
 
   it('rejects overlapping reservations for the same common area', async () => {
     const owner = userBase({ id: 'u4', internalRole: 'OWNER', role: 'OWNER', clientId: 'client_001' });
+    const existing = futureRange(10, 19, 3);
+    const overlap = futureRange(10, 20, 1);
+    MOCK_RESERVATION_ENTITIES.unshift(
+      reservationFixture({
+        id: 'resv-overlap-future',
+        ...existing,
+      })
+    );
+
     await expect(
       reservationsRepo.createForUser(owner, {
         buildingId: 'b1',
         unitId: 'unit-101',
         commonAreaId: 'ca1',
-        startAt: '2026-04-05T19:30:00.000Z',
-        endAt: '2026-04-05T20:30:00.000Z',
+        ...overlap,
       })
     ).rejects.toThrow('Ese horario ya está reservado.');
   });
 
   it('creates an APPROVED reservation when the common area does not require approval', async () => {
     const owner = userBase({ id: 'u4', internalRole: 'OWNER', role: 'OWNER', clientId: 'client_001' });
+    const range = futureRange(11);
     const created = await reservationsRepo.createForUser(owner, {
       buildingId: 'b1',
       unitId: 'unit-101',
       commonAreaId: 'ca3',
-      startAt: '2026-04-11T18:00:00.000Z',
-      endAt: '2026-04-11T19:00:00.000Z',
+      ...range,
     });
     expect(created.clientId).toBe('client_001');
     expect(created.status).toBe('APPROVED');
@@ -149,13 +180,26 @@ describe('reservationsRepo (V1)', () => {
     const owner = userBase({ id: 'u4', internalRole: 'OWNER', role: 'OWNER', clientId: 'client_001' });
     const occupant = userBase({ id: 'u5', internalRole: 'OCCUPANT', role: 'TENANT', clientId: 'client_001' });
     const admin = userBase({ id: 'u2', internalRole: 'BUILDING_ADMIN', role: 'BUILDING_ADMIN', clientId: 'client_001' });
+    MOCK_RESERVATION_ENTITIES.unshift(
+      reservationFixture({
+        id: 'resv-owner-cancel-future',
+        ...futureRange(12, 19, 2),
+      }),
+      reservationFixture({
+        id: 'resv-admin-cancel-future',
+        buildingId: 'b2',
+        unitId: 'unit-201',
+        commonAreaId: 'ca4',
+        ...futureRange(13, 19, 2),
+      })
+    );
 
-    const cancelledByOwner = await reservationsRepo.cancelForUser(owner, 'resv-1');
+    const cancelledByOwner = await reservationsRepo.cancelForUser(owner, 'resv-owner-cancel-future');
     expect(cancelledByOwner?.status).toBe('CANCELLED');
 
-    await expect(reservationsRepo.cancelForUser(occupant, 'resv-1')).rejects.toThrow('No autorizado');
+    await expect(reservationsRepo.cancelForUser(occupant, 'resv-owner-cancel-future')).rejects.toThrow('No autorizado');
 
-    const cancelledByAdmin = await reservationsRepo.cancelForUser(admin, 'resv-4');
+    const cancelledByAdmin = await reservationsRepo.cancelForUser(admin, 'resv-admin-cancel-future');
     expect(cancelledByAdmin?.status).toBe('CANCELLED');
   });
 });

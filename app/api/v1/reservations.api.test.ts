@@ -56,6 +56,13 @@ function reservationRow(input: {
   };
 }
 
+function futureRange(daysFromNow: number, startHour = 10, durationHours = 1) {
+  const start = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000);
+  start.setUTCHours(startHour, 0, 0, 0);
+  const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
+  return { startAt: start.toISOString(), endAt: end.toISOString() };
+}
+
 describe('reservations API (route handlers)', () => {
   it('allows ROOT_ADMIN + scope=platform to bypass tenant filter in list', async () => {
     poolQuery.mockReset();
@@ -182,6 +189,7 @@ describe('reservations API (route handlers)', () => {
       return { rows: [] };
     });
 
+    const { startAt, endAt } = futureRange(7);
     const req = new Request('http://localhost/api/v1/reservations', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -189,8 +197,8 @@ describe('reservations API (route handlers)', () => {
         buildingId: 'b2',
         unitId: 'unit-201',
         commonAreaId: 'ca-2',
-        startAt: '2026-04-20T10:00:00.000Z',
-        endAt: '2026-04-20T11:00:00.000Z',
+        startAt,
+        endAt,
       }),
     });
     const res = await createReservation(req);

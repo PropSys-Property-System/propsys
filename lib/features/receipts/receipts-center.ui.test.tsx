@@ -94,9 +94,9 @@ describe('payment proof receipt UI', () => {
     render(
       <AdminPaymentProofsPanel
         proofs={[proof()]}
+        pendingReceipts={[receipt]}
         pendingActionId={null}
         reviewComments={{}}
-        receiptsById={new Map([[receipt.id, receipt]])}
         buildingById={new Map([['b1', { id: 'b1', name: 'Torre Alerce' }]])}
         unitById={new Map([['unit_1', { id: 'unit_1', buildingId: 'b1', number: '101' }]])}
         onOpenProof={vi.fn()}
@@ -106,8 +106,8 @@ describe('payment proof receipt UI', () => {
       />
     );
 
-    expect(screen.getByText('Recibo: REC-001')).toBeInTheDocument();
-    expect(screen.getByText('Torre Alerce · Unidad 101')).toBeInTheDocument();
+    expect(screen.getByText('REC-001')).toBeInTheDocument();
+    expect(screen.getByText(/Torre Alerce.*Unidad 101/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /aprobar/i }));
     fireEvent.click(screen.getByRole('button', { name: /rechazar/i }));
     expect(onApprove).toHaveBeenCalledWith('rpp_1');
