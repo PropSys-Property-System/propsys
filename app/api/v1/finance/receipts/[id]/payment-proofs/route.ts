@@ -139,6 +139,20 @@ async function canViewReceipt(pool: ReturnType<typeof getPool>, user: SessionUse
   return hasUnitAssignment(pool, user, receipt.unit_id, receipt.client_id);
 }
 
+async function getActivePaymentProof(pool: ReturnType<typeof getPool>, receiptId: string, clientId: string) {
+  const res = await pool.query<{ status: string }>(
+    `SELECT status
+     FROM receipt_payment_proofs
+     WHERE receipt_id = $1
+       AND client_id = $2
+       AND deleted_at IS NULL
+       AND status IN ('PENDING_REVIEW', 'APPROVED')
+     LIMIT 1`,
+    [receiptId, clientId]
+  );
+  return res.rows[0] ?? null;
+}
+
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -202,6 +216,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!unitOk) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
   if (receipt.status !== 'PENDING') {
     return NextResponse.json({ error: 'Solo se pueden subir comprobantes para recibos pendientes.' }, { status: 400 });
+  }
+
+  const activeProof = await getActivePaymentProof(pool, receipt.id, receipt.client_id);
+  if (activeProof) {
+    const error =
+      activeProof.status === 'PENDING_REVIEW'
+        ? 'Ya existe un comprobante pendiente de revision para este recibo.'
+        : 'Este recibo ya tiene un comprobante aprobado.';
+    return NextResponse.json({ error }, { status: 409 });
   }
 
   const proofId = `rpp_${Date.now()}_${randomUUID().slice(0, 8)}`;

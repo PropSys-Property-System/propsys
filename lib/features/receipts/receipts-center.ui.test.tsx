@@ -88,6 +88,27 @@ describe('payment proof receipt UI', () => {
     expect(screen.queryByRole('button', { name: /subir comprobante/i })).not.toBeInTheDocument();
   });
 
+  it('allows a new upload when the latest proof was rejected', () => {
+    const onUpload = vi.fn();
+    render(
+      <ResidentPaymentProofPanel
+        receipt={receipt}
+        proofs={[proof({ status: 'REJECTED', reviewComment: 'No legible' })]}
+        selectedFile={null}
+        note=""
+        isSubmitting={false}
+        onFileChange={vi.fn()}
+        onNoteChange={vi.fn()}
+        onUpload={onUpload}
+      />
+    );
+
+    expect(screen.getAllByText('Rechazado').length).toBeGreaterThan(0);
+    expect(screen.getByText(/comprobante anterior fue rechazado/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /subir comprobante/i }));
+    expect(onUpload).toHaveBeenCalledTimes(1);
+  });
+
   it('renders admin review actions for pending proofs', () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();

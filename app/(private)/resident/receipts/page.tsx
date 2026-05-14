@@ -23,7 +23,7 @@ export default function ResidentReceiptsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ResidentReceiptsStatusFilter>('ALL');
   const [unitFilter, setUnitFilter] = useState<string>('ALL');
-  const [sortOrder, setSortOrder] = useState<ResidentReceiptsSortOrder>('DUE_ASC');
+  const [sortOrder, setSortOrder] = useState<ResidentReceiptsSortOrder>('ACTION_REQUIRED');
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [buildings, setBuildings] = useState<{ id: string; name: string; clientId?: string }[]>([]);
   const [units, setUnits] = useState<{ id: string; buildingId: string; number: string }[]>([]);
@@ -70,8 +70,8 @@ export default function ResidentReceiptsPage() {
   const residentUnitOptions = useMemo(() => buildResidentUnitFilterOptions(units, buildings), [units, buildings]);
   const unitLabelById = useMemo(() => new Map(residentUnitOptions.map((option) => [option.id, option.label])), [residentUnitOptions]);
   const filteredReceipts = useMemo(
-    () => filterAndSortResidentReceipts(receipts, searchTerm, statusFilter, unitFilter, sortOrder),
-    [receipts, searchTerm, statusFilter, unitFilter, sortOrder]
+    () => filterAndSortResidentReceipts(receipts, searchTerm, statusFilter, unitFilter, sortOrder, proofsByReceiptId),
+    [receipts, searchTerm, statusFilter, unitFilter, sortOrder, proofsByReceiptId]
   );
 
   const pendingAmount = useMemo(
@@ -148,6 +148,7 @@ export default function ResidentReceiptsPage() {
               onChange={(event) => setSortOrder(event.target.value as ResidentReceiptsSortOrder)}
               className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
             >
+              <option value="ACTION_REQUIRED">Accion requerida primero</option>
               <option value="DUE_ASC">Vence primero</option>
               <option value="DUE_DESC">Vence despues</option>
               <option value="ISSUE_DESC">Emision mas reciente</option>

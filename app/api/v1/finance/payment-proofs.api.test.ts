@@ -64,6 +64,7 @@ function receiptRow(overrides: Partial<{ client_id: string; status: string; unit
 
 function proofRow(
   overrides: Partial<{
+    id: string;
     status: string;
     client_id: string;
     building_id: string;
@@ -186,7 +187,54 @@ describe('finance payment proofs API', () => {
     expect(storageMocks.savePaymentProofFile).not.toHaveBeenCalled();
   });
 
-  it('returns 409 and cleans up the saved file when an active proof already exists', async () => {
+  it('rejects duplicate pending proof before saving the file', async () => {
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM receipts')) return { rows: [receiptRow()] };
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [{ ok: true }] };
+      if (sql.includes('FROM receipt_payment_proofs')) return { rows: [{ status: 'PENDING_REVIEW' }] };
+      return { rows: [] };
+    });
+
+    const res = await uploadProof(formRequest(), { params: Promise.resolve({ id: 'rect_1' }) });
+
+    expect(res.status).toBe(409);
+    expect(storageMocks.savePaymentProofFile).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('lets an owner upload again after the previous proof was rejected', async () => {
+    let activeProofSql = '';
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM receipts')) return { rows: [receiptRow()] };
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [{ ok: true }] };
+      if (sql.includes('FROM receipt_payment_proofs')) {
+        activeProofSql = sql;
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+    storageMocks.savePaymentProofFile.mockResolvedValue({
+      originalName: 'comprobante.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 4,
+      storagePath: '.data/uploads/finance/payment-proofs/rect_1/rpp_2.jpg',
+      publicPath: '/api/v1/finance/payment-proofs/rpp_2',
+    });
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+      if (sql.includes('INSERT INTO receipt_payment_proofs')) return { rows: [proofRow({ id: 'rpp_2' })] };
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const res = await uploadProof(formRequest(), { params: Promise.resolve({ id: 'rect_1' }) });
+
+    expect(res.status).toBe(200);
+    expect(activeProofSql).toContain("status IN ('PENDING_REVIEW', 'APPROVED')");
+    expect(storageMocks.savePaymentProofFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up the saved file when a concurrent active proof insert wins the race', async () => {
     poolQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM receipts')) return { rows: [receiptRow()] };
       if (sql.includes('FROM user_unit_assignments')) return { rows: [{ ok: true }] };

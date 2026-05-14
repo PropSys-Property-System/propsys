@@ -751,6 +751,11 @@ export function ResidentPaymentProofPanel({
           </div>
         ) : null}
 
+        {latestProof?.status === 'REJECTED' && !activeProof ? (
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+            El comprobante anterior fue rechazado. Puedes subir un nuevo archivo para revision.
+          </div>
+        ) : null}
         {canUpload ? (
           <div className="space-y-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
             <div>

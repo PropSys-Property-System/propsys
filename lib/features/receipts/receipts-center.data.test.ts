@@ -170,4 +170,124 @@ describe('receipts center payment proof data layer', () => {
     expect(pendingSortedByAmount.every((receipt) => receipt.status === 'PENDING' || receipt.status === 'OVERDUE')).toBe(true);
   });
 
+  it('orders resident receipts by required action before paid history by default', () => {
+    const receipts = [
+      {
+        id: 'rect_paid_old',
+        buildingId: 'b1',
+        unitId: 'unit_1',
+        number: 'REC-PAID',
+        description: 'Pagado antiguo',
+        amount: 80,
+        currency: 'PEN' as const,
+        issueDate: '2026-01-01',
+        dueDate: '2026-01-05',
+        status: 'PAID' as const,
+      },
+      {
+        id: 'rect_pending_no_proof',
+        buildingId: 'b1',
+        unitId: 'unit_1',
+        number: 'REC-PENDING',
+        description: 'Pendiente sin comprobante',
+        amount: 120,
+        currency: 'PEN' as const,
+        issueDate: '2026-05-01',
+        dueDate: '2026-06-10',
+        status: 'PENDING' as const,
+      },
+      {
+        id: 'rect_rejected',
+        buildingId: 'b1',
+        unitId: 'unit_1',
+        number: 'REC-REJECTED',
+        description: 'Requiere reenvio',
+        amount: 130,
+        currency: 'PEN' as const,
+        issueDate: '2026-05-02',
+        dueDate: '2026-06-11',
+        status: 'PENDING' as const,
+      },
+      {
+        id: 'rect_review',
+        buildingId: 'b1',
+        unitId: 'unit_1',
+        number: 'REC-REVIEW',
+        description: 'En revision',
+        amount: 140,
+        currency: 'PEN' as const,
+        issueDate: '2026-05-03',
+        dueDate: '2026-06-12',
+        status: 'PENDING' as const,
+      },
+      {
+        id: 'rect_overdue',
+        buildingId: 'b1',
+        unitId: 'unit_1',
+        number: 'REC-OVERDUE',
+        description: 'Vencido',
+        amount: 150,
+        currency: 'PEN' as const,
+        issueDate: '2026-04-01',
+        dueDate: '2026-04-10',
+        status: 'OVERDUE' as const,
+      },
+    ];
+
+    const sorted = filterAndSortResidentReceipts(receipts, '', 'ALL', 'ALL', 'ACTION_REQUIRED', {
+      rect_rejected: [
+        {
+          id: 'rpp_rejected',
+          clientId: 'client_001',
+          buildingId: 'b1',
+          unitId: 'unit_1',
+          receiptId: 'rect_rejected',
+          uploadedByUserId: 'u_owner',
+          fileName: 'rechazado.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 100,
+          note: null,
+          status: 'REJECTED',
+          reviewedByUserId: 'u_admin',
+          reviewedAt: '2026-05-04T10:00:00.000Z',
+          reviewComment: 'No legible',
+          deletedAt: null,
+          createdAt: '2026-05-04T09:00:00.000Z',
+          updatedAt: '2026-05-04T10:00:00.000Z',
+          fileUrl: '/api/v1/finance/payment-proofs/rpp_rejected',
+        },
+      ],
+      rect_review: [
+        {
+          id: 'rpp_review',
+          clientId: 'client_001',
+          buildingId: 'b1',
+          unitId: 'unit_1',
+          receiptId: 'rect_review',
+          uploadedByUserId: 'u_owner',
+          fileName: 'revision.pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 100,
+          note: null,
+          status: 'PENDING_REVIEW',
+          reviewedByUserId: null,
+          reviewedAt: null,
+          reviewComment: null,
+          deletedAt: null,
+          createdAt: '2026-05-04T09:00:00.000Z',
+          updatedAt: '2026-05-04T09:00:00.000Z',
+          fileUrl: '/api/v1/finance/payment-proofs/rpp_review',
+        },
+      ],
+    });
+
+    expect(sorted.map((receipt) => receipt.id)).toEqual([
+      'rect_pending_no_proof',
+      'rect_rejected',
+      'rect_review',
+      'rect_overdue',
+      'rect_paid_old',
+    ]);
+  });
+
 });

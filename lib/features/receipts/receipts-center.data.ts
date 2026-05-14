@@ -34,7 +34,14 @@ export type ResidentReceiptsPageData = {
 };
 
 export type ResidentReceiptsStatusFilter = 'ALL' | 'PENDING' | 'PAID' | 'CANCELLED';
-export type ResidentReceiptsSortOrder = 'DUE_ASC' | 'DUE_DESC' | 'ISSUE_DESC' | 'ISSUE_ASC' | 'AMOUNT_DESC' | 'AMOUNT_ASC';
+export type ResidentReceiptsSortOrder =
+  | 'ACTION_REQUIRED'
+  | 'DUE_ASC'
+  | 'DUE_DESC'
+  | 'ISSUE_DESC'
+  | 'ISSUE_ASC'
+  | 'AMOUNT_DESC'
+  | 'AMOUNT_ASC';
 
 export type ResidentUnitFilterOption = {
   id: string;
@@ -129,7 +136,8 @@ export function filterAndSortResidentReceipts(
   searchTerm: string,
   statusFilter: ResidentReceiptsStatusFilter,
   unitFilter: string,
-  sortOrder: ResidentReceiptsSortOrder
+  sortOrder: ResidentReceiptsSortOrder,
+  proofsByReceiptId: Record<string, ReceiptPaymentProofView[]> = {}
 ): Receipt[] {
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filtered = receipts.filter((receipt) => {
@@ -148,6 +156,13 @@ export function filterAndSortResidentReceipts(
   });
 
   return filtered.sort((a, b) => {
+    if (sortOrder === 'ACTION_REQUIRED') {
+      const priority = (receipt: Receipt) => residentReceiptActionPriority(receipt, proofsByReceiptId[receipt.id] ?? []);
+      const priorityDelta = priority(a) - priority(b);
+      if (priorityDelta !== 0) return priorityDelta;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    }
+
     switch (sortOrder) {
       case 'DUE_DESC':
         return new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime();
@@ -164,6 +179,20 @@ export function filterAndSortResidentReceipts(
         return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
     }
   });
+}
+
+function residentReceiptActionPriority(receipt: Receipt, proofs: ReceiptPaymentProofView[]) {
+  if (receipt.status === 'PAID' || receipt.status === 'CANCELLED') return 5;
+
+  const latestProof = [...proofs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
+  const hasPendingReview = proofs.some((proof) => proof.status === 'PENDING_REVIEW');
+  const hasApproved = proofs.some((proof) => proof.status === 'APPROVED');
+
+  if (hasApproved) return 5;
+  if (latestProof?.status === 'REJECTED') return 1;
+  if (hasPendingReview) return 2;
+  if (receipt.status === 'OVERDUE') return 3;
+  return 0;
 }
 
 async function loadReceiptDetailData(user: User, receiptId: string): Promise<ReceiptDetailData> {
