@@ -56,7 +56,7 @@ export default function AdminReceiptsPage() {
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
   const [pendingProofActionId, setPendingProofActionId] = useState<string | null>(null);
   const [pendingProofs, setPendingProofs] = useState<ReceiptPaymentProofView[]>([]);
-  const [rejectedProofReceiptIds, setRejectedProofReceiptIds] = useState<string[]>([]);
+
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -70,17 +70,15 @@ export default function AdminReceiptsPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const [data, proofs, rejectedProofs] = await Promise.all([
+        const [data, proofs] = await Promise.all([
           loadAdminReceiptsPageData(user),
           listAdminReceiptPaymentProofs(user),
-          listAdminReceiptPaymentProofs(user, 'REJECTED'),
         ]);
         if (!isMounted) return;
         setAllReceipts(data.receipts);
         setBuildings(data.buildings);
         setUnits(data.units);
         setPendingProofs(proofs);
-        setRejectedProofReceiptIds([...new Set(rejectedProofs.map((proof) => proof.receiptId))]);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los recibos. Intenta nuevamente.');
@@ -99,7 +97,7 @@ export default function AdminReceiptsPage() {
 
   const buildingById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
   const unitById = useMemo(() => new Map(units.map((unit) => [unit.id, unit])), [units]);
-  const rejectedReceiptIds = useMemo(() => new Set(rejectedProofReceiptIds), [rejectedProofReceiptIds]);
+
   const receipts = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase();
     const normalizedUnitSearch = unitSearch.trim().toLowerCase();
@@ -141,15 +139,12 @@ export default function AdminReceiptsPage() {
       }
     });
   }, [allReceipts, searchTerm, statusFilter, buildingFilter, unitSearch, sortOrder, unitById]);
-  const topPendingReceipts = useMemo(
-    () =>
-      receipts.filter(
-        (receipt) =>
-          (receipt.status === 'PENDING' || receipt.status === 'OVERDUE') &&
-          !rejectedReceiptIds.has(receipt.id)
-      ),
-    [receipts, rejectedReceiptIds]
-  );
+  const topPendingReceipts = useMemo(() => {
+    const pendingProofReceiptIds = new Set(
+      pendingProofs.filter((p) => p.status === 'PENDING_REVIEW').map((p) => p.receiptId)
+    );
+    return receipts.filter((receipt) => pendingProofReceiptIds.has(receipt.id));
+  }, [receipts, pendingProofs]);
   const visibleReceipts = useMemo(
     () => receipts.filter((receipt) => !topPendingReceipts.some((pendingReceipt) => pendingReceipt.id === receipt.id)),
     [receipts, topPendingReceipts]
@@ -249,11 +244,7 @@ export default function AdminReceiptsPage() {
         reviewComment: reviewComments[proofId],
       });
       setPendingProofs((current) => current.filter((proof) => proof.id !== proofId));
-      if (action === 'REJECT') {
-        setRejectedProofReceiptIds((current) =>
-          current.includes(result.receipt.id) ? current : [...current, result.receipt.id]
-        );
-      }
+
       setReviewComments((current) => {
         const next = { ...current };
         delete next[proofId];
