@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildResidentUnitFilterOptions,
   filterAndSortResidentReceipts,
+  listReceiptPaymentProofsForReceipt,
   loadResidentReceiptDetailData,
   reviewReceiptPaymentProof,
   uploadReceiptPaymentProof,
@@ -75,6 +76,39 @@ describe('receipts center payment proof data layer', () => {
         body: JSON.stringify({ action: 'APPROVE', reviewComment: 'Validado' }),
       })
     );
+  });
+
+  it('lists receipt payment proofs from the receipt-scoped endpoint', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          proofs: [
+            {
+              id: 'rpp_pending',
+              receiptId: 'rect_1',
+              status: 'PENDING_REVIEW',
+              fileUrl: '/api/v1/finance/payment-proofs/rpp_pending',
+            },
+            {
+              id: 'rpp_rejected',
+              receiptId: 'rect_1',
+              status: 'REJECTED',
+              fileUrl: '/api/v1/finance/payment-proofs/rpp_rejected',
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const proofs = await listReceiptPaymentProofsForReceipt(user, 'rect_1');
+
+    expect(proofs.map((proof) => proof.id)).toEqual(['rpp_pending', 'rpp_rejected']);
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/finance/receipts/rect_1/payment-proofs', { credentials: 'include' });
   });
 
   it('loads receipt detail using receipt.id as canonical identifier', async () => {

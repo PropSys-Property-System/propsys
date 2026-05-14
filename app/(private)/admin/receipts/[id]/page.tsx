@@ -271,6 +271,7 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
         isDeleting={isDeleting}
         paymentProofPanel={
           <AdminPaymentProofsPanel
+            receipt={receipt}
             emptyDescription="Este recibo aún no tiene comprobantes registrados."
             proofs={proofs}
             pendingActionId={pendingProofActionId}

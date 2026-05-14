@@ -135,6 +135,92 @@ describe('payment proof receipt UI', () => {
     expect(onReject).toHaveBeenCalledWith('rpp_1');
   });
 
+  it('renders receipt detail proofs without requiring pendingReceipts', () => {
+    const onApprove = vi.fn();
+    const onReject = vi.fn();
+    const { container } = render(
+      <AdminPaymentProofsPanel
+        receipt={receipt}
+        proofs={[
+          proof({
+            id: 'rpp_rejected',
+            status: 'REJECTED',
+            fileName: 'rechazado.pdf',
+            reviewComment: 'No legible',
+            createdAt: '2026-05-05T10:00:00.000Z',
+          }),
+          proof({
+            id: 'rpp_pending',
+            status: 'PENDING_REVIEW',
+            fileName: 'nuevo.pdf',
+            createdAt: '2026-05-04T10:00:00.000Z',
+          }),
+        ]}
+        pendingActionId={null}
+        reviewComments={{}}
+        emptyDescription="Este recibo aun no tiene comprobantes registrados."
+        buildingById={new Map([['b1', { id: 'b1', name: 'Torre Alerce' }]])}
+        unitById={new Map([['unit_1', { id: 'unit_1', buildingId: 'b1', number: '101' }]])}
+        onOpenProof={vi.fn()}
+        onReviewCommentChange={vi.fn()}
+        onApprove={onApprove}
+        onReject={onReject}
+      />
+    );
+
+    expect(screen.getByText('REC-001')).toBeInTheDocument();
+    expect(screen.getByText('nuevo.pdf')).toBeInTheDocument();
+    expect(screen.getByText('rechazado.pdf')).toBeInTheDocument();
+    expect(screen.getByText(/Comentario: No legible/)).toBeInTheDocument();
+    expect(screen.queryByText('Este recibo aun no tiene comprobantes registrados.')).not.toBeInTheDocument();
+    const renderedText = container.textContent ?? '';
+    expect(renderedText.indexOf('nuevo.pdf')).toBeLessThan(renderedText.indexOf('rechazado.pdf'));
+
+    fireEvent.click(screen.getByRole('button', { name: /aprobar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /rechazar/i }));
+    expect(onApprove).toHaveBeenCalledWith('rpp_pending');
+    expect(onReject).toHaveBeenCalledWith('rpp_pending');
+  });
+
+  it('shows receipt detail empty state only when the receipt has no proofs', () => {
+    render(
+      <AdminPaymentProofsPanel
+        receipt={receipt}
+        proofs={[]}
+        pendingActionId={null}
+        reviewComments={{}}
+        emptyDescription="Este recibo aun no tiene comprobantes registrados."
+        onOpenProof={vi.fn()}
+        onReviewCommentChange={vi.fn()}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Este recibo aun no tiene comprobantes registrados.')).toBeInTheDocument();
+    expect(screen.queryByText('REC-001')).not.toBeInTheDocument();
+  });
+
+  it('renders rejected receipt detail proofs as history without review actions', () => {
+    render(
+      <AdminPaymentProofsPanel
+        receipt={receipt}
+        proofs={[proof({ status: 'REJECTED', fileName: 'rechazado.pdf', reviewComment: 'No coincide' })]}
+        pendingActionId={null}
+        reviewComments={{}}
+        onOpenProof={vi.fn()}
+        onReviewCommentChange={vi.fn()}
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('rechazado.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Historial')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /aprobar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /rechazar/i })).not.toBeInTheDocument();
+  });
+
   it('navigates with receipt.id while keeping receipt.number as display text', () => {
     const onView = vi.fn();
     render(

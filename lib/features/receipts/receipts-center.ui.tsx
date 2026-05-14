@@ -132,6 +132,7 @@ type ResidentPaymentProofPanelProps = {
 
 type AdminPaymentProofsPanelProps = {
   proofs: ReceiptPaymentProofView[];
+  receipt?: Receipt;
   pendingReceipts?: Receipt[];
   pendingActionId?: string | null;
   reviewComments: Record<string, string>;
@@ -676,6 +677,20 @@ function latestPaymentProof(proofs: ReceiptPaymentProofView[]) {
   return [...proofs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ?? null;
 }
 
+function sortPaymentProofsForReview(proofs: ReceiptPaymentProofView[]) {
+  const statusPriority: Record<ReceiptPaymentProofView['status'], number> = {
+    PENDING_REVIEW: 0,
+    REJECTED: 1,
+    APPROVED: 2,
+  };
+
+  return [...proofs].sort((a, b) => {
+    const statusDiff = statusPriority[a.status] - statusPriority[b.status];
+    if (statusDiff !== 0) return statusDiff;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
 function PaymentProofStatusPill({ status }: { status: ReceiptPaymentProofView['status'] }) {
   return (
     <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest ${paymentProofStatusClasses(status)}`}>
@@ -804,6 +819,7 @@ export function ResidentPaymentProofPanel({
 
 export function AdminPaymentProofsPanel({
   proofs,
+  receipt,
   pendingReceipts = [],
   pendingActionId,
   reviewComments,
@@ -817,6 +833,10 @@ export function AdminPaymentProofsPanel({
   onApprove,
   onReject,
 }: AdminPaymentProofsPanelProps) {
+  const receiptHasProofs = receipt ? proofs.some((proof) => proof.receiptId === receipt.id) : false;
+  const receiptsToRender = receipt ? (receiptHasProofs ? [receipt] : []) : pendingReceipts;
+  const hasContent = receiptsToRender.length > 0;
+
   return (
     <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
       <div className="flex flex-col gap-1">
@@ -825,97 +845,120 @@ export function AdminPaymentProofsPanel({
       </div>
 
       <div className="mt-5 space-y-4">
-        {pendingReceipts.length === 0 ? (
+        {!hasContent ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center text-sm font-bold text-slate-500">
             {emptyDescription}
           </div>
         ) : null}
 
-        {pendingReceipts.map((receipt) => {
-          const proof = proofs.find((item) => item.receiptId === receipt.id && item.status === 'PENDING_REVIEW') ?? null;
-          const isPending = proof?.status === 'PENDING_REVIEW';
-          const approveId = proof ? `${proof.id}:APPROVE` : null;
-          const rejectId = proof ? `${proof.id}:REJECT` : null;
-          const buildingId = receipt.buildingId;
-          const unitId = receipt.unitId;
+        {receiptsToRender.map((item) => {
+          const receiptProofs = sortPaymentProofsForReview(proofs.filter((proof) => proof.receiptId === item.id));
+          const buildingId = item.buildingId;
+          const unitId = item.unitId;
           const buildingName = buildingById?.get(buildingId)?.name ?? buildingId;
           const unitNumber = unitById?.get(unitId)?.number ?? unitId;
 
           return (
-            <div key={receipt.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-black text-slate-900">{receipt.number}</p>
-                    <StatusBadge status={receipt.status} />
-                    {proof ? <PaymentProofStatusPill status={proof.status} /> : null}
+                    <p className="text-sm font-black text-slate-900">{item.number}</p>
+                    <StatusBadge status={item.status} />
                   </div>
-                  <p className="mt-2 text-xs font-medium text-slate-600">{receipt.description || 'Recibo pendiente de gestión'}</p>
+                  <p className="mt-2 text-xs font-medium text-slate-600">{item.description || 'Recibo pendiente de gestion'}</p>
                   <p className="mt-1 text-xs font-medium text-slate-500">
-                    {buildingName} · Unidad {unitNumber}
+                    {buildingName} - Unidad {unitNumber}
                   </p>
                   <p className="mt-1 text-xs font-bold text-slate-500">
-                    {formatReceiptAmount(receipt.amount, receipt.currency)} · Vence {formatReceiptDate(receipt.dueDate)}
+                    {formatReceiptAmount(item.amount, item.currency)} - Vence {formatReceiptDate(item.dueDate)}
                   </p>
-                  {proof ? (
-                    <>
-                      <p className="mt-2 text-xs font-bold text-slate-700">{proof.fileName}</p>
-                      {proof.note ? <p className="mt-1 text-xs font-medium text-slate-500">{proof.note}</p> : null}
-                    </>
-                  ) : (
-                    <p className="mt-2 text-xs font-bold text-slate-400">Sin comprobante cargado todavía.</p>
-                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {onViewReceipt ? (
                     <button
                       type="button"
-                      onClick={() => onViewReceipt(receipt.id)}
+                      onClick={() => onViewReceipt(item.id)}
                       className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
                     >
                       Ver detalle
                     </button>
                   ) : null}
-                  {proof ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenProof(proof)}
-                      className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-                    >
-                      <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver archivo
-                    </button>
-                  ) : null}
-                  {isPending && proof ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => void onApprove(proof.id)}
-                        disabled={Boolean(pendingActionId)}
-                        className="inline-flex items-center rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
-                      >
-                        <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> {pendingActionId === approveId ? 'Aprobando...' : 'Aprobar'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void onReject(proof.id)}
-                        disabled={Boolean(pendingActionId)}
-                        className="inline-flex items-center rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
-                      >
-                        <XCircle className="mr-2 h-3.5 w-3.5" /> {pendingActionId === rejectId ? 'Rechazando...' : 'Rechazar'}
-                      </button>
-                    </>
-                  ) : null}
                 </div>
               </div>
-              {isPending && proof ? (
-                <textarea
-                  value={reviewComments[proof.id] ?? ''}
-                  onChange={(event) => onReviewCommentChange(proof.id, event.target.value)}
-                  rows={2}
-                  placeholder="Comentario opcional para la revisión"
-                  className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/5"
-                />
-              ) : null}
+              {receiptProofs.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {receiptProofs.map((proof) => {
+                    const isPending = proof.status === 'PENDING_REVIEW';
+                    const approveId = `${proof.id}:APPROVE`;
+                    const rejectId = `${proof.id}:REJECT`;
+
+                    return (
+                      <div key={proof.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <PaymentProofStatusPill status={proof.status} />
+                              {!isPending ? (
+                                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Historial</span>
+                              ) : null}
+                            </div>
+                            <p className="mt-2 text-xs font-bold text-slate-700">{proof.fileName}</p>
+                            {proof.note ? <p className="mt-1 text-xs font-medium text-slate-500">{proof.note}</p> : null}
+                            {proof.reviewComment ? (
+                              <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+                                Comentario: {proof.reviewComment}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onOpenProof(proof)}
+                              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                            >
+                              <ExternalLink className="mr-2 h-3.5 w-3.5" /> Ver archivo
+                            </button>
+                            {isPending ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => void onApprove(proof.id)}
+                                  disabled={Boolean(pendingActionId)}
+                                  className="inline-flex items-center rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                                >
+                                  <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> {pendingActionId === approveId ? 'Aprobando...' : 'Aprobar'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void onReject(proof.id)}
+                                  disabled={Boolean(pendingActionId)}
+                                  className="inline-flex items-center rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                                >
+                                  <XCircle className="mr-2 h-3.5 w-3.5" /> {pendingActionId === rejectId ? 'Rechazando...' : 'Rechazar'}
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+                        {isPending ? (
+                          <textarea
+                            value={reviewComments[proof.id] ?? ''}
+                            onChange={(event) => onReviewCommentChange(proof.id, event.target.value)}
+                            rows={2}
+                            placeholder="Comentario opcional para la revision"
+                            className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/5"
+                          />
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-400">
+                  Sin comprobante cargado todavia.
+                </p>
+              )}
             </div>
           );
         })}
@@ -923,7 +966,6 @@ export function AdminPaymentProofsPanel({
     </section>
   );
 }
-
 export function ResidentReceiptHeaderActions({
   receipt,
   receiptStatus,
