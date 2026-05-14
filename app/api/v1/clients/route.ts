@@ -46,20 +46,33 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
+  const { searchParams } = new URL(req.url);
+  const includeSuspended = searchParams.get('includeSuspended') === 'true';
+
   const pool = getPool();
   const bypassTenant = canBypassTenantScope(user);
-  const rows = await pool.query<ClientRow>(
-    bypassTenant
-      ? `SELECT id, slug, name, status, created_at::text as created_at
-         FROM clients
-         WHERE status = 'ACTIVE'
-         ORDER BY name ASC`
-      : `SELECT id, slug, name, status, created_at::text as created_at
-         FROM clients
-         WHERE id = $1 AND status = 'ACTIVE'
-         ORDER BY name ASC`,
-    bypassTenant ? [] : [user.clientId]
-  );
+  
+  let queryText = '';
+  const queryParams: string[] = [];
+
+  if (bypassTenant) {
+    queryText = `
+      SELECT id, slug, name, status, created_at::text as created_at
+      FROM clients
+      ${includeSuspended ? '' : "WHERE status = 'ACTIVE'"}
+      ORDER BY name ASC
+    `;
+  } else {
+    queryText = `
+      SELECT id, slug, name, status, created_at::text as created_at
+      FROM clients
+      WHERE id = $1 AND status = 'ACTIVE'
+      ORDER BY name ASC
+    `;
+    queryParams.push(user.clientId || '');
+  }
+
+  const rows = await pool.query<ClientRow>(queryText, queryParams);
 
   return NextResponse.json({ clients: rows.rows.map(toClient) });
 }

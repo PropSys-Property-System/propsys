@@ -225,6 +225,32 @@ describe('POST /api/v1/users/invitations', () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
+  it('rejects invitations for a SUSPENDED client', async () => {
+    sessionUser.id = 'u_root';
+    sessionUser.clientId = null;
+    sessionUser.internalRole = 'ROOT_ADMIN';
+    sessionUser.scope = 'platform';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      // Simulate client not found or not active because the query enforces status = 'ACTIVE'
+      if (sql.includes('FROM clients')) return { rows: [] };
+      if (sql.includes('FROM users')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const res = await createInvitation(
+      makeRequest({
+        email: 'manager.new@example.com',
+        name: 'Manager Nuevo',
+        internalRole: 'CLIENT_MANAGER',
+        clientId: 'client_suspended',
+      })
+    );
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ error: 'Cliente no encontrado' });
+  });
+
   it('requires buildingId for BUILDING_ADMIN and STAFF invitations', async () => {
     const res = await createInvitation(
       makeRequest({
