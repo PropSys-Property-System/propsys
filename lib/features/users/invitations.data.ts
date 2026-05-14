@@ -1,11 +1,12 @@
 import type { User } from '@/lib/types';
 
-export type UserInvitationRole = 'BUILDING_ADMIN' | 'STAFF' | 'OWNER' | 'OCCUPANT';
+export type UserInvitationRole = 'CLIENT_MANAGER' | 'BUILDING_ADMIN' | 'STAFF' | 'OWNER' | 'OCCUPANT';
 
 export type CreateUserInvitationInput = {
   email: string;
   name: string;
   internalRole: UserInvitationRole;
+  clientId?: string;
   buildingId?: string;
   unitId?: string;
 };
@@ -33,6 +34,10 @@ const EMAIL_PROVIDER_ERROR =
 
 function shouldSendBuildingId(role: UserInvitationRole): boolean {
   return role === 'BUILDING_ADMIN' || role === 'STAFF';
+}
+
+function shouldSendUnitId(role: UserInvitationRole): boolean {
+  return role === 'OWNER' || role === 'OCCUPANT';
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -84,8 +89,11 @@ export async function createUserInvitation(input: CreateUserInvitationInput): Pr
   if (shouldSendBuildingId(input.internalRole) && input.buildingId) {
     payload.buildingId = input.buildingId;
   }
-  if (!shouldSendBuildingId(input.internalRole) && input.unitId) {
+  if (shouldSendUnitId(input.internalRole) && input.unitId) {
     payload.unitId = input.unitId;
+  }
+  if (input.internalRole === 'CLIENT_MANAGER' && input.clientId) {
+    payload.clientId = input.clientId;
   }
 
   const res = await fetch('/api/v1/users/invitations', {

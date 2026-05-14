@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
+  createClientForRoot,
   loadAdminUsersPageData,
   updateAdminUserProfile,
   updateAdminUserStatus,
@@ -14,6 +15,7 @@ import { InvitationCreationDialog } from '@/lib/features/users/invitations.ui';
 import { UserCard, buildBuildingNameMap, buildUnitLabelMap } from '@/lib/features/users/users-center.ui';
 import { labelUserRole } from '@/lib/presentation/labels';
 import type { Building, Unit, User } from '@/lib/types';
+import type { ClientAccount } from '@/lib/repos/core/clients.repo';
 
 type FormMode = 'edit';
 
@@ -32,6 +34,7 @@ export default function UsersPage() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [clients, setClients] = useState<ClientAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +45,9 @@ export default function UsersPage() {
   const [formState, setFormState] = useState<UserFormState>(INITIAL_FORM);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [isInvitationOpen, setIsInvitationOpen] = useState(false);
+  const [isClientFormOpen, setIsClientFormOpen] = useState(false);
+  const [clientName, setClientName] = useState('');
+  const [isClientSubmitting, setIsClientSubmitting] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -58,6 +64,7 @@ export default function UsersPage() {
         setAllUsers(data.users);
         setBuildings(data.buildings);
         setUnits(data.units);
+        setClients(data.clients ?? []);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los usuarios.');
@@ -166,8 +173,26 @@ export default function UsersPage() {
   }, [allUsers, buildingNameById, searchTerm, unitLabelById]);
 
   const canInviteUsers = user?.internalRole === 'ROOT_ADMIN' || user?.internalRole === 'CLIENT_MANAGER';
+  const canCreateClient = user?.internalRole === 'ROOT_ADMIN';
+  const invitationRoleOptions =
+    user?.internalRole === 'ROOT_ADMIN'
+      ? (['CLIENT_MANAGER', 'BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT'] as const)
+      : (['BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT'] as const);
   const actions = canInviteUsers ? (
     <div className="flex flex-wrap items-center gap-2">
+      {canCreateClient ? (
+        <button
+          type="button"
+          onClick={() => {
+            setActionError(null);
+            setClientName('');
+            setIsClientFormOpen(true);
+          }}
+          className="flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition"
+        >
+          Nuevo cliente
+        </button>
+      ) : null}
       <button
         type="button"
         onClick={() => setIsInvitationOpen(true)}
@@ -177,6 +202,29 @@ export default function UsersPage() {
       </button>
     </div>
   ) : null;
+
+  async function handleCreateClient(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || !canCreateClient) return;
+    const name = clientName.trim();
+    if (!name) {
+      setActionError('Ingresa el nombre del cliente.');
+      return;
+    }
+
+    try {
+      setIsClientSubmitting(true);
+      setActionError(null);
+      const created = await createClientForRoot(user, { name });
+      setClients((current) => [created, ...current.filter((client) => client.id !== created.id)]);
+      setClientName('');
+      setIsClientFormOpen(false);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'No pudimos crear el cliente.');
+    } finally {
+      setIsClientSubmitting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
@@ -198,6 +246,53 @@ export default function UsersPage() {
           <div className="max-w-2xl rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
             {actionError}
           </div>
+        ) : null}
+
+        {isClientFormOpen ? (
+          <form onSubmit={handleCreateClient} className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-black text-slate-900">Nuevo cliente</h2>
+                <p className="mt-1 text-xs font-medium text-slate-500">Crea una empresa administrada antes de invitar su manager.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsClientFormOpen(false)}
+                disabled={isClientSubmitting}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cerrar
+              </button>
+            </div>
+            <label className="space-y-1 block">
+              <span className="text-xs font-bold text-slate-600">Nombre del cliente</span>
+              <input
+                type="text"
+                value={clientName}
+                onChange={(event) => setClientName(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                placeholder="Ej: Administraciones Norte SAC"
+                autoFocus
+              />
+            </label>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsClientFormOpen(false)}
+                disabled={isClientSubmitting}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isClientSubmitting}
+                className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-60"
+              >
+                {isClientSubmitting ? 'Creando...' : 'Crear cliente'}
+              </button>
+            </div>
+          </form>
         ) : null}
 
         {formMode ? (
@@ -286,7 +381,8 @@ export default function UsersPage() {
           isOpen={isInvitationOpen}
           title="Invitar usuario"
           description="Crea una invitacion para que el usuario defina su contrasena."
-          roleOptions={['BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT']}
+          roleOptions={[...invitationRoleOptions]}
+          clients={clients}
           buildings={buildings}
           units={units}
           onClose={() => setIsInvitationOpen(false)}

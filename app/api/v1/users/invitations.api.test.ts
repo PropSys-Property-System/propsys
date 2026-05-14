@@ -175,6 +175,84 @@ describe('POST /api/v1/users/invitations', () => {
     );
   });
 
+  it('allows ROOT_ADMIN to invite a client-scoped CLIENT_MANAGER without a building', async () => {
+    sessionUser.id = 'u_root';
+    sessionUser.clientId = null;
+    sessionUser.internalRole = 'ROOT_ADMIN';
+    sessionUser.scope = 'platform';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM clients')) return { rows: [{ id: 'client_001' }] };
+      if (sql.includes('FROM users')) return { rows: [] };
+      return { rows: [] };
+    });
+    const tx = mockSuccessfulTransaction();
+
+    const res = await createInvitation(
+      makeRequest({
+        email: 'manager.new@example.com',
+        name: 'Manager Nuevo',
+        internalRole: 'CLIENT_MANAGER',
+        clientId: 'client_001',
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { user?: { internalRole: string; clientId: string; scope: string; buildingId?: string } };
+    expect(data.user).toMatchObject({
+      internalRole: 'CLIENT_MANAGER',
+      clientId: 'client_001',
+      scope: 'client',
+    });
+    expect(data.user?.buildingId).toBeUndefined();
+    expect(tx.getUserInsertParams()?.[1]).toBe('client_001');
+    expect(tx.getUserInsertParams()?.[6]).toBe('CLIENT_MANAGER');
+    expect(clientQuery.mock.calls.some(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO user_building_assignments'))).toBe(false);
+    expect(clientQuery.mock.calls.some(([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO user_unit_assignments'))).toBe(false);
+  });
+
+  it('rejects CLIENT_MANAGER actors inviting another CLIENT_MANAGER', async () => {
+    const res = await createInvitation(
+      makeRequest({
+        email: 'manager.new@example.com',
+        name: 'Manager Nuevo',
+        internalRole: 'CLIENT_MANAGER',
+        clientId: 'client_001',
+      })
+    );
+
+    expect(res.status).toBe(403);
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('requires buildingId for BUILDING_ADMIN and STAFF invitations', async () => {
+    const res = await createInvitation(
+      makeRequest({
+        email: 'admin.new@example.com',
+        name: 'Admin Nuevo',
+        internalRole: 'BUILDING_ADMIN',
+      })
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'Selecciona un edificio para ese rol.' });
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('requires unitId for OWNER and OCCUPANT invitations', async () => {
+    const res = await createInvitation(
+      makeRequest({
+        email: 'owner.new@example.com',
+        name: 'Owner Nuevo',
+        internalRole: 'OWNER',
+      })
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'Selecciona una unidad para ese rol.' });
+    expect(connect).not.toHaveBeenCalled();
+  });
+
   it('rejects a unit outside the manager tenant', async () => {
     poolQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM units u')) return { rows: [unitRow('client_002')] };

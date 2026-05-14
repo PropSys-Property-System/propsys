@@ -77,6 +77,23 @@ describe('createUserInvitation', () => {
     expect(body.unitId).toBeUndefined();
   });
 
+  it('sends clientId for CLIENT_MANAGER invitations', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ invitation: { status: 'PENDING' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await createUserInvitation({
+      email: 'manager@example.com',
+      name: 'Manager Invitado',
+      internalRole: 'CLIENT_MANAGER',
+      clientId: 'client_001',
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+    expect(body.clientId).toBe('client_001');
+    expect(body.buildingId).toBeUndefined();
+    expect(body.unitId).toBeUndefined();
+  });
+
   it('sends unitId for OWNER and OCCUPANT invitations', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ invitation: { status: 'PENDING' } }));
     vi.stubGlobal('fetch', fetchMock);

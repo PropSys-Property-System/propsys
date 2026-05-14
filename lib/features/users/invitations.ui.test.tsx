@@ -13,7 +13,8 @@ const units: Unit[] = [
   { id: 'unit_101', clientId: 'client_001', buildingId: 'b1', number: '101' },
 ];
 
-const allRoles: UserInvitationRole[] = ['BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT'];
+const clients = [{ id: 'client_001', slug: 'cliente-uno', name: 'Cliente Uno', status: 'ACTIVE' }];
+const allRoles: UserInvitationRole[] = ['CLIENT_MANAGER', 'BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT'];
 
 function renderDialog(options: Partial<ComponentProps<typeof InvitationCreationDialog>> = {}) {
   const createInvitation = vi.fn(async (): Promise<CreateUserInvitationResult> => ({
@@ -44,6 +45,7 @@ function renderDialog(options: Partial<ComponentProps<typeof InvitationCreationD
       title="Invitar usuario"
       description="Crea una invitacion para activar la cuenta."
       roleOptions={allRoles}
+      clients={clients}
       buildings={buildings}
       units={units}
       createInvitation={createInvitation}
@@ -61,9 +63,10 @@ describe('InvitationCreationDialog', () => {
     vi.clearAllMocks();
   });
 
-  it('shows all allowed invitation roles for a client manager context', () => {
+  it('shows all allowed invitation roles for a root admin context', () => {
     renderDialog();
 
+    expect(screen.getByRole('option', { name: 'Manager de cliente' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Administrador de edificio' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Staff' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Propietario' })).toBeInTheDocument();
@@ -76,6 +79,16 @@ describe('InvitationCreationDialog', () => {
     expect(screen.getByRole('option', { name: 'Staff' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Propietario' })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Inquilino' })).not.toBeInTheDocument();
+  });
+
+  it('requires a client for CLIENT_MANAGER invitations', () => {
+    renderDialog({ roleOptions: ['CLIENT_MANAGER'], defaultRole: 'CLIENT_MANAGER', clients: [] });
+
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Manager Invitado' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'manager@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+
+    expect(screen.getByText('Selecciona un cliente para ese rol.')).toBeInTheDocument();
   });
 
   it('requires a unit for OWNER and OCCUPANT invitations', () => {
@@ -129,6 +142,24 @@ describe('InvitationCreationDialog', () => {
       unitId: 'unit_101',
     });
     expect(onInvitationCreated).toHaveBeenCalledTimes(1);
+  });
+
+  it('submits CLIENT_MANAGER invitations with clientId and without building or unit', async () => {
+    const { createInvitation } = renderDialog({ roleOptions: ['CLIENT_MANAGER'], defaultRole: 'CLIENT_MANAGER' });
+
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Manager Invitado' } });
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'manager@example.com' } });
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'client_001' } });
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+
+    await waitFor(() => {
+      expect(createInvitation).toHaveBeenCalledWith({
+        email: 'manager@example.com',
+        name: 'Manager Invitado',
+        internalRole: 'CLIENT_MANAGER',
+        clientId: 'client_001',
+      });
+    });
   });
 
   it('keeps the success link visible when parent state updates after invitation creation', async () => {

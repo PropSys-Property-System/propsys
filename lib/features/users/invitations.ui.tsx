@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Copy, Send, X } from 'lucide-react';
 import type { Building, Unit } from '@/lib/types';
+import type { ClientAccount } from '@/lib/repos/core/clients.repo';
 import {
   createUserInvitation,
   type CreateUserInvitationInput,
@@ -11,6 +12,7 @@ import {
 } from './invitations.data';
 
 const ROLE_LABELS: Record<UserInvitationRole, string> = {
+  CLIENT_MANAGER: 'Manager de cliente',
   BUILDING_ADMIN: 'Administrador de edificio',
   STAFF: 'Staff',
   OWNER: 'Propietario',
@@ -22,9 +24,11 @@ type InvitationCreationDialogProps = {
   title: string;
   description: string;
   roleOptions: UserInvitationRole[];
+  clients?: ClientAccount[];
   buildings: Building[];
   units: Unit[];
   defaultRole?: UserInvitationRole;
+  defaultClientId?: string;
   defaultBuildingId?: string;
   defaultUnitId?: string;
   createInvitation?: (input: CreateUserInvitationInput) => Promise<CreateUserInvitationResult>;
@@ -34,6 +38,10 @@ type InvitationCreationDialogProps = {
 
 function isBuildingRole(role: UserInvitationRole): boolean {
   return role === 'BUILDING_ADMIN' || role === 'STAFF';
+}
+
+function isUnitRole(role: UserInvitationRole): boolean {
+  return role === 'OWNER' || role === 'OCCUPANT';
 }
 
 function resolveDefaultRole(roleOptions: UserInvitationRole[], defaultRole?: UserInvitationRole): UserInvitationRole {
@@ -55,9 +63,11 @@ export function InvitationCreationDialog({
   title,
   description,
   roleOptions,
+  clients = [],
   buildings,
   units,
   defaultRole,
+  defaultClientId = '',
   defaultBuildingId = '',
   defaultUnitId = '',
   createInvitation: createInvitationFn = createUserInvitation,
@@ -69,6 +79,7 @@ export function InvitationCreationDialog({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [internalRole, setInternalRole] = useState<UserInvitationRole>(initialRole);
+  const [clientId, setClientId] = useState(defaultClientId);
   const [buildingId, setBuildingId] = useState(defaultBuildingId);
   const [unitId, setUnitId] = useState(defaultUnitId);
   const [error, setError] = useState<string | null>(null);
@@ -81,12 +92,13 @@ export function InvitationCreationDialog({
     setName('');
     setEmail('');
     setInternalRole(nextRole);
+    setClientId(defaultClientId);
     setBuildingId(defaultBuildingId);
     setUnitId(defaultUnitId);
     setError(null);
     setIsSubmitting(false);
     setCreatedInvitation(null);
-  }, [defaultBuildingId, defaultRole, defaultUnitId, isOpen, roleOptionsKey]);
+  }, [defaultBuildingId, defaultClientId, defaultRole, defaultUnitId, isOpen, roleOptionsKey]);
 
   const buildingsById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
   const visibleUnits = useMemo(() => {
@@ -110,11 +122,15 @@ export function InvitationCreationDialog({
       setError('Ingresa un email valido.');
       return;
     }
+    if (internalRole === 'CLIENT_MANAGER' && !clientId) {
+      setError('Selecciona un cliente para ese rol.');
+      return;
+    }
     if (isBuildingRole(internalRole) && !buildingId) {
       setError('Selecciona un edificio para ese rol.');
       return;
     }
-    if (!isBuildingRole(internalRole) && !unitId) {
+    if (isUnitRole(internalRole) && !unitId) {
       setError('Selecciona una unidad para ese rol.');
       return;
     }
@@ -126,7 +142,9 @@ export function InvitationCreationDialog({
         email: normalizedEmail,
         name: normalizedName,
         internalRole,
-        ...(isBuildingRole(internalRole) ? { buildingId } : { unitId }),
+        ...(internalRole === 'CLIENT_MANAGER' ? { clientId } : {}),
+        ...(isBuildingRole(internalRole) ? { buildingId } : {}),
+        ...(isUnitRole(internalRole) ? { unitId } : {}),
       });
       setCreatedInvitation(result);
       onInvitationCreated?.(result);
@@ -224,6 +242,7 @@ export function InvitationCreationDialog({
                 value={internalRole}
                 onChange={(event) => {
                   setInternalRole(event.target.value as UserInvitationRole);
+                  setClientId(defaultClientId);
                   setBuildingId(defaultBuildingId);
                   setUnitId(defaultUnitId);
                 }}
@@ -237,7 +256,23 @@ export function InvitationCreationDialog({
               </select>
             </label>
 
-            {isBuildingRole(internalRole) ? (
+            {internalRole === 'CLIENT_MANAGER' ? (
+              <label className="space-y-1">
+                <span className="text-xs font-bold text-slate-600">Cliente</span>
+                <select
+                  value={clientId}
+                  onChange={(event) => setClientId(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                >
+                  <option value="">Selecciona cliente</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : isBuildingRole(internalRole) ? (
               <label className="space-y-1">
                 <span className="text-xs font-bold text-slate-600">Edificio</span>
                 <select
@@ -253,7 +288,7 @@ export function InvitationCreationDialog({
                   ))}
                 </select>
               </label>
-            ) : (
+            ) : isUnitRole(internalRole) ? (
               <label className="space-y-1">
                 <span className="text-xs font-bold text-slate-600">Unidad</span>
                 <select
@@ -269,7 +304,7 @@ export function InvitationCreationDialog({
                   ))}
                 </select>
               </label>
-            )}
+            ) : null}
 
             {error ? <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div> : null}
 

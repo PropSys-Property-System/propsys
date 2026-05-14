@@ -18,7 +18,7 @@ import {
 import { BuildingCard, BuildingComposerDialog, BuildingUnitsDialog } from '@/lib/features/physical/physical-center.ui';
 import { InvitationCreationDialog } from '@/lib/features/users/invitations.ui';
 import type { Building, Unit } from '@/lib/types';
-import { labelClient } from '@/lib/presentation/labels';
+import type { ClientAccount } from '@/lib/repos/core/clients.repo';
 
 type UnitAssignmentType = 'OWNER' | 'OCCUPANT';
 
@@ -26,6 +26,7 @@ export default function BuildingsPage() {
   const { user } = useAuth();
   const [allBuildings, setAllBuildings] = useState<Building[]>([]);
   const [archivedBuildings, setArchivedBuildings] = useState<Building[]>([]);
+  const [clients, setClients] = useState<ClientAccount[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [clientFilterId, setClientFilterId] = useState('');
@@ -69,6 +70,7 @@ export default function BuildingsPage() {
         if (!isMounted) return;
         setAllBuildings(data.buildings);
         setArchivedBuildings(data.archivedBuildings);
+        setClients(data.clients ?? []);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar los edificios.');
@@ -99,16 +101,8 @@ export default function BuildingsPage() {
   }, [allBuildings, archivedBuildings, clientFilterId, searchTerm, showArchived]);
 
   const clientOptions = useMemo(() => {
-    const byClientId = new Map<string, { id: string; label: string }>();
-    for (const building of [...allBuildings, ...archivedBuildings]) {
-      if (!building.clientId || byClientId.has(building.clientId)) continue;
-      byClientId.set(building.clientId, {
-        id: building.clientId,
-        label: labelClient(building.clientId),
-      });
-    }
-    return Array.from(byClientId.values());
-  }, [allBuildings, archivedBuildings]);
+    return clients.map((client) => ({ id: client.id, label: client.name }));
+  }, [clients]);
 
   const canCreate = user?.internalRole === 'ROOT_ADMIN' || user?.internalRole === 'CLIENT_MANAGER';
   const canArchive = canCreate;

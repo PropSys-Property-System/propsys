@@ -3,11 +3,13 @@ import { commonAreasRepo } from '@/lib/repos/physical/common-areas.repo';
 import { assignmentsRepo } from '@/lib/repos/physical/assignments.repo';
 import { staffRepo } from '@/lib/repos/physical/staff.repo';
 import { unitsRepo } from '@/lib/repos/physical/units.repo';
+import { clientsRepo, type ClientAccount } from '@/lib/repos/core/clients.repo';
 import type { Building, CommonArea, StaffMember, Unit, User } from '@/lib/types';
 
 export type AdminBuildingsPageData = {
   buildings: Building[];
   archivedBuildings: Building[];
+  clients: ClientAccount[];
 };
 
 export type AdminStaffPageData = {
@@ -26,14 +28,16 @@ export type AdminCommonAreasPageData = {
 };
 
 export async function loadAdminBuildingsPageData(user: User): Promise<AdminBuildingsPageData> {
-  const [buildings, archivedBuildings] = await Promise.all([
+  const [buildings, archivedBuildings, clients] = await Promise.all([
     buildingsRepo.listForUser(user),
     buildingsRepo.listArchivedForUser(user),
+    clientsRepo.listForUser(user),
   ]);
 
   return {
     buildings,
     archivedBuildings,
+    clients,
   };
 }
 

@@ -12,7 +12,7 @@ import { buildCanonicalAppUrl } from '@/lib/server/app-url';
 import type { InternalRole, UserInvitationStatus } from '@/lib/types/auth';
 import type { User } from '@/lib/types';
 
-const INVITABLE_INTERNAL_ROLES = ['BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT'] as const;
+const INVITABLE_INTERNAL_ROLES = ['CLIENT_MANAGER', 'BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT'] as const;
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type InvitableInternalRole = (typeof INVITABLE_INTERNAL_ROLES)[number];
@@ -40,7 +40,7 @@ function buildInviteLink(token: string): string {
 
 function canInviteRole(actor: SessionUser, internalRole: InvitableInternalRole): boolean {
   if (actor.internalRole === 'ROOT_ADMIN') return true;
-  if (actor.internalRole === 'CLIENT_MANAGER') return true;
+  if (actor.internalRole === 'CLIENT_MANAGER') return internalRole !== 'CLIENT_MANAGER';
   if (actor.internalRole === 'BUILDING_ADMIN') return internalRole === 'STAFF';
   return false;
 }
@@ -81,6 +81,7 @@ export async function POST(req: Request) {
   const email = normalizeEmail(body?.email);
   const name = normalizeText(body?.name);
   const internalRole = parseInvitableRole(body?.internalRole);
+  const clientId = normalizeText(body?.clientId) || null;
   const buildingId = normalizeText(body?.buildingId) || null;
   const unitId = normalizeText(body?.unitId) || null;
 
@@ -90,6 +91,10 @@ export async function POST(req: Request) {
 
   if (!canInviteRole(actor, internalRole)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  if (internalRole === 'CLIENT_MANAGER' && !clientId) {
+    return NextResponse.json({ error: 'Selecciona un cliente para ese rol.' }, { status: 400 });
   }
 
   if ((internalRole === 'BUILDING_ADMIN' || internalRole === 'STAFF') && !buildingId) {
@@ -112,8 +117,25 @@ export async function POST(req: Request) {
   let resolvedBuildingId = buildingId;
   let resolvedUnitId = unitId;
   let assignmentType: AssignmentType | null = null;
+  const requiresBuildingAssignment = internalRole === 'BUILDING_ADMIN' || internalRole === 'STAFF';
 
-  if (internalRole === 'BUILDING_ADMIN' || internalRole === 'STAFF') {
+  if (internalRole === 'CLIENT_MANAGER') {
+    const clientRes = await pool.query<{ id: string }>(
+      `SELECT id
+       FROM clients
+       WHERE id = $1
+         AND status = 'ACTIVE'
+       LIMIT 1`,
+      [clientId]
+    );
+    const client = clientRes.rows[0];
+    if (!client) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
+    if (!canAccessClient(actor, client.id)) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
+
+    targetClientId = client.id;
+    resolvedBuildingId = null;
+    resolvedUnitId = null;
+  } else if (requiresBuildingAssignment) {
     const buildingRes = await pool.query<{ id: string; client_id: string }>(
       `SELECT id, client_id
        FROM buildings
@@ -245,7 +267,7 @@ export async function POST(req: Request) {
           metadata: { assignmentType, assignedUserId: createdUser.id, source: 'INVITATION' },
           newData: { assignmentId, unitId: resolvedUnitId, assignmentType, userId: createdUser.id },
         });
-      } else {
+      } else if (requiresBuildingAssignment) {
         await db.query(
           `INSERT INTO user_building_assignments (id, client_id, user_id, building_id, status, created_at, updated_at)
            VALUES ($1, $2, $3, $4, 'ACTIVE', $5, $5)`,
