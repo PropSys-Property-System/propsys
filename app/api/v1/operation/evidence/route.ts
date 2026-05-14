@@ -251,6 +251,8 @@ export async function POST(req: Request) {
   let savedFile: Awaited<ReturnType<typeof saveEvidenceFile>> | null = null;
   try {
     savedFile = await saveEvidenceFile({
+      clientId,
+      buildingId: exec.building_id,
       checklistExecutionId: exec.id,
       evidenceId: id,
       file,

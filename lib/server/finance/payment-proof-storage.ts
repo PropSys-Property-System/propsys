@@ -1,5 +1,11 @@
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  deletePrivateObject,
+  downloadPrivateObject,
+  isSupabaseObjectKey,
+  uploadPrivateObject,
+} from '@/lib/server/storage/supabase-storage';
 
 export const MAX_PAYMENT_PROOF_BYTES = 10 * 1024 * 1024;
 
@@ -14,6 +20,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 const ALLOWED_EXTENSIONS = new Set(Object.keys(MIME_BY_EXTENSION));
 const ALLOWED_MIME_TYPES = new Set(Object.values(MIME_BY_EXTENSION));
 const PRIVATE_PAYMENT_PROOFS_DIRECTORY = path.join('.data', 'uploads', 'finance', 'payment-proofs');
+const PAYMENT_PROOFS_BUCKET_ENV = 'SUPABASE_STORAGE_PAYMENT_PROOFS_BUCKET';
 
 export type SavedPaymentProofFile = {
   originalName: string;
@@ -64,24 +71,48 @@ function resolvePrivatePaymentProofStoragePath(storagePath: string) {
   return absolutePath;
 }
 
-export async function savePaymentProofFile(input: { receiptId: string; proofId: string; file: File }) {
+function isLegacyPaymentProofPath(storagePath: string) {
+  const normalized = storagePath.replace(/\\/g, '/').replace(/^\.\//, '');
+  return normalized.startsWith('.data/uploads/finance/payment-proofs/');
+}
+
+async function readLegacyPaymentProofFile(storagePath: string) {
+  try {
+    return await readFile(resolvePrivatePaymentProofStoragePath(storagePath));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if (error instanceof Error && error.message.includes('Ruta de comprobante invalida')) return null;
+    throw error;
+  }
+}
+
+export async function savePaymentProofFile(input: {
+  clientId: string;
+  buildingId: string;
+  receiptId: string;
+  proofId: string;
+  file: File;
+}) {
   const safeFileName = sanitizeFileName(input.file.name || 'payment-proof');
   const extension = inferExtension(safeFileName, input.file.type);
   if (!extension) {
     throw new Error('Tipo de archivo no permitido. Solo imagenes o PDF.');
   }
 
+  const safeClientId = sanitizePathSegment(input.clientId, 'client');
+  const safeBuildingId = sanitizePathSegment(input.buildingId, 'building');
   const safeReceiptId = sanitizePathSegment(input.receiptId, 'receipt');
   const safeProofId = sanitizePathSegment(input.proofId, 'proof');
-  const relativeStorageDirectory = path.join(PRIVATE_PAYMENT_PROOFS_DIRECTORY, safeReceiptId);
-  await mkdir(path.join(process.cwd(), relativeStorageDirectory), { recursive: true });
-
-  const storagePath = path.join(relativeStorageDirectory, `${safeProofId}${extension}`);
-  const absoluteStoragePath = path.join(process.cwd(), storagePath);
+  const storagePath = `${safeClientId}/${safeBuildingId}/receipts/${safeReceiptId}/${safeProofId}${extension}`;
   const publicPath = `/api/v1/finance/payment-proofs/${encodeURIComponent(input.proofId)}`;
 
   const arrayBuffer = await input.file.arrayBuffer();
-  await writeFile(absoluteStoragePath, Buffer.from(arrayBuffer));
+  await uploadPrivateObject({
+    bucketEnvName: PAYMENT_PROOFS_BUCKET_ENV,
+    objectKey: storagePath,
+    body: Buffer.from(arrayBuffer),
+    contentType: resolveMimeType(safeFileName, input.file.type),
+  });
 
   return {
     originalName: safeFileName,
@@ -94,11 +125,20 @@ export async function savePaymentProofFile(input: { receiptId: string; proofId: 
 
 export async function readPaymentProofFile(storagePath: string | null | undefined) {
   if (!storagePath) return null;
-  return readFile(resolvePrivatePaymentProofStoragePath(storagePath));
+  if (isSupabaseObjectKey(storagePath)) {
+    return downloadPrivateObject({ bucketEnvName: PAYMENT_PROOFS_BUCKET_ENV, objectKey: storagePath });
+  }
+  if (!isLegacyPaymentProofPath(storagePath)) return null;
+  return readLegacyPaymentProofFile(storagePath);
 }
 
 export async function deletePaymentProofFile(storagePath: string | null | undefined) {
   if (!storagePath) return;
+  if (isSupabaseObjectKey(storagePath)) {
+    await deletePrivateObject({ bucketEnvName: PAYMENT_PROOFS_BUCKET_ENV, objectKey: storagePath });
+    return;
+  }
+  if (!isLegacyPaymentProofPath(storagePath)) return;
   try {
     await unlink(resolvePrivatePaymentProofStoragePath(storagePath));
   } catch (error) {

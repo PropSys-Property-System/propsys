@@ -209,7 +209,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   let savedFile: Awaited<ReturnType<typeof savePaymentProofFile>> | null = null;
 
   try {
-    savedFile = await savePaymentProofFile({ receiptId: receipt.id, proofId, file });
+    savedFile = await savePaymentProofFile({
+      clientId: receipt.client_id,
+      buildingId: receipt.building_id,
+      receiptId: receipt.id,
+      proofId,
+      file,
+    });
     const storedFile = savedFile;
 
     const proof = await withTransaction(pool, async (db) => {

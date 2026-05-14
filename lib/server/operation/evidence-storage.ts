@@ -1,5 +1,11 @@
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  deletePrivateObject,
+  downloadPrivateObject,
+  isSupabaseObjectKey,
+  uploadPrivateObject,
+} from '@/lib/server/storage/supabase-storage';
 
 export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
 
@@ -16,6 +22,7 @@ const ALLOWED_MIME_TYPES = new Set(Object.values(MIME_BY_EXTENSION));
 const PRIVATE_EVIDENCE_DIRECTORY = path.join('.data', 'uploads', 'evidence');
 const LEGACY_PUBLIC_EVIDENCE_DIRECTORY = path.join('public', 'uploads', 'evidence');
 const LEGACY_PUBLIC_EVIDENCE_URL_PREFIX = '/uploads/evidence/';
+const EVIDENCE_BUCKET_ENV = 'SUPABASE_STORAGE_EVIDENCE_BUCKET';
 
 export type SavedEvidenceFile = {
   originalName: string;
@@ -36,6 +43,11 @@ function inferExtension(fileName: string, mimeType: string) {
   if (ALLOWED_EXTENSIONS.has(extension)) return extension;
   const fromMime = Object.entries(MIME_BY_EXTENSION).find(([, allowedMime]) => allowedMime === mimeType)?.[0];
   return fromMime ?? '';
+}
+
+function sanitizePathSegment(value: string, fallback: string) {
+  const cleaned = value.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  return cleaned || fallback;
 }
 
 export function isAllowedEvidence(fileName: string, mimeType: string) {
@@ -83,6 +95,8 @@ function resolveLegacyPublicEvidenceStoragePath(storagePath: string) {
 }
 
 export async function saveEvidenceFile(input: {
+  clientId: string;
+  buildingId: string;
   checklistExecutionId: string;
   evidenceId: string;
   file: File;
@@ -93,16 +107,20 @@ export async function saveEvidenceFile(input: {
     throw new Error('Tipo de archivo no permitido. Solo imagenes o PDF.');
   }
 
-  const relativeStorageDirectory = path.join(PRIVATE_EVIDENCE_DIRECTORY, input.checklistExecutionId);
-  await mkdir(path.join(process.cwd(), relativeStorageDirectory), { recursive: true });
-
-  const storageFileName = `${input.evidenceId}${extension}`;
-  const storagePath = path.join(relativeStorageDirectory, storageFileName);
-  const absoluteStoragePath = path.join(process.cwd(), storagePath);
+  const safeClientId = sanitizePathSegment(input.clientId, 'client');
+  const safeBuildingId = sanitizePathSegment(input.buildingId, 'building');
+  const safeChecklistExecutionId = sanitizePathSegment(input.checklistExecutionId, 'execution');
+  const safeEvidenceId = sanitizePathSegment(input.evidenceId, 'evidence');
+  const storagePath = `${safeClientId}/${safeBuildingId}/evidence/${safeChecklistExecutionId}/${safeEvidenceId}${extension}`;
   const publicPath = `/api/v1/operation/evidence/${encodeURIComponent(input.evidenceId)}`;
 
   const arrayBuffer = await input.file.arrayBuffer();
-  await writeFile(absoluteStoragePath, Buffer.from(arrayBuffer));
+  await uploadPrivateObject({
+    bucketEnvName: EVIDENCE_BUCKET_ENV,
+    objectKey: storagePath,
+    body: Buffer.from(arrayBuffer),
+    contentType: resolveMimeType(safeFileName, input.file.type),
+  });
 
   return {
     originalName: safeFileName,
@@ -115,11 +133,24 @@ export async function saveEvidenceFile(input: {
 
 export async function readEvidenceFile(storagePath: string | null | undefined) {
   if (!storagePath) return null;
-  return readFile(resolvePrivateEvidenceStoragePath(storagePath));
+  if (isSupabaseObjectKey(storagePath)) {
+    return downloadPrivateObject({ bucketEnvName: EVIDENCE_BUCKET_ENV, objectKey: storagePath });
+  }
+  try {
+    return await readFile(resolvePrivateEvidenceStoragePath(storagePath));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if (error instanceof Error && error.message.includes('Ruta de evidencia invalida')) return null;
+    throw error;
+  }
 }
 
 export async function deleteEvidenceFile(storagePath: string | null | undefined) {
   if (!storagePath) return;
+  if (isSupabaseObjectKey(storagePath)) {
+    await deletePrivateObject({ bucketEnvName: EVIDENCE_BUCKET_ENV, objectKey: storagePath });
+    return;
+  }
   const absoluteStoragePath = resolvePrivateEvidenceStoragePath(storagePath);
   const legacyPublicPath = resolveLegacyPublicEvidenceStoragePath(storagePath);
   const pathsToDelete = legacyPublicPath ? [absoluteStoragePath, legacyPublicPath] : [absoluteStoragePath];
