@@ -762,7 +762,7 @@ export function ResidentPaymentProofPanel({
 
         {activeProof?.status === 'PENDING_REVIEW' ? (
           <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-            Ya existe un comprobante pendiente de revisión. La administración debe aprobarlo o rechazarlo.
+            Tu comprobante fue enviado y está pendiente de revisión. La administración lo aprobará o rechazará.
           </div>
         ) : null}
 

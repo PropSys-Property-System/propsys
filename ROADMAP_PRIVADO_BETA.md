@@ -12,6 +12,7 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - Subida de comprobantes por resident/owner y revisión por admin.
 - Recepción de estados: al aprobar comprobante, el recibo pasa a `PAID`.
 - Polish UX de recibos (filtros, ordenamiento y acciones).
+- Validación en Render (Storage): Flujo `beta-storage-validation` completado. Supabase Storage funciona end-to-end para comprobantes (subida, persistencia, lectura y flujos de aprobación/rechazo).
 
 **Auth & Onboarding:**
 - Invitaciones por link (UI de creación, backend y flujo de aceptación).
@@ -28,13 +29,12 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 ## 3) Decisiones consolidadas
 - **Financiero:** `Enviar recibo` y `Pagar todo` quedan post-beta. La exportación visible será "Imprimir / guardar PDF" nativa del navegador. 
 - **Auth:** Todo usuario nuevo entra vía invitación por token. Las contraseñas manuales/inseguras quedan erradicadas del sistema de altas.
-- **Storage:** Evidencias y comprobantes usan storage local `.data` por ahora, pendiente migración a Cloud Object Storage.
+- **Storage:** Comprobantes de pago utilizan Supabase Storage en producción. La persistencia en disco local `.data` queda exclusivamente como fallback legacy/local.
 
 ## 4) Pendientes Críticos (Antes de beta real)
 - Provider de correo real (email provider).
 - Rate limiting específico y estricto para rutas de invitation y reset password.
 - Capacidad para revocar/reemitir invitaciones caducadas.
-- Cloud object storage (reemplazar persistencia en `.data`).
 - Plantillas de cobro (diseño y asignación por unidad/edificio).
 - Emisión masiva de recibos (desde plantillas).
 - Polish UX: Edición de usuarios en modalidad *modal* o inline.
