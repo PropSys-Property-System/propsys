@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashAccountToken } from '@/lib/server/auth/account-token';
-import { POST as createInvitation } from './invitations/route';
-
+import { POST as createInvitation, GET as getInvitations } from './invitations/route';
+import { PATCH as updateInvitation } from './invitations/[id]/route';
 // ── Rate limit mock ────────────────────────────────────────────────────────
 const rateLimitMocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 19, resetAt: new Date() })),
@@ -500,5 +500,147 @@ describe('POST /api/v1/users/invitations', () => {
     expect(data.delivery?.mode).toBe('email');
     expect(data.token).toBeUndefined();
     expect(data.inviteLink).toBeUndefined();
+  });
+});
+
+describe('GET /api/v1/users/invitations', () => {
+  beforeEach(() => {
+    poolQuery.mockReset();
+    sessionUser.internalRole = 'CLIENT_MANAGER';
+    sessionUser.clientId = 'client_001';
+  });
+
+  it('returns 401 if unauthenticated', async () => {
+    const { getSessionUser } = await import('@/lib/server/auth/get-session-user');
+    vi.mocked(getSessionUser).mockResolvedValueOnce(null);
+    const res = await getInvitations(new Request('http://localhost/api/v1/users/invitations'));
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 if not ROOT_ADMIN or CLIENT_MANAGER', async () => {
+    sessionUser.internalRole = 'BUILDING_ADMIN';
+    const res = await getInvitations(new Request('http://localhost/api/v1/users/invitations'));
+    expect(res.status).toBe(403);
+  });
+
+  it('returns pending invitations filtered by client_id for CLIENT_MANAGER', async () => {
+    poolQuery.mockResolvedValueOnce({
+      rows: [{ id: 'inv_1', email: 'a@a.com', client_id: 'client_001', status: 'PENDING', role: 'STAFF', name: 'A' }]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    const res = await getInvitations(new Request('http://localhost/api/v1/users/invitations'));
+    expect(res.status).toBe(200);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await res.json() as any;
+    expect(data.data[0].id).toBe('inv_1');
+
+    const calls = poolQuery.mock.calls;
+    expect(calls[0][0]).toContain('client_id = $1');
+    expect(calls[0][1]).toEqual(['client_001']);
+  });
+
+  it('returns pending invitations without tenant filter for ROOT_ADMIN', async () => {
+    sessionUser.internalRole = 'ROOT_ADMIN';
+    poolQuery.mockResolvedValueOnce({
+      rows: [{ id: 'inv_1', email: 'a@a.com', client_id: 'cli_1', status: 'PENDING', role: 'STAFF', name: 'A' }]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    const res = await getInvitations(new Request('http://localhost/api/v1/users/invitations'));
+    expect(res.status).toBe(200);
+    
+    const calls = poolQuery.mock.calls;
+    expect(calls[0][0]).not.toContain('client_id = $1');
+  });
+});
+
+describe('PATCH /api/v1/users/invitations/[id]', () => {
+  beforeEach(() => {
+    poolQuery.mockReset();
+    sessionUser.internalRole = 'CLIENT_MANAGER';
+    sessionUser.clientId = 'client_001';
+  });
+
+  function makePatchReq(action: string) {
+    return new Request('http://localhost/api/v1/users/invitations/123', {
+      method: 'PATCH',
+      body: JSON.stringify({ action })
+    });
+  }
+
+  it('returns 401 if unauthenticated', async () => {
+    const { getSessionUser } = await import('@/lib/server/auth/get-session-user');
+    vi.mocked(getSessionUser).mockResolvedValueOnce(null);
+    const res = await updateInvitation(makePatchReq('REVOKE'), { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 400 for invalid action', async () => {
+    const res = await updateInvitation(makePatchReq('INVALID'), { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 if CLIENT_MANAGER tries to update invitation from another tenant', async () => {
+    poolQuery.mockResolvedValueOnce({
+      rows: [{ id: '123', client_id: 'other_client', status: 'PENDING', user_id: 'u1', email: 'a@a.com' }]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    const res = await updateInvitation(makePatchReq('REVOKE'), { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 if invitation is not PENDING', async () => {
+    poolQuery.mockResolvedValueOnce({
+      rows: [{ id: '123', client_id: 'client_001', status: 'ACCEPTED', user_id: 'u1', email: 'a@a.com' }]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    const res = await updateInvitation(makePatchReq('REVOKE'), { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(400);
+  });
+
+  it('handles REVOKE action successfully', async () => {
+    poolQuery
+      .mockResolvedValueOnce({
+        rows: [{ id: '123', client_id: 'client_001', status: 'PENDING', user_id: 'u1', email: 'a@a.com' }]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any) // SELECT
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .mockResolvedValueOnce({ rows: [] } as any) // UPDATE
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .mockResolvedValueOnce({ rows: [] } as any); // AUDIT
+
+    const res = await updateInvitation(makePatchReq('REVOKE'), { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(200);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await res.json() as any;
+    expect(data.status).toBe('REVOKED');
+    
+    const calls = poolQuery.mock.calls;
+    expect(calls[1][0]).toContain("SET status = 'REVOKED'");
+  });
+
+  it('handles REISSUE action successfully', async () => {
+    poolQuery
+      .mockResolvedValueOnce({
+        rows: [{ id: '123', client_id: 'client_001', status: 'PENDING', user_id: 'u1', email: 'a@a.com' }]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any) // SELECT
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .mockResolvedValueOnce({ rows: [] } as any) // UPDATE
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .mockResolvedValueOnce({ rows: [] } as any); // AUDIT
+
+    const res = await updateInvitation(makePatchReq('REISSUE'), { params: Promise.resolve({ id: '123' }) });
+    expect(res.status).toBe(200);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await res.json() as any;
+    expect(data.status).toBe('PENDING');
+    expect(data.delivery.inviteLink).toContain('token=');
+    
+    const calls = poolQuery.mock.calls;
+    expect(calls[1][0]).toContain('SET token_hash = $1');
   });
 });

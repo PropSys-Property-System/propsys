@@ -351,3 +351,58 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No se pudo crear la invitacion.' }, { status: 500 });
   }
 }
+
+export async function GET(req: Request) {
+  const actor = await getSessionUser(req);
+  if (!actor) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  if (actor.internalRole !== 'ROOT_ADMIN' && actor.internalRole !== 'CLIENT_MANAGER') {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  }
+
+  const pool = getPool();
+  
+  let query = `
+    SELECT 
+      i.id, 
+      i.email, 
+      i.client_id, 
+      i.status, 
+      i.expires_at, 
+      i.created_at,
+      u.name,
+      u.internal_role as role
+    FROM user_invitations i
+    JOIN users u ON u.id = i.user_id
+    WHERE i.status = 'PENDING'
+  `;
+  const params: unknown[] = [];
+
+  if (actor.internalRole === 'CLIENT_MANAGER') {
+    if (!actor.clientId) {
+      return NextResponse.json({ error: 'Falta contexto de cliente' }, { status: 400 });
+    }
+    params.push(actor.clientId);
+    query += ` AND i.client_id = $1`;
+  }
+
+  query += ` ORDER BY i.created_at DESC LIMIT 100`;
+
+  const res = await pool.query(query, params);
+
+  const mapped = res.rows.map(row => ({
+    id: row.id,
+    email: row.email,
+    clientId: row.client_id,
+    status: row.status,
+    expiresAt: row.expires_at,
+    createdAt: row.created_at,
+    name: row.name,
+    role: mapInternalRoleToUIRole(row.role as InternalRole),
+    internalRole: row.role
+  }));
+
+  const response = NextResponse.json({ data: mapped });
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+}
