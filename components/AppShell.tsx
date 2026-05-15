@@ -18,6 +18,7 @@ import {
   Wrench,
   Megaphone,
   Home,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import { UserRole } from '@/lib/types';
@@ -117,6 +118,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
             </div>
+
+            <Link
+              href="/account"
+              className={cn(
+                'flex w-full items-center rounded-md px-4 py-2 font-medium transition-colors mb-1',
+                pathname === '/account' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              )}
+              onClick={() => setIsSidebarOpen(false)}
+            >
+              <Settings className="mr-3 h-5 w-5" />
+              <span className="text-sm">Mi cuenta</span>
+            </Link>
 
             <button
               onClick={async () => {
