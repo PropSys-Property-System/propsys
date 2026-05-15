@@ -18,7 +18,7 @@ export type CreatedUserInvitation = {
 };
 
 export type InvitationDelivery = {
-  mode?: 'development_link' | 'explicit_token' | string;
+  mode?: 'email' | 'manual_link' | string;
   inviteLink?: string;
   token?: string;
 };

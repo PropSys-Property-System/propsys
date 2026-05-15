@@ -152,7 +152,7 @@ describe('POST /api/v1/users/invitations', () => {
       unitId: 'unit-101',
     });
     expect(data.invitation?.status).toBe('PENDING');
-    expect(data.delivery?.mode).toBe('resend');
+    expect(data.delivery?.mode).toBe('email');
     expect(data.delivery?.inviteLink).toMatch(/^https:\/\/app\.propsys\.test\/invitations\/accept\?token=/);
     expect(data.delivery?.token).toBeUndefined();
 
@@ -402,6 +402,39 @@ describe('POST /api/v1/users/invitations', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { delivery?: { mode?: string, inviteLink?: string }; token?: unknown; inviteLink?: unknown };
     expect(data.delivery?.inviteLink).toBeDefined();
+    expect(data.delivery?.mode).toBe('manual_link');
+    expect(data.token).toBeUndefined();
+    expect(data.inviteLink).toBeUndefined();
+  });
+
+  it('exposes invite link in production if email provider is configured but sending fails', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    emailMocks.configured = true;
+    emailMocks.exposeDebugLinks = false;
+    emailMocks.sendInvitationEmail.mockRejectedValueOnce(new Error('Resend API error'));
+
+    poolQuery.mockImplementation((sql: string) => {
+      if (sql.includes('FROM units u')) return { rows: [unitRow()] };
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [] };
+      if (sql.includes('FROM users')) return { rows: [] };
+      return { rows: [] };
+    });
+    mockSuccessfulTransaction();
+
+    const res = await createInvitation(
+      makeRequest({
+        email: 'owner.fail@example.com',
+        name: 'Owner Fail',
+        internalRole: 'OWNER',
+        unitId: 'unit-101',
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { delivery?: { mode?: string, inviteLink?: string }; token?: unknown; inviteLink?: unknown };
+    // El link se expone porque el envío falló — el admin necesita el enlace
+    expect(data.delivery?.inviteLink).toBeDefined();
+    expect(data.delivery?.mode).toBe('manual_link');
     expect(data.token).toBeUndefined();
     expect(data.inviteLink).toBeUndefined();
   });
@@ -431,6 +464,7 @@ describe('POST /api/v1/users/invitations', () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { delivery?: { mode?: string, inviteLink?: string }; token?: unknown; inviteLink?: unknown };
     expect(data.delivery?.inviteLink).toBeUndefined();
+    expect(data.delivery?.mode).toBe('email');
     expect(data.token).toBeUndefined();
     expect(data.inviteLink).toBeUndefined();
   });

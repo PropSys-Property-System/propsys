@@ -30,10 +30,6 @@ function parseInvitableRole(input: unknown): InvitableInternalRole | null {
   return INVITABLE_INTERNAL_ROLES.find((role) => role === input) ?? null;
 }
 
-function deliveryMode(): 'resend' {
-  return 'resend';
-}
-
 function buildInviteLink(token: string): string {
   return buildCanonicalAppUrl('/invitations/accept', { token });
 }
@@ -293,7 +289,7 @@ export async function POST(req: Request) {
         action: 'CREATE',
         entity: 'UserInvitation',
         entityId: invitationId,
-        metadata: { internalRole, deliveryMode: deliveryMode(), expiresAt, buildingId: resolvedBuildingId, unitId: resolvedUnitId },
+        metadata: { internalRole, deliveryMode: 'invitation', expiresAt, buildingId: resolvedBuildingId, unitId: resolvedUnitId },
         newData: { id: invitationId, userId: createdUser.id, email, status: invitationStatus, expiresAt },
       });
 
@@ -302,6 +298,7 @@ export async function POST(req: Request) {
 
     const inviteLink = buildInviteLink(rawToken);
     
+    let emailSent = false;
     try {
       if (isEmailProviderConfigured()) {
         await sendInvitationEmail({
@@ -311,15 +308,17 @@ export async function POST(req: Request) {
           internalRole,
           expiresAt,
         });
+        emailSent = true;
       }
-    } catch (emailError) {
-      // Ignoramos el error de email para no frenar la creación exitosa en BD
-      console.error('Error enviando email de invitacion:', emailError);
+    } catch {
+      // Email send failed — emailSent permanece false.
+      // No logueamos emailError para evitar exponer detalles del provider.
     }
 
-    const exposeLink = shouldExposeEmailDebugLinks() || !isEmailProviderConfigured();
+    const exposeLink = shouldExposeEmailDebugLinks() || !emailSent;
+    const deliveryMode = emailSent ? 'email' : 'manual_link';
     const delivery = {
-      mode: deliveryMode(),
+      mode: deliveryMode,
       ...(exposeLink ? { inviteLink } : {}),
     };
 
