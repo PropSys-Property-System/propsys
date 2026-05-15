@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { validateApiMutationOrigin } from '@/lib/server/security/origin-guard';
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  const originGuard = validateApiMutationOrigin(req);
+  if (!originGuard.ok) {
+    return NextResponse.json({ error: originGuard.error }, { status: originGuard.status });
+  }
 
   const isPrivate =
     pathname === '/admin' ||
@@ -32,6 +38,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/staff/:path*', '/resident/:path*'],
+  matcher: ['/api/:path*', '/admin/:path*', '/staff/:path*', '/resident/:path*'],
 };
 
