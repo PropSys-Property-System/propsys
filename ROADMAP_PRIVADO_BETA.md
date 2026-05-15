@@ -17,7 +17,14 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - Invitaciones por link (UI de creación, backend y flujo de aceptación).
 - Deprecación completa de contraseñas temporales (`tempPassword`) en `users`, `staff` y `unit-assignments`.
 - Reset password (Backend y UI) implementado.
+  - Gestión de Clientes (admin-clients-management-v1): Bloque administrativo cerrado (Commit `270e1da`).
+  - `/admin/clients` funcional para ROOT_ADMIN (lista, crea, suspende/reactiva).
+  - Validación en Render: Clientes SUSPENDED desaparecen de selectores de invitación.
+  - Validación Técnica: Backend rechaza invitaciones forzadas a clientes SUSPENDED (404) validado vía tests automatizados. Creación de invitaciones para clientes ACTIVE validada manualmente con éxito tras ajuste en verificación de proveedor de email.
+  - Integridad: `/admin/users` operativo y desacoplado de la creación de clientes.
+  - Nota: No afecta sesiones/login actuales (aislado de middleware).
 > **Aclaración:** El flujo de reset y las invitaciones operan mostrando un link seguro copiable (modo dev/beta). Aún no se conectó a un proveedor de correo real.
+
 
 ## 3) Decisiones consolidadas
 - **Financiero:** `Enviar recibo` y `Pagar todo` quedan post-beta. La exportación visible será "Imprimir / guardar PDF" nativa del navegador. 

@@ -31,11 +31,13 @@ describe('clients center ui', () => {
     expect(screen.getByText('ID: c1')).toBeInTheDocument();
     expect(screen.queryByText('SUSPENDIDO')).not.toBeInTheDocument();
 
-    const editBtn = screen.getByTitle('Editar cliente');
+    expect(screen.getByText('ACTIVO')).toBeInTheDocument();
+
+    const editBtn = screen.getByTitle('Editar nombre');
     fireEvent.click(editBtn);
     expect(onEdit).toHaveBeenCalledWith(activeClient);
 
-    const suspendBtn = screen.getByTitle('Suspender cliente');
+    const suspendBtn = screen.getByText('Suspender');
     fireEvent.click(suspendBtn);
     expect(onStatusChange).toHaveBeenCalledWith(activeClient);
   });
@@ -49,16 +51,19 @@ describe('clients center ui', () => {
     expect(screen.getByText('ID: c2')).toBeInTheDocument();
     expect(screen.getByText('SUSPENDIDO')).toBeInTheDocument();
 
-    expect(screen.queryByTitle('Editar cliente')).not.toBeInTheDocument();
+    expect(screen.getByText('SUSPENDIDO')).toBeInTheDocument();
 
-    const reactivateBtn = screen.getByTitle('Reactivar cliente');
+    expect(screen.queryByTitle('Editar nombre')).not.toBeInTheDocument();
+
+    const reactivateBtn = screen.getByText('Reactivar');
     fireEvent.click(reactivateBtn);
     expect(onStatusChange).toHaveBeenCalledWith(suspendedClient);
   });
 
   it('disables actions when client is pending', () => {
     render(<ClientCard client={activeClient} pendingClientId="c1" onEdit={vi.fn()} onStatusChange={vi.fn()} />);
-    expect(screen.getByTitle('Editar cliente')).toBeDisabled();
-    expect(screen.getByTitle('Suspender cliente')).toBeDisabled();
+    expect(screen.getByTitle('Editar nombre')).toBeDisabled();
+    const buttons = screen.getAllByRole('button');
+    expect(buttons[buttons.length - 1]).toBeDisabled();
   });
 });

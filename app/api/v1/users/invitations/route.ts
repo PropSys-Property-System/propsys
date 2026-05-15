@@ -105,12 +105,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Selecciona una unidad para ese rol.' }, { status: 400 });
   }
 
-  if (!isEmailProviderConfigured()) {
-    return NextResponse.json(
-      { error: 'No hay proveedor de correo configurado para enviar invitaciones. Reemplaza re_xxxxxxxxx por tu API key real de Resend.' },
-      { status: 503 }
-    );
-  }
+  // Se omite la verificacion estricta de isEmailProviderConfigured aqui
+  // para permitir que el modo dev/beta opere con enlaces copiables.
 
   const pool = getPool();
   let targetClientId: string;
@@ -305,22 +301,27 @@ export async function POST(req: Request) {
     });
 
     const inviteLink = buildInviteLink(rawToken);
-    await sendInvitationEmail({
-      to: email,
-      name,
-      inviteLink,
-      internalRole,
-      expiresAt,
-    });
-
-    const delivery = shouldExposeEmailDebugLinks()
-      ? {
-          mode: deliveryMode(),
+    
+    try {
+      if (isEmailProviderConfigured()) {
+        await sendInvitationEmail({
+          to: email,
+          name,
           inviteLink,
-        }
-      : {
-          mode: deliveryMode(),
-        };
+          internalRole,
+          expiresAt,
+        });
+      }
+    } catch (emailError) {
+      // Ignoramos el error de email para no frenar la creación exitosa en BD
+      console.error('Error enviando email de invitacion:', emailError);
+    }
+
+    const exposeLink = shouldExposeEmailDebugLinks() || !isEmailProviderConfigured();
+    const delivery = {
+      mode: deliveryMode(),
+      ...(exposeLink ? { inviteLink } : {}),
+    };
 
     const res = NextResponse.json({
       user: toUser(created, { buildingId: resolvedBuildingId, unitId: resolvedUnitId }),

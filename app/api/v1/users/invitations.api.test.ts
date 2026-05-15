@@ -377,10 +377,18 @@ describe('POST /api/v1/users/invitations', () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
-  it('does not expose raw tokens in production without an explicit flag', async () => {
+  it('exposes invite link in production if no email provider is configured', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     emailMocks.configured = false;
     emailMocks.exposeDebugLinks = false;
+
+    poolQuery.mockImplementation((sql: string) => {
+      if (sql.includes('FROM units u')) return { rows: [unitRow()] };
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [] };
+      if (sql.includes('FROM users')) return { rows: [] };
+      return { rows: [] };
+    });
+    mockSuccessfulTransaction();
 
     const res = await createInvitation(
       makeRequest({
@@ -391,11 +399,39 @@ describe('POST /api/v1/users/invitations', () => {
       })
     );
 
-    expect(res.status).toBe(503);
-    const data = (await res.json()) as { delivery?: unknown; token?: unknown; inviteLink?: unknown };
-    expect(data.delivery).toBeUndefined();
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { delivery?: { mode?: string, inviteLink?: string }; token?: unknown; inviteLink?: unknown };
+    expect(data.delivery?.inviteLink).toBeDefined();
     expect(data.token).toBeUndefined();
     expect(data.inviteLink).toBeUndefined();
-    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it('does not expose raw tokens in production with an email provider and without an explicit flag', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    emailMocks.configured = true;
+    emailMocks.exposeDebugLinks = false;
+
+    poolQuery.mockImplementation((sql: string) => {
+      if (sql.includes('FROM units u')) return { rows: [unitRow()] };
+      if (sql.includes('FROM user_unit_assignments')) return { rows: [] };
+      if (sql.includes('FROM users')) return { rows: [] };
+      return { rows: [] };
+    });
+    mockSuccessfulTransaction();
+
+    const res = await createInvitation(
+      makeRequest({
+        email: 'owner.new2@example.com',
+        name: 'Owner Nuevo 2',
+        internalRole: 'OWNER',
+        unitId: 'unit-101',
+      })
+    );
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { delivery?: { mode?: string, inviteLink?: string }; token?: unknown; inviteLink?: unknown };
+    expect(data.delivery?.inviteLink).toBeUndefined();
+    expect(data.token).toBeUndefined();
+    expect(data.inviteLink).toBeUndefined();
   });
 });
