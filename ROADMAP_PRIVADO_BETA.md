@@ -19,11 +19,10 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - Reset password (Backend y UI) implementado.
   - Gestión de Clientes (admin-clients-management-v1): Bloque administrativo cerrado (Commit `270e1da`).
   - `/admin/clients` funcional para ROOT_ADMIN (lista, crea, suspende/reactiva).
-  - Validación en Render: Clientes SUSPENDED desaparecen de selectores de invitación.
-  - Validación Técnica: Backend rechaza invitaciones forzadas a clientes SUSPENDED (404) validado vía tests automatizados. Creación de invitaciones para clientes ACTIVE validada manualmente con éxito tras ajuste en verificación de proveedor de email.
+  - Validación en Render (Onboarding): Flujo completo de invitación validado con éxito (Commit `c20903b`). El fallback de link manual copiable se activa correctamente cuando el proveedor de email no está disponible, permitiendo al administrador dar de alta usuarios, quienes pueden definir su contraseña y quedar activos inmediatamente.
   - Integridad: `/admin/users` operativo y desacoplado de la creación de clientes.
   - Nota: No afecta sesiones/login actuales (aislado de middleware).
-> **Aclaración:** El flujo de reset y las invitaciones operan mostrando un link seguro copiable (modo dev/beta). Aún no se conectó a un proveedor de correo real.
+> **Aclaración:** El flujo de reset y las invitaciones operan mostrando un link seguro copiable cuando falla el envío de correo (modo dev/beta/fallback). Aún no se conectó a un proveedor de correo real persistente.
 
 
 ## 3) Decisiones consolidadas
@@ -40,6 +39,8 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - Emisión masiva de recibos (desde plantillas).
 - Polish UX: Edición de usuarios en modalidad *modal* o inline.
 - Bootstrap/script inicial controlado para dar de alta al primer cliente/manager en el entorno productivo.
+- Gestión de invitaciones pendientes: UI para listar, reemitir (copiar link) o revocar invitaciones que no han sido aceptadas.
+- Limpieza de usuarios "fantasma": Gestión o purga de usuarios `INACTIVE` creados por invitaciones que nunca fueron aceptadas.
 
 ## 5) Pendientes Post-Beta (Nice-to-have / Futuro)
 - Pagos online (pasarela de pago).
