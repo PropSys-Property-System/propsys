@@ -1,7 +1,26 @@
 import type { NextConfig } from 'next';
 
+function contentSecurityPolicyReportOnly() {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'self'",
+    "form-action 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "media-src 'self' blob:",
+    "worker-src 'self' blob:",
+    'upgrade-insecure-requests',
+  ].join('; ');
+}
+
 function securityHeaders() {
   const headers = [
+    { key: 'Content-Security-Policy-Report-Only', value: contentSecurityPolicyReportOnly() },
     { key: 'X-Content-Type-Options', value: 'nosniff' },
     { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
     { key: 'X-Frame-Options', value: 'SAMEORIGIN' },

@@ -15,12 +15,23 @@ describe('next security headers', () => {
   it('applies the baseline security headers globally', async () => {
     const headers = await loadGlobalHeaders();
 
+    expect(headers.get('Content-Security-Policy-Report-Only')).toContain("default-src 'self'");
     expect(headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
     expect(headers.get('X-Frame-Options')).toBe('SAMEORIGIN');
     expect(headers.get('Permissions-Policy')).toBe(
       'camera=(), microphone=(), geolocation=(), payment=(), usb=()'
     );
+  });
+
+  it('adds CSP report-only with frame and object restrictions', async () => {
+    const headers = await loadGlobalHeaders();
+    const csp = headers.get('Content-Security-Policy-Report-Only');
+
+    expect(csp).toContain("frame-ancestors 'self'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'");
+    expect(csp).toContain("connect-src 'self'");
   });
 
   it('only enables HSTS in production', async () => {
