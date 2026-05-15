@@ -6,8 +6,19 @@ import { addAccountTokenExpiry, generateAccountToken, hashAccountToken } from '@
 import { withTransaction } from '@/lib/server/db/tx';
 import { isEmailProviderConfigured, sendPasswordResetEmail, shouldExposeEmailDebugLinks } from '@/lib/server/email/resend';
 import { buildCanonicalAppUrl } from '@/lib/server/app-url';
+import {
+  checkRateLimit,
+  getClientIp,
+  hashRateLimitKey,
+} from '@/lib/server/security/rate-limit';
 
 const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000;
+
+// Rate limit config: request is the most abuse-prone endpoint
+const RESET_REQUEST_EMAIL_LIMIT = 3;
+const RESET_REQUEST_EMAIL_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const RESET_REQUEST_IP_LIMIT = 20;
+const RESET_REQUEST_IP_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 function normalizeEmail(input: unknown): string {
   return typeof input === 'string' ? input.trim().toLowerCase() : '';
@@ -33,6 +44,23 @@ export async function POST(req: Request) {
 
   if (!email) {
     return NextResponse.json({ error: 'Datos invalidos' }, { status: 400 });
+  }
+
+  // Rate limit by IP first, then by email
+  const ip = getClientIp(req);
+  const ipKey = hashRateLimitKey('reset-request:ip', ip);
+  const emailKey = hashRateLimitKey('reset-request:email', email);
+
+  const ipCheck = await checkRateLimit(ipKey, RESET_REQUEST_IP_LIMIT, RESET_REQUEST_IP_WINDOW_MS).catch(() => null);
+  if (ipCheck && !ipCheck.allowed) {
+    // Return generic to avoid confirming the endpoint behavior to attackers
+    return genericResponse();
+  }
+
+  const emailCheck = await checkRateLimit(emailKey, RESET_REQUEST_EMAIL_LIMIT, RESET_REQUEST_EMAIL_WINDOW_MS).catch(() => null);
+  if (emailCheck && !emailCheck.allowed) {
+    // Generic response: don't tell the attacker email is rate-limited
+    return genericResponse();
   }
 
   if (!isEmailProviderConfigured()) {

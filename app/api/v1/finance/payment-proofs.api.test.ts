@@ -3,6 +3,17 @@ import { GET as listAdminProofs } from './payment-proofs/route';
 import { GET as streamProof, PATCH as reviewProof } from './payment-proofs/[id]/route';
 import { GET as listReceiptProofs, POST as uploadProof } from './receipts/[id]/payment-proofs/route';
 
+// ── Rate limit mock ────────────────────────────────────────────────────────
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 19, resetAt: new Date() })),
+  resetRateLimitBucket: vi.fn(async () => undefined),
+  getClientIp: vi.fn(() => '203.0.113.10'),
+  hashRateLimitKey: vi.fn((ns: string, val: string) => `${ns}:${val}`),
+  rateLimitExceededHeaders: vi.fn((s: number) => ({ 'Retry-After': String(s), 'Cache-Control': 'no-store' })),
+}));
+
+vi.mock('@/lib/server/security/rate-limit', () => rateLimitMocks);
+
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
 const release = vi.fn();
@@ -123,11 +134,29 @@ describe('finance payment proofs API', () => {
     storageMocks.deletePaymentProofFile.mockReset();
     storageMocks.isAllowedPaymentProof.mockReset();
     storageMocks.isAllowedPaymentProof.mockReturnValue(true);
+    rateLimitMocks.checkRateLimit.mockReset();
+    rateLimitMocks.checkRateLimit.mockResolvedValue({ allowed: true, remaining: 19, resetAt: new Date() });
     sessionUser.id = 'u_owner';
     sessionUser.clientId = 'client_001';
     sessionUser.role = 'OWNER';
     sessionUser.internalRole = 'OWNER';
     sessionUser.scope = 'client';
+  });
+
+  it('rate limits payment proof uploads and returns 429', async () => {
+    rateLimitMocks.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(Date.now() + 600_000),
+      retryAfter: 600,
+    });
+
+    const res = await uploadProof(formRequest(), { params: Promise.resolve({ id: 'rect_1' }) });
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect(storageMocks.savePaymentProofFile).not.toHaveBeenCalled();
+    expect(poolQuery).not.toHaveBeenCalled();
   });
 
   it('lets an assigned owner upload a pending payment proof without exposing storagePath', async () => {

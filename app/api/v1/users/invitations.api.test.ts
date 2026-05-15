@@ -2,6 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashAccountToken } from '@/lib/server/auth/account-token';
 import { POST as createInvitation } from './invitations/route';
 
+// ── Rate limit mock ────────────────────────────────────────────────────────
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 19, resetAt: new Date() })),
+  resetRateLimitBucket: vi.fn(async () => undefined),
+  getClientIp: vi.fn(() => '203.0.113.10'),
+  hashRateLimitKey: vi.fn((ns: string, val: string) => `${ns}:${val}`),
+  rateLimitExceededHeaders: vi.fn((s: number) => ({ 'Retry-After': String(s), 'Cache-Control': 'no-store' })),
+}));
+
+vi.mock('@/lib/server/security/rate-limit', () => rateLimitMocks);
+
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
 const release = vi.fn();
@@ -114,10 +125,32 @@ describe('POST /api/v1/users/invitations', () => {
     emailMocks.exposeDebugLinks = true;
     emailMocks.sendInvitationEmail.mockReset();
     emailMocks.sendInvitationEmail.mockResolvedValue(undefined);
+    rateLimitMocks.checkRateLimit.mockReset();
+    rateLimitMocks.checkRateLimit.mockResolvedValue({ allowed: true, remaining: 19, resetAt: new Date() });
     sessionUser.id = 'u_mgr';
     sessionUser.clientId = 'client_001';
     sessionUser.internalRole = 'CLIENT_MANAGER';
     sessionUser.scope = 'client';
+  });
+
+  it('rate limits invitations creation and returns 429', async () => {
+    rateLimitMocks.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(Date.now() + 600_000),
+      retryAfter: 600,
+    });
+
+    const res = await createInvitation(makeRequest({
+      email: 'owner@example.com',
+      name: 'Owner',
+      internalRole: 'OWNER',
+      unitId: 'unit-101'
+    }));
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect(poolQuery).not.toHaveBeenCalled();
   });
 
   it('allows CLIENT_MANAGER to invite an OWNER for a unit in their tenant', async () => {

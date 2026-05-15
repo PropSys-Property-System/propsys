@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { canAccessTenantEntity, canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
+import { checkRateLimit, hashRateLimitKey, rateLimitExceededHeaders } from '@/lib/server/security/rate-limit';
 import {
   deleteEvidenceFile,
   isAllowedEvidence,
@@ -14,6 +15,9 @@ import {
 import type { EvidenceAttachment } from '@/lib/types';
 
 export const runtime = 'nodejs';
+
+const UPLOAD_EVIDENCE_RATE_LIMIT = 30;
+const UPLOAD_EVIDENCE_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
 type EvidenceRow = {
   id: string;
@@ -189,6 +193,15 @@ export async function POST(req: Request) {
 
   const bypassTenant = canBypassTenantScope(user);
   if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+
+  const rlKey = hashRateLimitKey('upload-evidence', user.id);
+  const rlCheck = await checkRateLimit(rlKey, UPLOAD_EVIDENCE_RATE_LIMIT, UPLOAD_EVIDENCE_RATE_LIMIT_WINDOW_MS).catch(() => null);
+  if (rlCheck && !rlCheck.allowed) {
+    return NextResponse.json(
+      { error: 'Has alcanzado el limite de subidas. Intenta nuevamente mas tarde.' },
+      { status: 429, headers: rateLimitExceededHeaders(rlCheck.retryAfter) }
+    );
+  }
 
   const formData = await req.formData().catch(() => null);
   const checklistExecutionIdEntry = formData ? formData.get('checklistExecutionId') : null;

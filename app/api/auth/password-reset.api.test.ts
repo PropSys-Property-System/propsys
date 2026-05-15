@@ -4,6 +4,18 @@ import { hashAccountToken } from '@/lib/server/auth/account-token';
 import { POST as confirmPasswordReset } from './password-reset/confirm/route';
 import { POST as requestPasswordReset } from './password-reset/request/route';
 
+// ── Rate limit mock ────────────────────────────────────────────────────────
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 19, resetAt: new Date() })),
+  resetRateLimitBucket: vi.fn(async () => undefined),
+  getClientIp: vi.fn(() => '203.0.113.10'),
+  hashRateLimitKey: vi.fn((ns: string, val: string) => `${ns}:${val}`),
+  rateLimitExceededHeaders: vi.fn((s: number) => ({ 'Retry-After': String(s), 'Cache-Control': 'no-store' })),
+}));
+
+vi.mock('@/lib/server/security/rate-limit', () => rateLimitMocks);
+
+// ── DB/email mocks ─────────────────────────────────────────────────────────
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
 const release = vi.fn();
@@ -37,18 +49,18 @@ vi.mock('@/lib/server/email/resend', () => ({
 const VALID_TOKEN = 'raw-reset-token';
 const VALID_PASSWORD = 'StrongPassword#2026';
 
-function requestReset(body: Record<string, unknown>) {
+function requestReset(body: Record<string, unknown>, ip = '203.0.113.10') {
   return new Request('http://localhost/api/auth/password-reset/request', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
     body: JSON.stringify(body),
   });
 }
 
-function confirmReset(body: Record<string, unknown>) {
+function confirmReset(body: Record<string, unknown>, ip = '203.0.113.10') {
   return new Request('http://localhost/api/auth/password-reset/confirm', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
     body: JSON.stringify(body),
   });
 }
@@ -126,11 +138,7 @@ function mockConfirmTransaction(row: ReturnType<typeof resetTokenRow> | null) {
     return { rows: [] };
   });
 
-  return {
-    updates,
-    updateParams,
-    auditPayloads,
-  };
+  return { updates, updateParams, auditPayloads };
 }
 
 describe('password reset backend', () => {
@@ -146,7 +154,12 @@ describe('password reset backend', () => {
     emailMocks.exposeDebugLinks = true;
     emailMocks.sendPasswordResetEmail.mockReset();
     emailMocks.sendPasswordResetEmail.mockResolvedValue(undefined);
+    // Default: all rate limits pass
+    rateLimitMocks.checkRateLimit.mockReset();
+    rateLimitMocks.checkRateLimit.mockResolvedValue({ allowed: true, remaining: 19, resetAt: new Date() });
   });
+
+  // ── Request ──────────────────────────────────────────────────────────────
 
   it('creates a reset token for an active user and exposes the dev link without returning tokenHash', async () => {
     vi.stubEnv('NODE_ENV', 'test');
@@ -214,6 +227,44 @@ describe('password reset backend', () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
+  it('rate limits reset request by IP and returns generic response (no 429 leak)', async () => {
+    rateLimitMocks.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(Date.now() + 3600_000),
+      retryAfter: 3600,
+    });
+
+    const res = await requestPasswordReset(requestReset({ email: 'target@example.com' }));
+
+    // Must return generic 200 — not reveal that the email is rate-limited
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok?: boolean };
+    expect(data.ok).toBe(true);
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
+
+  it('rate limits reset request by email after IP passes', async () => {
+    rateLimitMocks.checkRateLimit
+      .mockResolvedValueOnce({ allowed: true, remaining: 19, resetAt: new Date() }) // IP passes
+      .mockResolvedValue({                                                             // email blocked
+        allowed: false,
+        remaining: 0,
+        resetAt: new Date(Date.now() + 3600_000),
+        retryAfter: 3600,
+      });
+
+    const res = await requestPasswordReset(requestReset({ email: 'victim@example.com' }));
+
+    // Must also return generic 200 — not reveal the rate limit to attackers
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok?: boolean };
+    expect(data.ok).toBe(true);
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
+
+  // ── Confirm ───────────────────────────────────────────────────────────────
+
   it('confirms a valid reset token, updates the password and does not create a session', async () => {
     const tx = mockConfirmTransaction(resetTokenRow());
 
@@ -230,6 +281,21 @@ describe('password reset backend', () => {
     expect(tx.auditPayloads.join('\n')).not.toContain(VALID_TOKEN);
     expect(tx.auditPayloads.join('\n')).not.toContain(VALID_PASSWORD);
     expect(tx.auditPayloads.join('\n')).not.toContain('argon_reset_hash');
+  });
+
+  it('rate limits confirm by IP and returns 429 with Retry-After', async () => {
+    rateLimitMocks.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(Date.now() + 600_000),
+      retryAfter: 600,
+    });
+
+    const res = await confirmPasswordReset(confirmReset({ token: VALID_TOKEN, password: VALID_PASSWORD }));
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect(connect).not.toHaveBeenCalled();
   });
 
   it('rejects weak reset passwords before opening a transaction', async () => {

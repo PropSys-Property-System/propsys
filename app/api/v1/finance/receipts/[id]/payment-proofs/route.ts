@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { canAccessTenantEntity, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
+import { checkRateLimit, hashRateLimitKey, rateLimitExceededHeaders } from '@/lib/server/security/rate-limit';
 import {
   deletePaymentProofFile,
   isAllowedPaymentProof,
@@ -13,6 +14,9 @@ import {
 } from '@/lib/server/finance/payment-proof-storage';
 
 export const runtime = 'nodejs';
+
+const UPLOAD_PROOF_RATE_LIMIT = 30;
+const UPLOAD_PROOF_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
 type SessionUser = {
   id: string;
@@ -193,6 +197,15 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
   if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+
+  const rlKey = hashRateLimitKey('upload-payment-proof', user.id);
+  const rlCheck = await checkRateLimit(rlKey, UPLOAD_PROOF_RATE_LIMIT, UPLOAD_PROOF_RATE_LIMIT_WINDOW_MS).catch(() => null);
+  if (rlCheck && !rlCheck.allowed) {
+    return NextResponse.json(
+      { error: 'Has alcanzado el limite de subidas. Intenta nuevamente mas tarde.' },
+      { status: 429, headers: rateLimitExceededHeaders(rlCheck.retryAfter) }
+    );
+  }
 
   const { id } = await ctx.params;
   const formData = await req.formData().catch(() => null);

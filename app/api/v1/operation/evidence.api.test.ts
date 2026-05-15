@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, POST } from './evidence/route';
 
+// ── Rate limit mock ────────────────────────────────────────────────────────
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 19, resetAt: new Date() })),
+  resetRateLimitBucket: vi.fn(async () => undefined),
+  getClientIp: vi.fn(() => '203.0.113.10'),
+  hashRateLimitKey: vi.fn((ns: string, val: string) => `${ns}:${val}`),
+  rateLimitExceededHeaders: vi.fn((s: number) => ({ 'Retry-After': String(s), 'Cache-Control': 'no-store' })),
+}));
+
+vi.mock('@/lib/server/security/rate-limit', () => rateLimitMocks);
+
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
 const release = vi.fn();
@@ -50,6 +61,8 @@ describe('evidence API', () => {
     storageMocks.deleteEvidenceFile.mockReset();
     storageMocks.isAllowedEvidence.mockReset();
     storageMocks.isAllowedEvidence.mockReturnValue(true);
+    rateLimitMocks.checkRateLimit.mockReset();
+    rateLimitMocks.checkRateLimit.mockResolvedValue({ allowed: true, remaining: 19, resetAt: new Date() });
     sessionUser.id = 'u_staff';
     sessionUser.clientId = 'client_001';
     sessionUser.internalRole = 'STAFF';
@@ -77,6 +90,28 @@ describe('evidence API', () => {
       ...overrides,
     };
   }
+
+  it('rate limits evidence uploads and returns 429', async () => {
+    rateLimitMocks.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(Date.now() + 600_000),
+      retryAfter: 600,
+    });
+
+    const formData = new FormData();
+    formData.set('checklistExecutionId', 'chk-exec-1');
+    formData.set('file', new File([new Uint8Array([1, 2])], 'evidencia.jpg', { type: 'image/jpeg' }));
+    const req = new Request('http://localhost/api/v1/operation/evidence', { method: 'POST', body: formData });
+    Object.defineProperty(req, 'formData', { value: async () => formData });
+
+    const res = await POST(req);
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect(storageMocks.saveEvidenceFile).not.toHaveBeenCalled();
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
 
   it('limits general evidence listing for STAFF to assigned checklist executions', async () => {
     let evidenceSql = '';

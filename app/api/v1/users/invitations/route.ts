@@ -9,11 +9,14 @@ import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { addAccountTokenExpiry, generateAccountToken, hashAccountToken } from '@/lib/server/auth/account-token';
 import { isEmailProviderConfigured, sendInvitationEmail, shouldExposeEmailDebugLinks } from '@/lib/server/email/resend';
 import { buildCanonicalAppUrl } from '@/lib/server/app-url';
+import { checkRateLimit, hashRateLimitKey, rateLimitExceededHeaders } from '@/lib/server/security/rate-limit';
 import type { InternalRole, UserInvitationStatus } from '@/lib/types/auth';
 import type { User } from '@/lib/types';
 
 const INVITABLE_INTERNAL_ROLES = ['CLIENT_MANAGER', 'BUILDING_ADMIN', 'STAFF', 'OWNER', 'OCCUPANT'] as const;
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const INVITATION_RATE_LIMIT = 20;
+const INVITATION_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
 type InvitableInternalRole = (typeof INVITABLE_INTERNAL_ROLES)[number];
 type AssignmentType = 'OWNER' | 'OCCUPANT';
@@ -72,6 +75,15 @@ function toUser(row: {
 export async function POST(req: Request) {
   const actor = await getSessionUser(req);
   if (!actor) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+
+  const rlKey = hashRateLimitKey('users-invitations', actor.id);
+  const rlCheck = await checkRateLimit(rlKey, INVITATION_RATE_LIMIT, INVITATION_RATE_LIMIT_WINDOW_MS).catch(() => null);
+  if (rlCheck && !rlCheck.allowed) {
+    return NextResponse.json(
+      { error: 'Demasiados intentos. Intenta nuevamente mas tarde.' },
+      { status: 429, headers: rateLimitExceededHeaders(rlCheck.retryAfter) }
+    );
+  }
 
   const body = await req.json().catch(() => null);
   const email = normalizeEmail(body?.email);

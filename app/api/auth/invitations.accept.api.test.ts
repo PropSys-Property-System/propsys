@@ -3,6 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashAccountToken } from '@/lib/server/auth/account-token';
 import { POST as acceptInvitation } from './invitations/accept/route';
 
+// ── Rate limit mock ────────────────────────────────────────────────────────
+const rateLimitMocks = vi.hoisted(() => ({
+  checkRateLimit: vi.fn(async () => ({ allowed: true, remaining: 29, resetAt: new Date() })),
+  resetRateLimitBucket: vi.fn(async () => undefined),
+  getClientIp: vi.fn(() => '203.0.113.10'),
+  hashRateLimitKey: vi.fn((ns: string, val: string) => `${ns}:${val}`),
+  rateLimitExceededHeaders: vi.fn((s: number) => ({ 'Retry-After': String(s), 'Cache-Control': 'no-store' })),
+}));
+
+vi.mock('@/lib/server/security/rate-limit', () => rateLimitMocks);
+
+// ── DB mocks ───────────────────────────────────────────────────────────────
 const poolQuery = vi.fn();
 const clientQuery = vi.fn();
 const release = vi.fn();
@@ -25,10 +37,10 @@ vi.mock('@/lib/server/db/client', () => ({
 const VALID_TOKEN = 'raw-invitation-token';
 const VALID_PASSWORD = 'StrongPassword#2026';
 
-function makeRequest(body: Record<string, unknown>) {
+function makeRequest(body: Record<string, unknown>, ip = '203.0.113.10') {
   return new Request('http://localhost/api/auth/invitations/accept', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
     body: JSON.stringify(body),
   });
 }
@@ -92,6 +104,8 @@ describe('POST /api/auth/invitations/accept', () => {
     release.mockReset();
     connect.mockClear();
     vi.mocked(argon2.hash).mockClear();
+    rateLimitMocks.checkRateLimit.mockReset();
+    rateLimitMocks.checkRateLimit.mockResolvedValue({ allowed: true, remaining: 29, resetAt: new Date() });
   });
 
   it('accepts a valid pending invitation, activates the user and does not create a session', async () => {
@@ -110,6 +124,22 @@ describe('POST /api/auth/invitations/accept', () => {
     expect(tx.getAuditPayloads().join('\n')).not.toContain(VALID_TOKEN);
     expect(tx.getAuditPayloads().join('\n')).not.toContain(VALID_PASSWORD);
     expect(tx.getAuditPayloads().join('\n')).not.toContain('argon_hash_value');
+  });
+
+  it('rate limits invitation accept by IP and returns 429 with Retry-After', async () => {
+    rateLimitMocks.checkRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(Date.now() + 600_000),
+      retryAfter: 600,
+    });
+
+    const res = await acceptInvitation(makeRequest({ token: VALID_TOKEN, password: VALID_PASSWORD }));
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
+    // DB must NOT be touched
+    expect(connect).not.toHaveBeenCalled();
   });
 
   it('rejects weak passwords before opening a transaction', async () => {

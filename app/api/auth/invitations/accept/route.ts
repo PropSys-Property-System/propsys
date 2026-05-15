@@ -5,8 +5,17 @@ import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { hashAccountToken, isAccountTokenExpired, verifyAccountToken } from '@/lib/server/auth/account-token';
 import { validateStaffPassword as validateAccountPassword } from '@/lib/server/auth/staff-password';
 import { withTransaction } from '@/lib/server/db/tx';
+import {
+  checkRateLimit,
+  getClientIp,
+  hashRateLimitKey,
+  rateLimitExceededHeaders,
+} from '@/lib/server/security/rate-limit';
 
 const INVALID_INVITATION_ERROR = 'Invitacion invalida o expirada.';
+
+const INVITATION_ACCEPT_IP_LIMIT = 30;
+const INVITATION_ACCEPT_IP_WINDOW_MS = 10 * 60 * 1000; // 10 min
 
 class AcceptInvitationError extends Error {
   constructor(
@@ -42,6 +51,17 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: 'La contrasena debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
       { status: 400 }
+    );
+  }
+
+  // Rate limit by IP before touching the DB
+  const ip = getClientIp(req);
+  const ipKey = hashRateLimitKey('invitation-accept:ip', ip);
+  const ipCheck = await checkRateLimit(ipKey, INVITATION_ACCEPT_IP_LIMIT, INVITATION_ACCEPT_IP_WINDOW_MS).catch(() => null);
+  if (ipCheck && !ipCheck.allowed) {
+    return NextResponse.json(
+      { error: 'Demasiados intentos. Intenta nuevamente mas tarde.' },
+      { status: 429, headers: rateLimitExceededHeaders(ipCheck.retryAfter) }
     );
   }
 
