@@ -45,6 +45,7 @@ if (!shouldRun) {
         'receipt_payment_proofs',
         'user_invitations',
         'password_reset_tokens',
+        'rate_limit_buckets',
         'auth_sessions',
         'audit_logs',
         'schema_migrations',

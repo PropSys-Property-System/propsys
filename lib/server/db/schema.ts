@@ -76,6 +76,20 @@ export const passwordResetTokens = pgTable(
   })
 );
 
+export const rateLimitBuckets = pgTable(
+  'rate_limit_buckets',
+  {
+    key: text('key').primaryKey(),
+    count: integer('count').notNull(),
+    resetAt: timestamp('reset_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    resetAtIdx: index('rate_limit_buckets_reset_at_idx').on(t.resetAt),
+  })
+);
+
 export const buildings = pgTable('buildings', {
   id: text('id').primaryKey(),
   clientId: text('client_id').notNull(),
