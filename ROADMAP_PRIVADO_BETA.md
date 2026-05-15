@@ -1,7 +1,7 @@
 # Roadmap Privado Beta - PropSys
 
-Fecha: 2026-05-05
-Estado: Actualizado tras cierre de bloques de finance (comprobantes/polish) y auth (onboarding/invitaciones/reset).
+Fecha: 2026-05-15
+Estado: Actualizado tras cierre de bloque de hardening de seguridad (Origin Guard y Rate Limiting Durable).
 
 ## 1) Objetivo
 Alinear alcance beta, decisiones operativas y priorizar los bloques restantes antes de abrir el producto a clientes reales. **Nota de expectativas:** No se promete producción completa; faltan configuraciones de infraestructura cloud y pasarelas de pago.
@@ -25,6 +25,10 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
   - Nota: No afecta sesiones/login actuales (aislado de middleware).
 > **Aclaración:** El flujo de reset y las invitaciones operan mostrando un link seguro copiable cuando falla el envío de correo (modo dev/beta/fallback). Aún no se conectó a un proveedor de correo real persistente.
 
+**Seguridad (Hardening Beta):**
+- `security-origin-guard`: Completado y validado en Render. Protección contra CSRF en métodos mutables activada.
+- `durable-rate-limiting-core`: Completado y validado en Render. Tabla `rate_limit_buckets` operativa en Supabase.
+- `durable-rate-limiting-authenticated-abuse`: Completado y validado en Render. Límites estrictos configurados por IP e Identidad en rutas sensibles de autenticación (login, reset), invitaciones y uploads (comprobantes/evidencias).
 
 ## 3) Decisiones consolidadas
 - **Financiero:** `Enviar recibo` y `Pagar todo` quedan post-beta. La exportación visible será "Imprimir / guardar PDF" nativa del navegador. 
@@ -32,8 +36,10 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - **Storage:** Comprobantes de pago utilizan Supabase Storage en producción. La persistencia en disco local `.data` queda exclusivamente como fallback legacy/local.
 
 ## 4) Pendientes Críticos (Antes de beta real)
-- Provider de correo real (email provider).
-- Rate limiting específico y estricto para rutas de invitation y reset password.
+- Provider de correo real (email provider). El flujo completo de reset password queda pendiente de validación con email provider real o definiendo su fallback oficial para la beta.
+- Limpieza periódica de buckets expirados del rate limiting.
+- Revisión de headers de seguridad y CSP.
+- Auditoría general de secrets y env vars.
 - Capacidad para revocar/reemitir invitaciones caducadas.
 - Plantillas de cobro (diseño y asignación por unidad/edificio).
 - Emisión masiva de recibos (desde plantillas).
@@ -49,6 +55,7 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - Cobros automatizados por reservas.
 - Notificaciones financieras activas (email/app/WhatsApp).
 - Planes comerciales y límites de uso con enforcement técnico.
+- MFA futuro.
 
 ### admin-clients-access-lockdown
 - Usuarios de clientes SUSPENDED todavía no son bloqueados automáticamente en login/sesión.
