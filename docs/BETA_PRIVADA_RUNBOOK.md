@@ -15,6 +15,12 @@ Validar la estabilidad técnica y operativa de los flujos críticos de PropSys c
 3. **Seguridad:** Origin Guard activo y Rate Limiting configurado en Render.
 4. **Email Fallback:** Confirmar que `PROPSYS_EXPOSE_AUTH_TOKENS` está en `0` (seguridad) y que el sistema está listo para mostrar links manuales ante la falta de proveedor de correo real.
 
+## 3.1 Validaciones recientes en Render
+- `account-settings-v1` (Commit `9edec9a`): `/account` funciona, muestra nombre, correo, rol y area/clientId. Cambio de contrasena validado: la anterior deja de funcionar y la nueva permite login.
+- `admin-invitations-management-v1` (Commit `231598a`): ROOT_ADMIN crea invitacion, la ve en Invitaciones, `REISSUE` genera nuevo link, el link permite aceptar la invitacion, la invitacion desaparece de pendientes y `REVOKE` limpia invitaciones viejas.
+- `admin-invitations-form-polish` (Commit `c366b32`): ROOT_ADMIN ve Clientes; CLIENT_MANAGER no ve Clientes; CLIENT_MANAGER si ve Invitaciones; la cascada Cliente -> Edificio -> Unidad funciona; CLIENT_MANAGER opera solo dentro de su cliente.
+- Regla operativa: `REVOKE` es terminal y mantiene el usuario asociado como `INACTIVE`. Si se perdio el link y aun se quiere usar ese email/invitacion, usar `REISSUE` antes de revocar.
+
 ## 4. Flujo Bootstrap (Alta de Empresa)
 1. **Crear Cliente:** El ROOT_ADMIN ingresa a `/admin/clients` y crea la empresa (e.g., "Inmobiliaria Real").
 2. **Invitar Manager:** Dentro de la gestión de la empresa, invitar al primer `CLIENT_MANAGER`.
@@ -38,18 +44,23 @@ El `CLIENT_MANAGER` debe:
 - **Revisión:** Aprobación/Rechazo de comprobantes por parte del Admin/Manager y cambio de estado del recibo a `PAID`.
 
 ## 7. Limitaciones (NO Probar todavía)
-- **Email Real:** No esperar correos automáticos (usar links manuales).
+- **Email Real:** No asumir correos automaticos hasta configurar y validar provider real.
+- **Reset con Email Real:** Backend/UI funcionan, pero queda pendiente validar reset password usando email real end-to-end.
 - **MFA:** No disponible.
-- **Suspensión de Sesión:** La suspensión de clientes no cierra sesiones activas inmediatamente.
-- **Gestión de Invitaciones:** No hay UI para listar/revocar invitaciones pendientes (se requiere apoyo de soporte vía DB si se pierde un link).
-- **Mi Cuenta:** No hay edición de perfil de usuario.
+- **Suspension de Sesion:** La suspension de clientes no cierra sesiones activas inmediatamente.
+- **REVOKE de invitaciones:** Es terminal; no usar si solo se perdio el link. Primero usar `REISSUE` si se quiere conservar el flujo con ese email.
 
 ## 8. Checklist de Evidencia
-- [ ] Usuario creado y logueado con éxito.
-- [ ] Comprobante visualizado correctamente en el panel de administración.
+- [ ] Usuario creado y logueado con exito.
+- [ ] `/account` muestra nombre, correo, rol y area/clientId.
+- [ ] Cambio de contrasena desde `/account` invalida la anterior y permite login con la nueva.
+- [ ] ROOT_ADMIN puede crear, reemitir y revocar invitaciones desde Invitaciones.
+- [ ] CLIENT_MANAGER ve Invitaciones, no ve Clientes y opera solo dentro de su cliente.
+- [ ] Cascada Cliente -> Edificio -> Unidad funciona en invitaciones.
+- [ ] Comprobante visualizado correctamente en el panel de administracion.
 - [ ] Archivo persiste en Supabase tras 24 horas.
-- [ ] El rate limit no bloquea uso legítimo pero sí ráfagas (verificar en logs de Render).
-- [ ] El Origin Guard no bloquea navegación legítima.
+- [ ] El rate limit no bloquea uso legitimo pero si rafagas (verificar en logs de Render).
+- [ ] El Origin Guard no bloquea navegacion legitima.
 
 ## 9. Plan de Soporte y Rollback
 - **Canal de Soporte:** Grupo de WhatsApp directo con el equipo técnico.
@@ -58,8 +69,11 @@ El `CLIENT_MANAGER` debe:
 - **Hard-Reset:** Si la beta falla catastróficamente, se suspende el acceso al cliente desde el panel ROOT_ADMIN.
 
 ## 10. Pendientes Post-Beta
-- Integración de Resend/SendGrid para correos reales.
-- UI de gestión de invitaciones pendientes (re-enviar/revocar).
+- Integracion de Resend/SendGrid para correos reales.
+- Reset password validado con email real.
+- `beta-final-readiness-review`.
 - Job de limpieza para `rate_limit_buckets`.
-- Implementación de MFA para roles administrativos.
+- CSP enforcement.
+- Implementacion de MFA para roles administrativos.
+- SIEM / centralizacion de eventos de seguridad.
 - Lockdown completo de sesiones para clientes suspendidos.
