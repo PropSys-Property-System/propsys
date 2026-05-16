@@ -64,7 +64,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
 
-  const filteredNav = NAV_ITEMS.filter((item) => user && item.roles.includes(user.role));
+  const filteredNav = NAV_ITEMS.filter((item) => {
+    if (!user || !item.roles.includes(user.role)) return false;
+    if (item.label === 'Clientes' && user.internalRole !== 'ROOT_ADMIN') return false;
+    return true;
+  });
   const workspaceArea = user ? labelWorkspaceArea(user) : null;
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">

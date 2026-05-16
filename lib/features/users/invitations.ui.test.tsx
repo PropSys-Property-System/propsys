@@ -96,9 +96,10 @@ describe('InvitationCreationDialog', () => {
 
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Owner Invitada' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } });
+    fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
 
-    expect(screen.getByText('Selecciona una unidad para ese rol.')).toBeInTheDocument();
+    expect(screen.getByText('Selecciona un edificio y una unidad para ese rol.')).toBeInTheDocument();
   });
 
   it('requires a building for STAFF and BUILDING_ADMIN invitations', () => {
@@ -125,6 +126,7 @@ describe('InvitationCreationDialog', () => {
 
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Owner Invitada' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } });
+    fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
     fireEvent.change(screen.getByLabelText('Unidad'), { target: { value: 'unit_101' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
 
@@ -139,6 +141,7 @@ describe('InvitationCreationDialog', () => {
       email: 'owner@example.com',
       name: 'Owner Invitada',
       internalRole: 'OWNER',
+      clientId: 'client_001',
       unitId: 'unit_101',
     });
     expect(onInvitationCreated).toHaveBeenCalledTimes(1);
@@ -149,7 +152,6 @@ describe('InvitationCreationDialog', () => {
 
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Manager Invitado' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'manager@example.com' } });
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'client_001' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
 
     await waitFor(() => {
@@ -209,6 +211,7 @@ describe('InvitationCreationDialog', () => {
 
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Owner Invitada' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } });
+    fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
     fireEvent.change(screen.getByLabelText('Unidad'), { target: { value: 'unit_101' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
 
@@ -229,11 +232,100 @@ describe('InvitationCreationDialog', () => {
 
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Owner Invitada' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } });
+    fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
     fireEvent.change(screen.getByLabelText('Unidad'), { target: { value: 'unit_101' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
 
     await waitFor(() => {
       expect(screen.getByText('No hay proveedor de correo configurado para enviar invitaciones.')).toBeInTheDocument();
+    });
+  });
+
+  describe('Cascading selects', () => {
+    const multiClients = [
+      { id: 'c1', slug: 'c1', name: 'Client 1', status: 'ACTIVE' },
+      { id: 'c2', slug: 'c2', name: 'Client 2', status: 'ACTIVE' },
+    ];
+    const multiBuildings = [
+      { id: 'b1', clientId: 'c1', name: 'B1', address: 'A', city: 'C' },
+      { id: 'b2', clientId: 'c2', name: 'B2', address: 'A', city: 'C' },
+    ];
+    const multiUnits = [
+      { id: 'u1', clientId: 'c1', buildingId: 'b1', number: '101' },
+      { id: 'u2', clientId: 'c2', buildingId: 'b2', number: '201' },
+    ];
+
+    it('clears building and unit when client changes', () => {
+      renderDialog({ clients: multiClients, buildings: multiBuildings, units: multiUnits, defaultRole: 'OWNER' });
+      
+      const clientSelect = screen.getByLabelText('Cliente');
+      fireEvent.change(clientSelect, { target: { value: 'c1' } });
+      
+      const buildingSelect = screen.getByLabelText('Edificio');
+      fireEvent.change(buildingSelect, { target: { value: 'b1' } });
+      
+      const unitSelect = screen.getByLabelText('Unidad');
+      fireEvent.change(unitSelect, { target: { value: 'u1' } });
+
+      expect(buildingSelect).toHaveValue('b1');
+      expect(unitSelect).toHaveValue('u1');
+
+      fireEvent.change(clientSelect, { target: { value: 'c2' } });
+
+      expect(buildingSelect).toHaveValue('');
+      expect(unitSelect).toHaveValue('');
+    });
+
+    it('clears unit when building changes', () => {
+      renderDialog({ clients: multiClients, buildings: multiBuildings, units: multiUnits, defaultRole: 'OWNER' });
+      
+      fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
+      fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
+      fireEvent.change(screen.getByLabelText('Unidad'), { target: { value: 'u1' } });
+
+      fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: '' } });
+
+      expect(screen.getByLabelText('Unidad')).toHaveValue('');
+    });
+
+    it('filters buildings by client and units by building', () => {
+      renderDialog({ clients: multiClients, buildings: multiBuildings, units: multiUnits, defaultRole: 'OWNER' });
+      
+      fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c2' } });
+      
+      const buildingSelect = screen.getByLabelText('Edificio');
+      expect(buildingSelect).toHaveTextContent('B2');
+      expect(buildingSelect).not.toHaveTextContent('B1');
+
+      fireEvent.change(buildingSelect, { target: { value: 'b2' } });
+
+      const unitSelect = screen.getByLabelText('Unidad');
+      expect(unitSelect).toHaveTextContent('201');
+      expect(unitSelect).not.toHaveTextContent('101');
+    });
+
+    it('requires building and unit for OWNER', () => {
+      renderDialog({ clients: multiClients, buildings: multiBuildings, units: multiUnits, defaultRole: 'OWNER' });
+      
+      fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Test' } });
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'test@example.com' } });
+      fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
+      // Leaving building and unit empty
+      fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+
+      expect(screen.getByText('Selecciona un edificio y una unidad para ese rol.')).toBeInTheDocument();
+    });
+
+    it('requires building for STAFF', () => {
+      renderDialog({ clients: multiClients, buildings: multiBuildings, units: multiUnits, defaultRole: 'STAFF' });
+      
+      fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Test' } });
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'test@example.com' } });
+      fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
+      // Leaving building empty
+      fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+
+      expect(screen.getByText('Selecciona un edificio para ese rol.')).toBeInTheDocument();
     });
   });
 });

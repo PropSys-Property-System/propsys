@@ -92,15 +92,22 @@ export function InvitationCreationDialog({
     setName('');
     setEmail('');
     setInternalRole(nextRole);
-    setClientId(defaultClientId);
+    setClientId(defaultClientId || (clients.length === 1 ? clients[0].id : ''));
     setBuildingId(defaultBuildingId);
     setUnitId(defaultUnitId);
     setError(null);
     setIsSubmitting(false);
     setCreatedInvitation(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultBuildingId, defaultClientId, defaultRole, defaultUnitId, isOpen, roleOptionsKey]);
 
   const buildingsById = useMemo(() => new Map(buildings.map((building) => [building.id, building])), [buildings]);
+  
+  const visibleBuildings = useMemo(() => {
+    if (!clientId) return buildings;
+    return buildings.filter((b) => b.clientId === clientId);
+  }, [clientId, buildings]);
+
   const visibleUnits = useMemo(() => {
     if (!buildingId) return units;
     return units.filter((unit) => unit.buildingId === buildingId);
@@ -122,16 +129,20 @@ export function InvitationCreationDialog({
       setError('Ingresa un email valido.');
       return;
     }
-    if (internalRole === 'CLIENT_MANAGER' && !clientId) {
+    if (internalRole === 'CLIENT_MANAGER' && !clientId && clients.length === 0) {
       setError('Selecciona un cliente para ese rol.');
+      return;
+    }
+    if (clients.length > 1 && !clientId) {
+      setError('Selecciona un cliente.');
       return;
     }
     if (isBuildingRole(internalRole) && !buildingId) {
       setError('Selecciona un edificio para ese rol.');
       return;
     }
-    if (isUnitRole(internalRole) && !unitId) {
-      setError('Selecciona una unidad para ese rol.');
+    if (isUnitRole(internalRole) && (!buildingId || !unitId)) {
+      setError('Selecciona un edificio y una unidad para ese rol.');
       return;
     }
 
@@ -142,7 +153,7 @@ export function InvitationCreationDialog({
         email: normalizedEmail,
         name: normalizedName,
         internalRole,
-        ...(internalRole === 'CLIENT_MANAGER' ? { clientId } : {}),
+        ...(internalRole === 'CLIENT_MANAGER' || (isBuildingRole(internalRole) || isUnitRole(internalRole)) ? { clientId: clientId || clients[0]?.id } : {}),
         ...(isBuildingRole(internalRole) ? { buildingId } : {}),
         ...(isUnitRole(internalRole) ? { unitId } : {}),
       });
@@ -245,7 +256,7 @@ export function InvitationCreationDialog({
                 value={internalRole}
                 onChange={(event) => {
                   setInternalRole(event.target.value as UserInvitationRole);
-                  setClientId(defaultClientId);
+                  setClientId(defaultClientId || (clients.length === 1 ? clients[0].id : ''));
                   setBuildingId(defaultBuildingId);
                   setUnitId(defaultUnitId);
                 }}
@@ -259,12 +270,16 @@ export function InvitationCreationDialog({
               </select>
             </label>
 
-            {internalRole === 'CLIENT_MANAGER' ? (
+            {clients.length > 1 && (
               <label className="space-y-1">
                 <span className="text-xs font-bold text-slate-600">Cliente</span>
                 <select
                   value={clientId}
-                  onChange={(event) => setClientId(event.target.value)}
+                  onChange={(event) => {
+                    setClientId(event.target.value);
+                    setBuildingId('');
+                    setUnitId('');
+                  }}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
                 >
                   <option value="">Selecciona cliente</option>
@@ -275,29 +290,38 @@ export function InvitationCreationDialog({
                   ))}
                 </select>
               </label>
-            ) : isBuildingRole(internalRole) ? (
+            )}
+
+            {(isBuildingRole(internalRole) || isUnitRole(internalRole)) && (
               <label className="space-y-1">
                 <span className="text-xs font-bold text-slate-600">Edificio</span>
                 <select
                   value={buildingId}
-                  onChange={(event) => setBuildingId(event.target.value)}
+                  onChange={(event) => {
+                    setBuildingId(event.target.value);
+                    setUnitId('');
+                  }}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                  disabled={!clientId && clients.length > 1}
                 >
                   <option value="">Selecciona edificio</option>
-                  {buildings.map((building) => (
+                  {visibleBuildings.map((building) => (
                     <option key={building.id} value={building.id}>
                       {building.name}
                     </option>
                   ))}
                 </select>
               </label>
-            ) : isUnitRole(internalRole) ? (
+            )}
+
+            {isUnitRole(internalRole) && (
               <label className="space-y-1">
                 <span className="text-xs font-bold text-slate-600">Unidad</span>
                 <select
                   value={unitId}
                   onChange={(event) => setUnitId(event.target.value)}
                   className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
+                  disabled={!buildingId}
                 >
                   <option value="">Selecciona unidad</option>
                   {visibleUnits.map((unit) => (
@@ -307,7 +331,7 @@ export function InvitationCreationDialog({
                   ))}
                 </select>
               </label>
-            ) : null}
+            )}
 
             {error ? <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div> : null}
 
