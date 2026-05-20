@@ -198,6 +198,57 @@ if (!shouldRun) {
       );
     });
 
+    it('expone RLS habilitado en tablas public protegidas', async () => {
+      const expectedRlsTables = [
+        'auth_sessions',
+        'audit_logs',
+        'buildings',
+        'checklist_executions',
+        'checklist_templates',
+        'clients',
+        'common_areas',
+        'incidents',
+        'evidence_attachments',
+        'password_reset_tokens',
+        'receipt_payment_proofs',
+        'user_building_assignments',
+        'schema_migrations',
+        'units',
+        'reservations',
+        'tasks',
+        'user_invitations',
+        'user_unit_assignments',
+        'users',
+        'notices',
+        'receipts',
+        'rate_limit_buckets',
+      ];
+
+      const rls = await pool.query<{
+        table_name: string;
+        rls_enabled: boolean;
+        force_rls: boolean;
+      }>(
+        `SELECT c.relname as table_name,
+                c.relrowsecurity as rls_enabled,
+                c.relforcerowsecurity as force_rls
+         FROM pg_class c
+         WHERE c.relnamespace = 'public'::regnamespace
+           AND c.relkind IN ('r', 'p')
+           AND c.relname = ANY($1::text[])`,
+        [expectedRlsTables]
+      );
+
+      const byTable = new Map(rls.rows.map((row) => [row.table_name, row]));
+      const missing = expectedRlsTables.filter((table) => !byTable.has(table));
+      const rlsDisabled = rls.rows.filter((row) => !row.rls_enabled).map((row) => row.table_name);
+      const forceEnabled = rls.rows.filter((row) => row.force_rls).map((row) => row.table_name);
+
+      expect(missing).toEqual([]);
+      expect(rlsDisabled).toEqual([]);
+      expect(forceEnabled).toEqual([]);
+    });
+
     it('encuentra cuentas QA seed cuando se exige', async () => {
       if (process.env.VITEST_DB_EXPECT_SEEDS !== '1') return;
 
