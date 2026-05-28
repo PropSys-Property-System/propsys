@@ -14,6 +14,10 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - Polish UX de recibos (filtros, ordenamiento y acciones).
 - Validación en Render (Storage): Flujo `beta-storage-validation` completado. Supabase Storage funciona end-to-end para comprobantes (subida, persistencia, lectura y flujos de aprobación/rechazo).
 
+**Core & UX (Post-Demo Comercial):**
+- `ui-copy-polish`: Corrección ortográfica, tildes y revisión de UI copy en toda la app cerrado. Mejora directa a la percepción profesional (Commit `3f15006`).
+- `users-list-filters`: Filtros en lista de usuarios (por Rol, Estado, Edificio y Unidad) implementados 100% en frontend sobre data segura. Validado en Render con root admin (Commit `a08e52e`).
+
 **Auth & Onboarding:**
 - Invitaciones por link (UI de creación, backend y flujo de aceptación).
 - Deprecación completa de contraseñas temporales (`tempPassword`) en `users`, `staff` y `unit-assignments`.
@@ -38,8 +42,24 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - **Financiero:** `Enviar recibo` y `Pagar todo` quedan post-beta. La exportación visible será "Imprimir / guardar PDF" nativa del navegador. 
 - **Auth:** Todo usuario nuevo entra vía invitación por token. Las contraseñas manuales/inseguras quedan erradicadas del sistema de altas.
 - **Storage:** Comprobantes de pago utilizan Supabase Storage en producción. La persistencia en disco local `.data` queda exclusivamente como fallback legacy/local.
+## 4) Feedback y Backlog Post-Demo Comercial
+Tras la reunión comercial y demo con una empresa real, se identificaron los siguientes puntos:
 
-## 4) Pendientes Críticos (Antes de beta real)
+- **Ortografía y Copy (CERRADO):** Detalles ortográficos afectaban la percepción profesional. Resuelto en `ui-copy-polish`.
+- **Filtros de Usuarios (CERRADO):** Faltaba capacidad de segmentación para clientes grandes. Resuelto en `users-list-filters`.
+- **Incidencias (PENDIENTE):** Falta revisar mejor el flujo de `incidents-staff-workflow` (quién reporta, quién se hace cargo, estados, conexión con staff y tareas).
+- **Reservas (PENDIENTE):** Falta revisar el calendario y disponibilidad por área común en `reservations-calendar-view`.
+- **Panel Financiero (PENDIENTE ESTRATÉGICO):** El bloque financiero actual se limita a recibos y comprobantes. Se considera una carencia importante la falta de un panel financiero completo (`finance-dashboard-v1`: detalle de recibos, ingresos, egresos, morosidad, gastos, estados financieros y reportes). 
+
+**Reglas de Finanzas (Post-Demo):** 
+No se debe sobreprometer. El sistema actualmente emite recibos y gestiona comprobantes, pero *no sustituye aún a un módulo financiero completo*. El bloque `finance-dashboard-v1` es una épica estratégica grande y **no debe implementarse sin un discovery previo y un diseño de modelo de datos**.
+
+**Próximos bloques recomendados:**
+1. Auditar incidencias (`incidents-staff-workflow`).
+2. Auditar reservas/calendario (`reservations-calendar-view`).
+3. Discovery financiero (`finance-dashboard-v1`).
+
+## 5) Pendientes Críticos (Antes de beta real)
 - Provider de correo real (email provider).
 - Reset password validado con email real.
 - `beta-final-readiness-review` antes de abrir con empresa real.
@@ -50,8 +70,7 @@ Alinear alcance beta, decisiones operativas y priorizar los bloques restantes an
 - Polish UX: Edicion de usuarios en modalidad *modal* o inline.
 - Bootstrap/script inicial controlado para dar de alta al primer cliente/manager en el entorno productivo.
 - Limpieza de usuarios "fantasma": Gestion o purga de usuarios `INACTIVE` creados por invitaciones que nunca fueron aceptadas.
-
-## 5) Pendientes Post-Beta (Nice-to-have / Futuro)
+## 6) Pendientes Post-Beta (Nice-to-have / Futuro)
 - Pagos online (pasarela de pago).
 - Conciliacion bancaria.
 - Facturacion electronica.

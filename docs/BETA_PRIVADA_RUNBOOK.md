@@ -44,6 +44,7 @@ El `CLIENT_MANAGER` debe:
 - **Revisión:** Aprobación/Rechazo de comprobantes por parte del Admin/Manager y cambio de estado del recibo a `PAID`.
 
 ## 7. Limitaciones (NO Probar todavía)
+- **Panel Financiero Completo:** La funcionalidad financiera se limita estrictamente a emitir recibos y gestionar comprobantes de pago. NO hay dashboard de morosidad, ingresos/egresos, ni contabilidad avanzada (`finance-dashboard-v1` requiere discovery previo).
 - **Email Real:** No asumir correos automaticos hasta configurar y validar provider real.
 - **Reset con Email Real:** Backend/UI funcionan, pero queda pendiente validar reset password usando email real end-to-end.
 - **MFA:** No disponible.
