@@ -42,12 +42,12 @@ export async function POST(req: Request) {
   }
 
   if (newPassword !== confirmPassword) {
-    return NextResponse.json({ error: 'La nueva contrasena y la confirmacion no coinciden.' }, { status: 400 });
+    return NextResponse.json({ error: 'La nueva contraseña y la confirmacion no coinciden.' }, { status: 400 });
   }
 
   if (!validateAccountPassword(newPassword)) {
     return NextResponse.json(
-      { error: 'La nueva contrasena debe tener al menos 8 caracteres, incluir una letra y un numero.' },
+      { error: 'La nueva contraseña debe tener al menos 8 caracteres, incluir una letra y un numero.' },
       { status: 400 }
     );
   }
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
 
   const valid = await argon2.verify(row.password_hash, currentPassword).catch(() => false);
   if (!valid) {
-    return NextResponse.json({ error: 'La contrasena actual es incorrecta.' }, { status: 400 });
+    return NextResponse.json({ error: 'La contraseña actual es incorrecta.' }, { status: 400 });
   }
 
   const newHash = await argon2.hash(newPassword);

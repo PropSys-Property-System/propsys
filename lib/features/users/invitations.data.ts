@@ -30,7 +30,7 @@ export type CreateUserInvitationResult = {
 };
 
 const EMAIL_PROVIDER_ERROR =
-  'No hay proveedor de correo configurado para enviar invitaciones. Reemplaza re_xxxxxxxxx por tu API key real de Resend.';
+  'No hay proveedor de correo configurado para enviar invitaciónes. Reemplaza re_xxxxxxxxx por tu API key real de Resend.';
 
 function shouldSendBuildingId(role: UserInvitationRole): boolean {
   return role === 'BUILDING_ADMIN' || role === 'STAFF';
@@ -50,7 +50,7 @@ async function readErrorMessage(res: Response): Promise<string> {
   }
 
   if (res.status === 403) return 'No autorizado';
-  if (res.status === 409) return 'No se pudo crear la invitacion por un conflicto de usuario o asignacion existente.';
+  if (res.status === 409) return 'No se pudo crear la invitación por un conflicto de usuario o asignacion existente.';
   return `Error HTTP ${res.status}`;
 }
 

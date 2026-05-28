@@ -50,7 +50,7 @@ export function TaskReviewDialog({
       >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-lg font-black text-slate-900 truncate">Revision del checklist</p>
+            <p className="text-lg font-black text-slate-900 truncate">Revisión del checklist</p>
             <p className="mt-1 text-xs text-slate-500 font-medium truncate">{task.title}</p>
             <p className="mt-1 text-[11px] font-semibold text-slate-400 truncate">Edificio: {buildingName ?? task.buildingId}</p>
           </div>
@@ -67,7 +67,7 @@ export function TaskReviewDialog({
 
         <div className="mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
           {isReviewLoading ? (
-            <LoadingState title="Cargando revision..." />
+            <LoadingState title="Cargando revisión..." />
           ) : (
             <>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -92,7 +92,7 @@ export function TaskReviewDialog({
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                   <p className="text-xs font-black uppercase tracking-widest text-amber-800">Ultima correccion solicitada</p>
                   <p className="mt-2 text-[11px] font-semibold text-amber-900">
-                    {execution.reviewedAt ? `Registrada ${formatDateTime(execution.reviewedAt)}` : 'Registrada por administracion'}
+                    {execution.reviewedAt ? `Registrada ${formatDateTime(execution.reviewedAt)}` : 'Registrada por administración'}
                   </p>
                   <p className="mt-2 text-sm font-medium text-amber-900">{execution.reviewComment?.trim() || 'Sin comentario adicional.'}</p>
                 </div>

@@ -12,7 +12,7 @@ import {
   rateLimitExceededHeaders,
 } from '@/lib/server/security/rate-limit';
 
-const INVALID_INVITATION_ERROR = 'Invitacion invalida o expirada.';
+const INVALID_INVITATION_ERROR = 'Invitación invalida o expirada.';
 
 const INVITATION_ACCEPT_IP_LIMIT = 30;
 const INVITATION_ACCEPT_IP_WINDOW_MS = 10 * 60 * 1000; // 10 min
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   if (!validateAccountPassword(password)) {
     return NextResponse.json(
-      { error: 'La contrasena debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
+      { error: 'La contraseña debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
       { status: 400 }
     );
   }
@@ -144,6 +144,6 @@ export async function POST(req: Request) {
     if (e instanceof AcceptInvitationError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     }
-    return NextResponse.json({ error: 'No se pudo aceptar la invitacion.' }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo aceptar la invitación.' }, { status: 500 });
   }
 }

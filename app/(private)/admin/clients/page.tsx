@@ -173,7 +173,7 @@ export default function ClientsPage() {
   if (!canManageClients) {
     return (
       <div className="flex flex-col h-full bg-slate-50/50">
-        <PageHeader title="Gestion de Clientes" description="Administracion global de clientes." />
+        <PageHeader title="Gestion de Clientes" description="Administración global de clientes." />
         <div className="p-6 md:p-8">
           <ErrorState title="Acceso denegado" description="No tienes permisos para ver esta pagina." />
         </div>
@@ -242,7 +242,7 @@ export default function ClientsPage() {
                 value={newClientName}
                 onChange={(event) => setNewClientName(event.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary"
-                placeholder="Ej: Administraciones Norte SAC"
+                placeholder="Ej: Administraciónes Norte SAC"
                 autoFocus
               />
             </label>

@@ -101,7 +101,7 @@ export const commonAreasRepo = {
         !area.deletedAt &&
         area.name.trim().toLowerCase() === input.name.trim().toLowerCase()
     );
-    if (duplicate) throw new Error('Ya existe un area comun activa con ese nombre.');
+    if (duplicate) throw new Error('Ya existe un área comun activa con ese nombre.');
 
     const now = new Date().toISOString();
     const area = {
@@ -153,7 +153,7 @@ export const commonAreasRepo = {
         !area.deletedAt &&
         area.name.trim().toLowerCase() === input.name.trim().toLowerCase()
     );
-    if (duplicate) throw new Error('Ya existe un area comun activa con ese nombre.');
+    if (duplicate) throw new Error('Ya existe un área comun activa con ese nombre.');
     const updated = {
       ...current,
       name: input.name.trim(),
@@ -267,7 +267,7 @@ export const commonAreasRepo = {
         !area.deletedAt &&
         area.name.trim().toLowerCase() === current.name.trim().toLowerCase()
     );
-    if (duplicate) throw new Error('Ya existe un area comun activa con ese nombre.');
+    if (duplicate) throw new Error('Ya existe un área comun activa con ese nombre.');
     MOCK_PHYSICAL_COMMON_AREAS[idx] = { ...current, status: 'ACTIVE', updatedAt: new Date().toISOString() };
     const updated = MOCK_PHYSICAL_COMMON_AREAS[idx];
     return {

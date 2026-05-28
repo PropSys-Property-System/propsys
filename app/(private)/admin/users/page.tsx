@@ -306,7 +306,7 @@ export default function UsersPage() {
         <InvitationCreationDialog
           isOpen={isInvitationOpen}
           title="Invitar usuario"
-          description="Crea una invitacion para que el usuario defina su contrasena."
+          description="Crea una invitación para que el usuario defina su contraseña."
           roleOptions={[...invitationRoleOptions]}
           clients={clients}
           buildings={buildings}

@@ -5,7 +5,7 @@ import { canBypassTenantScope } from '@/lib/server/auth/tenant-scope';
 import type { StaffMember } from '@/lib/types';
 
 const DIRECT_STAFF_CREATION_DEPRECATED_MESSAGE =
-  'La creación directa de staff fue reemplazada por invitaciones. Usa /api/v1/users/invitations.';
+  'La creación directa de staff fue reemplazada por invitaciónes. Usa /api/v1/users/invitations.';
 
 function roleLabel(internalRole: string): string {
   switch (internalRole) {

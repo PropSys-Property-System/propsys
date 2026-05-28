@@ -43,7 +43,7 @@ function renderDialog(options: Partial<ComponentProps<typeof InvitationCreationD
     <InvitationCreationDialog
       isOpen
       title="Invitar usuario"
-      description="Crea una invitacion para activar la cuenta."
+      description="Crea una invitación para activar la cuenta."
       roleOptions={allRoles}
       clients={clients}
       buildings={buildings}
@@ -86,7 +86,7 @@ describe('InvitationCreationDialog', () => {
 
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Manager Invitado' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'manager@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     expect(screen.getByText('Selecciona un cliente para ese rol.')).toBeInTheDocument();
   });
@@ -97,7 +97,7 @@ describe('InvitationCreationDialog', () => {
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Owner Invitada' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } });
     fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
-    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     expect(screen.getByText('Selecciona un edificio y una unidad para ese rol.')).toBeInTheDocument();
   });
@@ -107,7 +107,7 @@ describe('InvitationCreationDialog', () => {
 
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Staff Invitado' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'staff@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     expect(screen.getByText('Selecciona un edificio para ese rol.')).toBeInTheDocument();
   });
@@ -115,8 +115,8 @@ describe('InvitationCreationDialog', () => {
   it('does not render a password field', () => {
     renderDialog();
 
-    expect(screen.queryByLabelText(/contrasena/i)).not.toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/contrasena/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/contraseña/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/contraseña/i)).not.toBeInTheDocument();
   });
 
   it('shows a copyable invite link after a successful submit without rendering the raw token separately', async () => {
@@ -128,10 +128,10 @@ describe('InvitationCreationDialog', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } });
     fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
     fireEvent.change(screen.getByLabelText('Unidad'), { target: { value: 'unit_101' } });
-    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Invitacion creada')).toBeInTheDocument();
+      expect(screen.getByText('Invitación creada')).toBeInTheDocument();
     });
     expect(screen.getByText('http://localhost/invitations/accept?token=link-token')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /copiar enlace/i }));
@@ -152,7 +152,7 @@ describe('InvitationCreationDialog', () => {
 
     fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Manager Invitado' } });
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'manager@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     await waitFor(() => {
       expect(createInvitation).toHaveBeenCalledWith({
@@ -190,11 +190,11 @@ describe('InvitationCreationDialog', () => {
 
       return (
         <>
-          <span>Invitaciones creadas: {createdCount}</span>
+          <span>Invitaciónes creadas: {createdCount}</span>
           <InvitationCreationDialog
             isOpen
             title="Invitar usuario"
-            description="Crea una invitacion para activar la cuenta."
+            description="Crea una invitación para activar la cuenta."
             roleOptions={['OWNER']}
             defaultRole="OWNER"
             buildings={buildings}
@@ -213,12 +213,12 @@ describe('InvitationCreationDialog', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } });
     fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
     fireEvent.change(screen.getByLabelText('Unidad'), { target: { value: 'unit_101' } });
-    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Invitaciones creadas: 1')).toBeInTheDocument();
+      expect(screen.getByText('Invitaciónes creadas: 1')).toBeInTheDocument();
     });
-    expect(screen.getByText('Invitacion creada')).toBeInTheDocument();
+    expect(screen.getByText('Invitación creada')).toBeInTheDocument();
     expect(screen.getByText('http://localhost/invitations/accept?token=link-token')).toBeInTheDocument();
   });
 
@@ -226,7 +226,7 @@ describe('InvitationCreationDialog', () => {
     renderDialog({
       defaultRole: 'OWNER',
       createInvitation: vi.fn(async () => {
-        throw new Error('No hay proveedor de correo configurado para enviar invitaciones.');
+        throw new Error('No hay proveedor de correo configurado para enviar invitaciónes.');
       }),
     });
 
@@ -234,10 +234,10 @@ describe('InvitationCreationDialog', () => {
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } });
     fireEvent.change(screen.getByLabelText('Edificio'), { target: { value: 'b1' } });
     fireEvent.change(screen.getByLabelText('Unidad'), { target: { value: 'unit_101' } });
-    fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('No hay proveedor de correo configurado para enviar invitaciones.')).toBeInTheDocument();
+      expect(screen.getByText('No hay proveedor de correo configurado para enviar invitaciónes.')).toBeInTheDocument();
     });
   });
 
@@ -311,7 +311,7 @@ describe('InvitationCreationDialog', () => {
       fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'test@example.com' } });
       fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
       // Leaving building and unit empty
-      fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+      fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
       expect(screen.getByText('Selecciona un edificio y una unidad para ese rol.')).toBeInTheDocument();
     });
@@ -323,7 +323,7 @@ describe('InvitationCreationDialog', () => {
       fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'test@example.com' } });
       fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'c1' } });
       // Leaving building empty
-      fireEvent.click(screen.getByRole('button', { name: /enviar invitacion/i }));
+      fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
       expect(screen.getByText('Selecciona un edificio para ese rol.')).toBeInTheDocument();
     });

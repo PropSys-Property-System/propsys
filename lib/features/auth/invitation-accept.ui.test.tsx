@@ -65,7 +65,7 @@ describe('InvitationAcceptView', () => {
   it('muestra error genérico cuando el endpoint falla', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: false,
-      json: async () => ({ error: 'Invitacion invalida o expirada.' }),
+      json: async () => ({ error: 'Invitación invalida o expirada.' }),
     } as Response);
     render(<InvitationAcceptView token="secret-token" />);
 

@@ -18,14 +18,14 @@ describe('AuthForm', () => {
     loginMock.mockResolvedValue(undefined);
   });
 
-  it('renderiza campos de email y contrasena', () => {
+  it('renderiza campos de email y contraseña', () => {
     render(<AuthForm />);
 
     expect(screen.getByPlaceholderText(/correo electr/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/contrase/i)).toBeInTheDocument();
   });
 
-  it('permite escribir email y contrasena', () => {
+  it('permite escribir email y contraseña', () => {
     render(<AuthForm />);
 
     const email = screen.getByPlaceholderText(/correo electr/i) as HTMLInputElement;
@@ -38,7 +38,7 @@ describe('AuthForm', () => {
     expect(password).toHaveValue(TEST_PASSWORD_INPUT);
   });
 
-  it('envia email y contrasena al flujo de login', async () => {
+  it('envia email y contraseña al flujo de login', async () => {
     render(<AuthForm />);
 
     fireEvent.change(screen.getByPlaceholderText(/correo electr/i), {
@@ -69,7 +69,7 @@ describe('AuthForm', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Credenciales invalidas');
   });
 
-  it('muestra enlace para recuperar contrasena', () => {
+  it('muestra enlace para recuperar contraseña', () => {
     render(<AuthForm />);
 
     const link = screen.getByRole('link', { name: /olvid/i });

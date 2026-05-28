@@ -88,7 +88,7 @@ export function AuthForm() {
           Olvidé mi contraseña
         </Link>
         <span className="text-xs font-bold text-slate-400">
-          Si no tienes acceso, solicita credenciales a administracion.
+          Si no tienes acceso, solicita credenciales a administración.
         </span>
       </div>
     </div>

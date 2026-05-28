@@ -88,7 +88,7 @@ export default function AdminCommonAreasPage() {
         setArchivedAreas(archived);
       } catch {
         if (!isMounted) return;
-        setError('No pudimos cargar las areas comunes.');
+        setError('No pudimos cargar las áreas comunes.');
       } finally {
         if (!isMounted) return;
         setIsLoading(false);
@@ -119,7 +119,7 @@ export default function AdminCommonAreasPage() {
       setAreas((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
       setActionMessage(`Area comun ${updated.name} actualizada.`);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'No pudimos actualizar el area comun.');
+      setActionError(err instanceof Error ? err.message : 'No pudimos actualizar el área comun.');
     } finally {
       setSavingAreaId(null);
     }
@@ -177,7 +177,7 @@ export default function AdminCommonAreasPage() {
       }
       setIsComposerOpen(false);
     } catch (err) {
-      setComposerError(err instanceof Error ? err.message : 'No pudimos guardar el area comun.');
+      setComposerError(err instanceof Error ? err.message : 'No pudimos guardar el área comun.');
     } finally {
       setIsSubmitting(false);
     }
@@ -195,7 +195,7 @@ export default function AdminCommonAreasPage() {
       setArchivedAreas((current) => [archived, ...current]);
       setActionMessage(`Area comun ${archived.name} archivada.`);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'No pudimos archivar el area comun.');
+      setActionError(err instanceof Error ? err.message : 'No pudimos archivar el área comun.');
     }
   }
 
@@ -212,7 +212,7 @@ export default function AdminCommonAreasPage() {
       setShowArchived(false);
       setActionMessage(`Area comun ${restored.name} restaurada.`);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'No pudimos restaurar el area comun.');
+      setActionError(err instanceof Error ? err.message : 'No pudimos restaurar el área comun.');
     }
   }
 
@@ -225,7 +225,7 @@ export default function AdminCommonAreasPage() {
         selectedBuildingId ? 'bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90' : 'bg-slate-100 text-slate-500 cursor-not-allowed'
       }`}
     >
-      <Plus className="w-4 h-4 mr-2" /> Nueva area comun
+      <Plus className="w-4 h-4 mr-2" /> Nueva área comun
     </button>
   ) : null;
 
@@ -265,7 +265,7 @@ export default function AdminCommonAreasPage() {
             buildings={buildings}
             selectedBuildingId={selectedBuildingId}
             searchTerm={searchTerm}
-            searchPlaceholder="Buscar area comun..."
+            searchPlaceholder="Buscar área comun..."
             onBuildingChange={setSelectedBuildingId}
             onSearchChange={setSearchTerm}
           />
@@ -274,11 +274,11 @@ export default function AdminCommonAreasPage() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando areas comunes..." />
+          <LoadingState title="Cargando áreas comunes..." />
         ) : !selectedBuildingId ? (
           <EmptyState title="Sin edificio" description="No hay un edificio seleccionado." />
         ) : filteredAreas.length === 0 ? (
-          <EmptyState title="Sin areas" description={searchTerm ? `No hay coincidencias para "${searchTerm}".` : 'Aun no hay areas comunes configuradas.'} />
+          <EmptyState title="Sin areas" description={searchTerm ? `No hay coincidencias para "${searchTerm}".` : 'Aun no hay áreas comunes configuradas.'} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">
             {filteredAreas.map((area) => (
@@ -301,7 +301,7 @@ export default function AdminCommonAreasPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button type="button" aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={() => setIsComposerOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <p className="text-lg font-black text-slate-900">{editingArea ? 'Editar area comun' : 'Nueva area comun'}</p>
+            <p className="text-lg font-black text-slate-900">{editingArea ? 'Editar área comun' : 'Nueva área comun'}</p>
             <div className="mt-4 space-y-3">
               <input
                 value={composerName}

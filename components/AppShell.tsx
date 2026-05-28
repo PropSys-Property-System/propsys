@@ -47,7 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Avisos', href: '/admin/notices', icon: Megaphone, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Edificios', href: '/admin/buildings', icon: Building2, roles: ['MANAGER'] },
   { label: 'Usuarios', href: '/admin/users', icon: User, roles: ['MANAGER'] },
-  { label: 'Invitaciones', href: '/admin/invitations', icon: Mail, roles: ['MANAGER'] },
+  { label: 'Invitaciónes', href: '/admin/invitations', icon: Mail, roles: ['MANAGER'] },
   { label: 'Clientes', href: '/admin/clients', icon: Building2, roles: ['MANAGER'] },
   { label: 'Mis tareas', href: '/staff/tasks', icon: ClipboardList, roles: ['STAFF'] },
   { label: 'Incidencias', href: '/staff/tickets', icon: Wrench, roles: ['STAFF'] },

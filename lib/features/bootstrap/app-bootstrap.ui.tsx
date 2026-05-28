@@ -107,7 +107,7 @@ export function SetupProfileStep() {
           <User className="w-8 h-8 text-primary" />
         </div>
         <h2 className="text-xl font-bold text-slate-900">Cuentanos sobre ti</h2>
-        <p className="text-sm text-slate-500">Completa tu informacion basica de contacto.</p>
+        <p className="text-sm text-slate-500">Completa tu información basica de contacto.</p>
       </div>
 
       <div className="space-y-4">
@@ -161,7 +161,7 @@ export function SetupConfirmationStep() {
       </div>
       <h2 className="text-2xl font-black text-slate-900 tracking-tight">Todo listo</h2>
       <p className="text-slate-500 font-medium">
-        Hemos configurado tu perfil exitosamente. Ahora puedes acceder a tu panel personalizado en PropSys.
+        Hemos configurado tu perfil éxitosamente. Ahora puedes acceder a tu panel personalizado en PropSys.
       </p>
 
       <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left space-y-2">

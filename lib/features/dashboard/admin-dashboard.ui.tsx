@@ -108,7 +108,7 @@ export function DashboardKpiGrid({
         value={kpiValue(requestedReservationsCount)}
         icon={Calendar}
         variant="emerald"
-        description="Pendientes de revision"
+        description="Pendientes de revisión"
       />
       <KPICard
         title="Incidencias abiertas"

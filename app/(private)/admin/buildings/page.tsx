@@ -548,7 +548,7 @@ export default function BuildingsPage() {
         <InvitationCreationDialog
           isOpen={Boolean(invitationUnit && invitationRole)}
           title={invitationRole === 'OWNER' ? 'Invitar propietario' : 'Invitar inquilino'}
-          description="Invita al usuario para que defina su contrasena y quede vinculado a esta unidad."
+          description="Invita al usuario para que defina su contraseña y quede vinculado a esta unidad."
           roleOptions={[invitationRole]}
           buildings={[unitBuilding]}
           units={buildingUnits}
@@ -569,7 +569,7 @@ export default function BuildingsPage() {
                   : unit
               )
             );
-            setAssignmentMessage('Invitacion creada. Comparte el enlace para activar la cuenta.');
+            setAssignmentMessage('Invitación creada. Comparte el enlace para activar la cuenta.');
             handleCancelUnitAssignment();
           }}
         />

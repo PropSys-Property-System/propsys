@@ -156,7 +156,7 @@ export default function StaffTicketsPage() {
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
           <p className="text-xs font-black text-slate-700 uppercase tracking-[0.2em]">Flujo operativo</p>
           <p className="mt-2 text-sm text-slate-600 font-medium">
-            El personal puede reportar incidencias y marcarlas como resueltas. Administracion revisa el trabajo y realiza el cierre final.
+            El personal puede reportar incidencias y marcarlas como resueltas. Administración revisa el trabajo y realiza el cierre final.
           </p>
         </div>
 

@@ -5,9 +5,9 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Copy, Loader2, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 
 const PASSWORD_ERROR =
-  'La contrasena debe tener al menos 12 caracteres, mayuscula, minuscula, numero, simbolo y no debe tener espacios.';
-const CONFIRM_ERROR = 'No pudimos restablecer la contrasena. Solicita un nuevo enlace.';
-const REQUEST_SUCCESS = 'Si el correo existe, recibiras instrucciones para restablecer tu contrasena.';
+  'La contraseña debe tener al menos 12 caracteres, mayuscula, minuscula, numero, simbolo y no debe tener espacios.';
+const CONFIRM_ERROR = 'No pudimos restablecer la contraseña. Solicita un nuevo enlace.';
+const REQUEST_SUCCESS = 'Si el correo existe, recibiras instrucciones para restablecer tu contraseña.';
 const PROVIDER_ERROR =
   'No hay proveedor de correo configurado para enviar enlaces de recuperacion. Reemplaza re_xxxxxxxxx por tu API key real de Resend.';
 
@@ -23,7 +23,7 @@ function isStrongPassword(password: string): boolean {
 }
 
 function shellTitle(mode: 'request' | 'confirm') {
-  return mode === 'request' ? 'Restablecer contrasena' : 'Actualizar contrasena';
+  return mode === 'request' ? 'Restablecer contraseña' : 'Actualizar contraseña';
 }
 
 export function PasswordResetShell({ children, mode }: { children: ReactNode; mode: 'request' | 'confirm' }) {
@@ -192,7 +192,7 @@ export function PasswordResetConfirmView({ token }: { token: string }) {
     }
 
     if (password !== confirmPassword) {
-      setError('Las contrasenas no coinciden.');
+      setError('Las contraseñas no coinciden.');
       return;
     }
 
@@ -228,19 +228,19 @@ export function PasswordResetConfirmView({ token }: { token: string }) {
           <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
             <CheckCircle2 className="w-12 h-12 text-emerald-600" />
           </div>
-          <p className="text-slate-700 font-bold">Contrasena actualizada correctamente. Ya puedes iniciar sesion.</p>
+          <p className="text-slate-700 font-bold">Contraseña actualizada correctamente. Ya puedes iniciar sesión.</p>
           <Link
             href="/"
             className="inline-flex w-full items-center justify-center rounded-2xl bg-primary px-6 py-4 text-sm font-black text-white shadow-xl shadow-primary/20 transition hover:bg-primary/90"
           >
-            Ir a iniciar sesion
+            Ir a iniciar sesión
           </Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
             <label htmlFor="new-password" className="text-xs font-black uppercase tracking-widest text-slate-500">
-              Nueva contrasena
+              Nueva contraseña
             </label>
             <div className="relative">
               <LockKeyhole className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -257,7 +257,7 @@ export function PasswordResetConfirmView({ token }: { token: string }) {
 
           <div className="space-y-2">
             <label htmlFor="confirm-reset-password" className="text-xs font-black uppercase tracking-widest text-slate-500">
-              Confirmar contrasena
+              Confirmar contraseña
             </label>
             <div className="relative">
               <LockKeyhole className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -283,7 +283,7 @@ export function PasswordResetConfirmView({ token }: { token: string }) {
             disabled={isLoading}
             className="flex w-full items-center justify-center rounded-2xl bg-primary px-6 py-4 text-sm font-black text-white shadow-xl shadow-primary/25 transition hover:bg-primary/90 disabled:opacity-70"
           >
-            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Actualizar contrasena'}
+            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Actualizar contraseña'}
           </button>
         </form>
       )}

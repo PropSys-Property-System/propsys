@@ -136,7 +136,7 @@ describe('reservationsRepo (V1)', () => {
     ).rejects.toThrow('Ese horario ya está reservado.');
   });
 
-  it('creates an APPROVED reservation when the common area does not require approval', async () => {
+  it('creates an APPROVED reservation when the common área does not require approval', async () => {
     const owner = userBase({ id: 'u4', internalRole: 'OWNER', role: 'OWNER', clientId: 'client_001' });
     const range = futureRange(11);
     const created = await reservationsRepo.createForUser(owner, {

@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   const ipCheck = await checkRateLimit(ipKey, LOGIN_IP_LIMIT, LOGIN_WINDOW_MS).catch(() => null);
   if (ipCheck && !ipCheck.allowed) {
     return NextResponse.json(
-      { error: 'Demasiados intentos de inicio de sesion. Intenta nuevamente mas tarde.' },
+      { error: 'Demasiados intentos de inicio de sesión. Intenta nuevamente mas tarde.' },
       { status: 429, headers: rateLimitExceededHeaders(ipCheck.retryAfter) }
     );
   }
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   const identityCheck = await checkRateLimit(identityKey, LOGIN_IDENTITY_LIMIT, LOGIN_WINDOW_MS).catch(() => null);
   if (identityCheck && !identityCheck.allowed) {
     return NextResponse.json(
-      { error: 'Demasiados intentos de inicio de sesion. Intenta nuevamente mas tarde.' },
+      { error: 'Demasiados intentos de inicio de sesión. Intenta nuevamente mas tarde.' },
       { status: 429, headers: rateLimitExceededHeaders(identityCheck.retryAfter) }
     );
   }

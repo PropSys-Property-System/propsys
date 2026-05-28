@@ -211,7 +211,7 @@ export async function POST(req: Request) {
     [buildingId, name]
   );
   if (duplicateRes.rows[0]) {
-    return NextResponse.json({ error: 'Ya existe un area comun activa con ese nombre.' }, { status: 409 });
+    return NextResponse.json({ error: 'Ya existe un área comun activa con ese nombre.' }, { status: 409 });
   }
 
   const now = new Date().toISOString();
@@ -281,7 +281,7 @@ export async function PUT(req: Request) {
     [current.building_id, current.id, name]
   );
   if (duplicateRes.rows[0]) {
-    return NextResponse.json({ error: 'Ya existe un area comun activa con ese nombre.' }, { status: 409 });
+    return NextResponse.json({ error: 'Ya existe un área comun activa con ese nombre.' }, { status: 409 });
   }
 
   const updatedAt = new Date().toISOString();
@@ -350,7 +350,7 @@ export async function DELETE(req: Request) {
       [id]
     );
     if (Number(dependencies.rows[0]?.total ?? 0) > 0) {
-      return NextResponse.json({ error: 'No puedes archivar un area comun con reservas activas.' }, { status: 409 });
+      return NextResponse.json({ error: 'No puedes archivar un área comun con reservas activas.' }, { status: 409 });
     }
   }
 

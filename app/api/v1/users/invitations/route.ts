@@ -348,7 +348,7 @@ export async function POST(req: Request) {
   } catch (e: unknown) {
     const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code) : '';
     if (code === '23505') return NextResponse.json({ error: 'Ese email ya existe' }, { status: 409 });
-    return NextResponse.json({ error: 'No se pudo crear la invitacion.' }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo crear la invitación.' }, { status: 500 });
   }
 }
 

@@ -146,7 +146,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
-    return NextResponse.json({ error: 'Sube un comprobante de pago para revision.' }, { status: 403 });
+    return NextResponse.json({ error: 'Sube un comprobante de pago para revisión.' }, { status: 403 });
   }
 
   const pool = getPool();

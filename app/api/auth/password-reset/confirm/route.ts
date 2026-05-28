@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   if (!validateAccountPassword(password)) {
     return NextResponse.json(
-      { error: 'La contrasena debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
+      { error: 'La contraseña debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
       { status: 400 }
     );
   }
@@ -146,6 +146,6 @@ export async function POST(req: Request) {
     if (e instanceof ConfirmResetError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
     }
-    return NextResponse.json({ error: 'No se pudo confirmar la recuperacion de contrasena.' }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo confirmar la recuperacion de contraseña.' }, { status: 500 });
   }
 }

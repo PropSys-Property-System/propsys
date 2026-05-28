@@ -145,7 +145,7 @@ describe('physical staff API', () => {
       expect(res.status).toBe(410);
       expect(res.headers.get('Cache-Control')).toBe('no-store');
       const data = (await res.json()) as { error: string; tempPassword?: string };
-      expect(data.error).toBe('La creación directa de staff fue reemplazada por invitaciones. Usa /api/v1/users/invitations.');
+      expect(data.error).toBe('La creación directa de staff fue reemplazada por invitaciónes. Usa /api/v1/users/invitations.');
       expect(data.tempPassword).toBeUndefined();
       expect(poolQuery).not.toHaveBeenCalled();
       expect(connect).not.toHaveBeenCalled();

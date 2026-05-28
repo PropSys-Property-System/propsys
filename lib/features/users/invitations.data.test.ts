@@ -129,7 +129,7 @@ describe('createUserInvitation', () => {
   it.each([
     [403, 'No autorizado'],
     [409, 'Ese email ya existe; revisa si corresponde reactivar o reutilizar el usuario.'],
-    [503, 'No hay proveedor de correo configurado para enviar invitaciones.'],
+    [503, 'No hay proveedor de correo configurado para enviar invitaciónes.'],
   ])('propagates clear errors for HTTP %s', async (status, message) => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: message }, status)));
 

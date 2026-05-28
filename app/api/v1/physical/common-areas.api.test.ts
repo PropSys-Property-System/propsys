@@ -28,7 +28,7 @@ vi.mock('@/lib/server/auth/get-session-user', () => ({
   getSessionUser: vi.fn(async () => sessionUser),
 }));
 
-describe('physical common areas API', () => {
+describe('physical common áreas API', () => {
   beforeEach(() => {
     poolQuery.mockReset();
     clientQuery.mockReset();
@@ -40,7 +40,7 @@ describe('physical common areas API', () => {
     sessionUser.scope = 'client';
   });
 
-  it('lists archived areas when status=ARCHIVED', async () => {
+  it('lists archived áreas when status=ARCHIVED', async () => {
     poolQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM buildings')) return { rows: [{ id: 'b1', client_id: 'client_001' }] };
       if (sql.includes('FROM user_building_assignments')) return { rows: [{ ok: true }] };

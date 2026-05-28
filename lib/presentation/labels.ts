@@ -93,7 +93,7 @@ export function labelIncidentPriority(priority: IncidentEntity['priority']): str
 
 export function labelClient(clientId: string): string {
   const nameById: Record<string, string> = {
-    client_001: 'PropSys Administraciones Globales',
+    client_001: 'PropSys Administraciónes Globales',
     client_002: 'Gestión Residencial Sur',
   };
   return nameById[clientId] ?? 'Cliente';
@@ -162,7 +162,7 @@ export function labelWorkspaceArea(user: User): string {
     case 'BUILDING_ADMIN':
       return 'Edificio';
     case 'STAFF':
-      return 'Operaciones';
+      return 'Operaciónes';
     case 'OWNER':
     case 'OCCUPANT':
       return 'Portal residente';
@@ -177,7 +177,7 @@ export function labelAccessScope(user: User): string | null {
   if (user.scope === 'platform') return 'Acceso global';
   if (!user.clientId) return null;
   const safeClientNameById: Record<string, string> = {
-    client_001: 'PropSys Administraciones Globales',
+    client_001: 'PropSys Administraciónes Globales',
     client_002: 'Gestión Residencial Sur',
   };
   return safeClientNameById[user.clientId] ?? labelClient(user.clientId);

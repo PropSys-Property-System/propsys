@@ -8,7 +8,7 @@ import { UserV2 } from '../types/auth';
 export const MOCK_CLIENTS: Client[] = [
   {
     id: 'client_001',
-    name: 'PropSys Administraciones Globales',
+    name: 'PropSys Administraciónes Globales',
     taxId: '800.123.456-7',
     status: 'ACTIVE',
     createdAt: '2025-01-01T00:00:00Z',

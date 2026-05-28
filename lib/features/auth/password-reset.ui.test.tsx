@@ -22,7 +22,7 @@ describe('PasswordResetRequestView', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('muestra mensaje generico cuando request es exitoso', async () => {
+  it('muestra mensaje generico cuando request es éxitoso', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ ok: true }),
@@ -33,7 +33,7 @@ describe('PasswordResetRequestView', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Si el correo existe, recibiras instrucciones para restablecer tu contrasena.')).toBeInTheDocument();
+      expect(screen.getByText('Si el correo existe, recibiras instrucciones para restablecer tu contraseña.')).toBeInTheDocument();
     });
   });
 
@@ -85,18 +85,18 @@ describe('PasswordResetConfirmView', () => {
     render(<PasswordResetConfirmView token="" />);
 
     expect(screen.getByText('Enlace invalido o incompleto.')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Nueva contrasena')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Nueva contraseña')).not.toBeInTheDocument();
   });
 
-  it('bloquea submit con contrasena debil', () => {
+  it('bloquea submit con contraseña debil', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render(<PasswordResetConfirmView token="secret-token" />);
 
-    fireEvent.change(screen.getByLabelText('Nueva contrasena'), { target: { value: 'weak' } });
-    fireEvent.change(screen.getByLabelText('Confirmar contrasena'), { target: { value: 'weak' } });
-    fireEvent.click(screen.getByRole('button', { name: /actualizar contrasena/i }));
+    fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: 'weak' } });
+    fireEvent.change(screen.getByLabelText('Confirmar contraseña'), { target: { value: 'weak' } });
+    fireEvent.click(screen.getByRole('button', { name: /actualizar contraseña/i }));
 
-    expect(screen.getByText('La contrasena debe tener al menos 12 caracteres, mayuscula, minuscula, numero, simbolo y no debe tener espacios.')).toBeInTheDocument();
+    expect(screen.getByText('La contraseña debe tener al menos 12 caracteres, mayuscula, minuscula, numero, simbolo y no debe tener espacios.')).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -104,34 +104,34 @@ describe('PasswordResetConfirmView', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     render(<PasswordResetConfirmView token="secret-token" />);
 
-    fireEvent.change(screen.getByLabelText('Nueva contrasena'), { target: { value: 'StrongPassword#2026' } });
-    fireEvent.change(screen.getByLabelText('Confirmar contrasena'), { target: { value: 'StrongPassword#2027' } });
-    fireEvent.click(screen.getByRole('button', { name: /actualizar contrasena/i }));
+    fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: 'StrongPassword#2026' } });
+    fireEvent.change(screen.getByLabelText('Confirmar contraseña'), { target: { value: 'StrongPassword#2027' } });
+    fireEvent.click(screen.getByRole('button', { name: /actualizar contraseña/i }));
 
-    expect(screen.getByText('Las contrasenas no coinciden.')).toBeInTheDocument();
+    expect(screen.getByText('Las contraseñas no coinciden.')).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('envia token y contrasena al endpoint y muestra exito', async () => {
+  it('envia token y contraseña al endpoint y muestra éxito', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ ok: true }),
     } as Response);
     render(<PasswordResetConfirmView token="secret-token" />);
 
-    fireEvent.change(screen.getByLabelText('Nueva contrasena'), { target: { value: 'StrongPassword#2026' } });
-    fireEvent.change(screen.getByLabelText('Confirmar contrasena'), { target: { value: 'StrongPassword#2026' } });
-    fireEvent.click(screen.getByRole('button', { name: /actualizar contrasena/i }));
+    fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: 'StrongPassword#2026' } });
+    fireEvent.change(screen.getByLabelText('Confirmar contraseña'), { target: { value: 'StrongPassword#2026' } });
+    fireEvent.click(screen.getByRole('button', { name: /actualizar contraseña/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Contrasena actualizada correctamente. Ya puedes iniciar sesion.')).toBeInTheDocument();
+      expect(screen.getByText('Contraseña actualizada correctamente. Ya puedes iniciar sesión.')).toBeInTheDocument();
     });
     expect(globalThis.fetch).toHaveBeenCalledWith('/api/auth/password-reset/confirm', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ token: 'secret-token', password: 'StrongPassword#2026' }),
     });
-    expect(screen.getByRole('link', { name: /ir a iniciar sesion/i })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: /ir a iniciar sesión/i })).toHaveAttribute('href', '/');
   });
 
   it('muestra error generico cuando el endpoint falla y no renderiza el token', async () => {
@@ -142,12 +142,12 @@ describe('PasswordResetConfirmView', () => {
     render(<PasswordResetConfirmView token="secret-token" />);
 
     expect(screen.queryByText('secret-token')).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Nueva contrasena'), { target: { value: 'StrongPassword#2026' } });
-    fireEvent.change(screen.getByLabelText('Confirmar contrasena'), { target: { value: 'StrongPassword#2026' } });
-    fireEvent.click(screen.getByRole('button', { name: /actualizar contrasena/i }));
+    fireEvent.change(screen.getByLabelText('Nueva contraseña'), { target: { value: 'StrongPassword#2026' } });
+    fireEvent.change(screen.getByLabelText('Confirmar contraseña'), { target: { value: 'StrongPassword#2026' } });
+    fireEvent.click(screen.getByRole('button', { name: /actualizar contraseña/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('No pudimos restablecer la contrasena. Solicita un nuevo enlace.')).toBeInTheDocument();
+      expect(screen.getByText('No pudimos restablecer la contraseña. Solicita un nuevo enlace.')).toBeInTheDocument();
     });
   });
 });

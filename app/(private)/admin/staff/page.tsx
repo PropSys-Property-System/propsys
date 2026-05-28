@@ -147,7 +147,7 @@ export default function AdminStaffPage() {
       <InvitationCreationDialog
         isOpen={isInvitationOpen}
         title="Invitar staff"
-        description="Invita a un miembro del staff para que defina su contrasena."
+        description="Invita a un miembro del staff para que defina su contraseña."
         roleOptions={['STAFF']}
         buildings={buildings}
         units={[]}

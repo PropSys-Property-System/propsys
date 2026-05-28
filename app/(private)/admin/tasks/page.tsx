@@ -186,7 +186,7 @@ export default function AdminTasksPage() {
       setReviewEvidence(data.evidence);
       setReviewCommentDraft(data.reviewCommentDraft);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'No pudimos cargar la revision de la tarea.');
+      setActionError(e instanceof Error ? e.message : 'No pudimos cargar la revisión de la tarea.');
     } finally {
       setIsReviewLoading(false);
     }

@@ -42,14 +42,14 @@ describe('clients API', () => {
 
   it('lets ROOT_ADMIN list active clients', async () => {
     poolQuery.mockResolvedValue({
-      rows: [{ id: 'client_001', slug: 'acme', name: 'Acme Administraciones', status: 'ACTIVE', created_at: '2026-05-01T00:00:00.000Z' }],
+      rows: [{ id: 'client_001', slug: 'acme', name: 'Acme Administraciónes', status: 'ACTIVE', created_at: '2026-05-01T00:00:00.000Z' }],
     });
 
     const res = await GET(new Request('http://localhost/api/v1/clients'));
 
     expect(res.status).toBe(200);
     const data = (await res.json()) as { clients: Array<{ id: string; name: string }> };
-    expect(data.clients).toEqual([{ id: 'client_001', slug: 'acme', name: 'Acme Administraciones', status: 'ACTIVE', createdAt: '2026-05-01T00:00:00.000Z' }]);
+    expect(data.clients).toEqual([{ id: 'client_001', slug: 'acme', name: 'Acme Administraciónes', status: 'ACTIVE', createdAt: '2026-05-01T00:00:00.000Z' }]);
   });
 
   it('lets ROOT_ADMIN create a client without a building', async () => {

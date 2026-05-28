@@ -127,7 +127,7 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(429);
     expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe('Demasiados intentos de inicio de sesion. Intenta nuevamente mas tarde.');
+    expect(data.error).toBe('Demasiados intentos de inicio de sesión. Intenta nuevamente mas tarde.');
     // DB should NOT be queried when rate-limited
     expect(query).not.toHaveBeenCalled();
   });
@@ -155,6 +155,6 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(429);
     expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe('Demasiados intentos de inicio de sesion. Intenta nuevamente mas tarde.');
+    expect(data.error).toBe('Demasiados intentos de inicio de sesión. Intenta nuevamente mas tarde.');
   });
 });

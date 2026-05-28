@@ -51,7 +51,7 @@ describe('admin staff page invitation flow', () => {
 
     expect(screen.getByRole('button', { name: /invitar staff/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /nuevo staff/i })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/contrasena/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/contrasena temporal/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/contraseña/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/contraseña temporal/i)).not.toBeInTheDocument();
   });
 });

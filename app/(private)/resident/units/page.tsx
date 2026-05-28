@@ -48,7 +48,7 @@ export default function ResidentUnitsPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader title="Mis Unidades" description="Administra tus departamentos y su informacion asociada" />
+      <PageHeader title="Mis Unidades" description="Administra tus departamentos y su información asociada" />
 
       <div className="p-6 md:p-8">
         {error ? (

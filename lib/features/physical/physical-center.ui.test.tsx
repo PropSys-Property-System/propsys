@@ -61,8 +61,8 @@ describe('BuildingUnitsDialog assignment UI', () => {
 
     expect(screen.getByText('Vincular propietario existente')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Email del usuario existente')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/contrasena/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/contrasena temporal/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/contraseña/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/contraseña temporal/i)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /invitar nuevo propietario/i }));
     expect(onInviteUser).toHaveBeenCalledWith(unit, 'OWNER');

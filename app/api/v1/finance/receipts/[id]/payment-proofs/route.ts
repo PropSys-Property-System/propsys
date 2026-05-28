@@ -235,7 +235,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (activeProof) {
     const error =
       activeProof.status === 'PENDING_REVIEW'
-        ? 'Ya existe un comprobante pendiente de revision para este recibo.'
+        ? 'Ya existe un comprobante pendiente de revisión para este recibo.'
         : 'Este recibo ya tiene un comprobante aprobado.';
     return NextResponse.json({ error }, { status: 409 });
   }

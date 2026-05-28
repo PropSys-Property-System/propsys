@@ -160,7 +160,7 @@ export function InvitationCreationDialog({
       setCreatedInvitation(result);
       onInvitationCreated?.(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No pudimos crear la invitacion.');
+      setError(err instanceof Error ? err.message : 'No pudimos crear la invitación.');
     } finally {
       setIsSubmitting(false);
     }
@@ -179,9 +179,9 @@ export function InvitationCreationDialog({
       <div role="dialog" aria-modal="true" className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-lg font-black text-slate-900">{createdInvitation ? 'Invitacion creada' : title}</p>
+            <p className="text-lg font-black text-slate-900">{createdInvitation ? 'Invitación creada' : title}</p>
             <p className="mt-1 text-xs font-medium text-slate-500">
-              {createdInvitation ? 'Invitacion creada. Copia este enlace y enviaselo al usuario.' : description}
+              {createdInvitation ? 'Invitación creada. Copia este enlace y enviaselo al usuario.' : description}
             </p>
           </div>
           <button
@@ -198,9 +198,9 @@ export function InvitationCreationDialog({
           <div className="mt-5 space-y-4">
             {inviteLink ? (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Link de invitacion</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Link de invitación</p>
                 <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
-                  <span className="font-bold">⚠️ Copia este enlace ahora.</span> Mientras no haya proveedor de correo, debes enviarlo manualmente al usuario. Si cierras esta ventana, la reemisión quedará para un módulo futuro de gestión de invitaciones.
+                  <span className="font-bold">⚠️ Copia este enlace ahora.</span> Mientras no haya proveedor de correo, debes enviarlo manualmente al usuario. Si cierras esta ventana, la reemisión quedará para un módulo futuro de gestión de invitaciónes.
                 </div>
                 <p className="mt-2 break-all text-sm font-bold text-emerald-900">{inviteLink}</p>
                 <button
@@ -213,7 +213,7 @@ export function InvitationCreationDialog({
               </div>
             ) : (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">
-                Invitacion creada y enviada por correo. Pide al usuario que revise su bandeja de entrada.
+                Invitación creada y enviada por correo. Pide al usuario que revise su bandeja de entrada.
               </div>
             )}
             <div className="flex justify-end">
@@ -349,7 +349,7 @@ export function InvitationCreationDialog({
                 disabled={isSubmitting}
                 className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-black text-white shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-70"
               >
-                <Send className="mr-2 h-4 w-4" /> {isSubmitting ? 'Enviando...' : 'Enviar invitacion'}
+                <Send className="mr-2 h-4 w-4" /> {isSubmitting ? 'Enviando...' : 'Enviar invitación'}
               </button>
             </div>
           </form>

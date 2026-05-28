@@ -38,14 +38,14 @@ describe('AppShell', () => {
     render(<AppShell>Content</AppShell>);
 
     expect(screen.getByRole('link', { name: /Clientes/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Invitaciones/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Invitaciónes/i })).toBeInTheDocument();
   });
 
-  it('hides Clientes link for CLIENT_MANAGER but shows Invitaciones', () => {
+  it('hides Clientes link for CLIENT_MANAGER but shows Invitaciónes', () => {
     mockUser = { ...mockUserBase, role: 'MANAGER', internalRole: 'CLIENT_MANAGER' };
     render(<AppShell>Content</AppShell>);
 
     expect(screen.queryByRole('link', { name: /Clientes/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Invitaciones/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Invitaciónes/i })).toBeInTheDocument();
   });
 });

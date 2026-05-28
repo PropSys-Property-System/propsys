@@ -61,7 +61,7 @@ async function sendResendEmail(input: { from: string; to: string; subject: strin
 }
 
 export async function sendInvitationEmail(input: SendInvitationEmailInput) {
-  const subject = `Invitacion a PropSys para ${input.internalRole}`;
+  const subject = `Invitación a PropSys para ${input.internalRole}`;
 
   await sendResendEmail({
     from: getFromEmail(),
@@ -75,7 +75,7 @@ export async function sendPasswordResetEmail(input: SendPasswordResetEmailInput)
   await sendResendEmail({
     from: getFromEmail(),
     to: input.to,
-    subject: 'Recuperacion de contrasena de PropSys',
+    subject: 'Recuperacion de contraseña de PropSys',
     html: renderPasswordResetEmailHtml(input),
   });
 }

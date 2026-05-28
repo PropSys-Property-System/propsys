@@ -280,7 +280,7 @@ export async function POST(req: Request) {
   const area = areaRes.rows[0];
   if (!area) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   if (area.client_id !== clientId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-  if (area.building_id !== buildingId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+  if (area.building_id !== buildingId) return NextResponse.json({ error: 'Área no pertenece al edificio' }, { status: 400 });
   if (area.status !== 'ACTIVE' || area.deleted_at) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const overlap = await pool.query<{ id: string }>(

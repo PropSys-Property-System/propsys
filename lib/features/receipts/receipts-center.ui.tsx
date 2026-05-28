@@ -768,7 +768,7 @@ export function ResidentPaymentProofPanel({
 
         {latestProof?.status === 'REJECTED' && !activeProof ? (
           <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
-            El comprobante anterior fue rechazado. Puedes subir un nuevo archivo para revision.
+            El comprobante anterior fue rechazado. Puedes subir un nuevo archivo para revisión.
           </div>
         ) : null}
         {canUpload ? (
@@ -946,7 +946,7 @@ export function AdminPaymentProofsPanel({
                             value={reviewComments[proof.id] ?? ''}
                             onChange={(event) => onReviewCommentChange(proof.id, event.target.value)}
                             rows={2}
-                            placeholder="Comentario opcional para la revision"
+                            placeholder="Comentario opcional para la revisión"
                             className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium outline-none focus:border-primary focus:ring-4 focus:ring-primary/5"
                           />
                         ) : null}

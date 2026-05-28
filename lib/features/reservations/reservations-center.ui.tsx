@@ -103,7 +103,7 @@ function ReservationAvailabilityBoard({
   if (!startAt || !endAt) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-500">
-        Elige fecha y horario para ver la agenda de areas comunes.
+        Elige fecha y horario para ver la agenda de áreas comunes.
       </div>
     );
   }

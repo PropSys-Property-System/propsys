@@ -221,7 +221,7 @@ describe('password reset backend', () => {
     expect(res.status).toBe(503);
     const data = (await res.json()) as { error?: string };
     expect(data.error).toBe(
-      'No hay proveedor de correo configurado para enviar recuperacion de contrasena. Reemplaza re_xxxxxxxxx por tu API key real de Resend.'
+      'No hay proveedor de correo configurado para enviar recuperacion de contraseña. Reemplaza re_xxxxxxxxx por tu API key real de Resend.'
     );
     expect(poolQuery).not.toHaveBeenCalled();
     expect(connect).not.toHaveBeenCalled();
@@ -303,7 +303,7 @@ describe('password reset backend', () => {
 
     expect(res.status).toBe(400);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe('La contrasena debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.');
+    expect(data.error).toBe('La contraseña debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.');
     expect(connect).not.toHaveBeenCalled();
     expect(argon2.hash).not.toHaveBeenCalled();
   });

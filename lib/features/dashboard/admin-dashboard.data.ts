@@ -76,7 +76,7 @@ function buildRecentActivity(
   const reservationItems: AdminDashboardActivityItem[] = reservations.map((reservation) => ({
     id: `reservation-${reservation.id}`,
     type: 'reservation',
-    title: commonAreaNameById[reservation.commonAreaId] ?? 'Reserva de area comun',
+    title: commonAreaNameById[reservation.commonAreaId] ?? 'Reserva de área comun',
     subtitle: buildingNameById[reservation.buildingId] ?? 'Reserva',
     timestamp: reservation.startAt,
     href: '/admin/reservations',
