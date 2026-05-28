@@ -99,15 +99,13 @@ function toEvidence(row: EvidenceRow): EvidenceAttachment {
 export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
-    return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
-  }
 
   const bypassTenant = canBypassTenantScope(user);
   if (!hasTenantClientContext(user)) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
 
   const url = new URL(req.url);
   const checklistExecutionId = url.searchParams.get('checklistExecutionId');
+  const incidentId = url.searchParams.get('incidentId');
 
   const pool = getPool();
   const tenantWhere = bypassTenant ? '' : 'AND client_id = $1';
@@ -152,6 +150,63 @@ export async function GET(req: Request) {
     return NextResponse.json({ evidence: rows.rows.map(toEvidence) });
   }
 
+  if (incidentId) {
+    const incRes = await pool.query<{ id: string; client_id: string; building_id: string; reported_by_user_id: string; assigned_to_user_id: string | null; unit_id: string | null }>(
+      `SELECT id, client_id, building_id, reported_by_user_id, assigned_to_user_id, unit_id
+       FROM incidents
+       WHERE id = $1 AND deleted_at IS NULL
+       LIMIT 1`,
+      [incidentId]
+    );
+    const inc = incRes.rows[0];
+    if (!inc) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
+    if (!canAccessTenantEntity(user, inc.client_id)) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
+
+    if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+      if (inc.reported_by_user_id !== user.id) {
+        if (!inc.unit_id) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
+        const ok = await pool.query<{ ok: boolean }>(
+          `SELECT true as ok FROM user_unit_assignments WHERE user_id = $1 AND unit_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL LIMIT 1`,
+          [user.id, inc.unit_id]
+        );
+        if (!ok.rows[0]) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
+      }
+    } else if (user.internalRole === 'STAFF') {
+      if (inc.assigned_to_user_id !== user.id && inc.reported_by_user_id !== user.id) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
+    } else if (user.internalRole === 'BUILDING_ADMIN') {
+      const ok = await pool.query<{ ok: boolean }>(
+        `SELECT true as ok FROM user_building_assignments WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL LIMIT 1`,
+        [user.id, inc.building_id, inc.client_id]
+      );
+      if (!ok.rows[0]) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
+    }
+
+    const rows = await pool.query<EvidenceRow>(
+      `SELECT id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at, deleted_at
+       FROM evidence_attachments
+       WHERE deleted_at IS NULL
+         ${tenantWhere}
+         AND incident_id = $${tenantParams.length + 1}
+       ORDER BY created_at DESC`,
+      [...tenantParams, incidentId]
+    );
+    return NextResponse.json({ evidence: rows.rows.map(toEvidence) });
+  }
+
+  if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+    const rows = await pool.query<EvidenceRow>(
+      `SELECT e.id, e.client_id, e.building_id, e.unit_id, e.incident_id, e.task_id, e.checklist_execution_id, e.file_name, e.mime_type, e.size_bytes, e.storage_path, e.public_path, e.url, e.uploaded_by_user_id, e.created_at, e.deleted_at
+       FROM evidence_attachments e
+       LEFT JOIN incidents i ON e.incident_id = i.id
+       LEFT JOIN user_unit_assignments uua ON i.unit_id = uua.unit_id AND uua.user_id = $1 AND uua.status = 'ACTIVE' AND uua.deleted_at IS NULL
+       WHERE e.deleted_at IS NULL AND e.incident_id IS NOT NULL
+         AND (i.reported_by_user_id = $1 OR uua.unit_id IS NOT NULL)
+       ORDER BY e.created_at DESC`,
+      [user.id]
+    );
+    return NextResponse.json({ evidence: rows.rows.map(toEvidence) });
+  }
+
   const buildingIds = await listBuildingIdsForUser(pool, user);
   if (buildingIds.length === 0) return NextResponse.json({ evidence: [] as EvidenceAttachment[] });
 
@@ -187,7 +242,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (user.internalRole !== 'STAFF' && user.internalRole !== 'BUILDING_ADMIN') {
+  if (user.internalRole !== 'STAFF' && user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'OWNER' && user.internalRole !== 'OCCUPANT' && user.internalRole !== 'CLIENT_MANAGER') {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
@@ -206,11 +261,14 @@ export async function POST(req: Request) {
   const formData = await req.formData().catch(() => null);
   const checklistExecutionIdEntry = formData ? formData.get('checklistExecutionId') : null;
   const checklistExecutionId = typeof checklistExecutionIdEntry === 'string' ? checklistExecutionIdEntry.trim() : '';
+  const incidentIdEntry = formData ? formData.get('incidentId') : null;
+  const incidentId = typeof incidentIdEntry === 'string' ? incidentIdEntry.trim() : '';
+  
   const fileValue = formData ? formData.get('file') : null;
   const file = isUploadFile(fileValue) ? fileValue : null;
 
   if (!file) return NextResponse.json({ error: 'Adjunta una foto o un archivo PDF como evidencia.' }, { status: 400 });
-  if (!checklistExecutionId) return NextResponse.json({ error: 'Datos invalidos' }, { status: 400 });
+  if (!checklistExecutionId && !incidentId) return NextResponse.json({ error: 'Datos invalidos' }, { status: 400 });
   if (file.size > MAX_EVIDENCE_BYTES) {
     return NextResponse.json({ error: 'El archivo supera el limite de 10 MB.' }, { status: 400 });
   }
@@ -219,6 +277,122 @@ export async function POST(req: Request) {
   }
 
   const pool = getPool();
+
+  if (incidentId) {
+    if (user.internalRole !== 'STAFF' && user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'OWNER' && user.internalRole !== 'OCCUPANT' && user.internalRole !== 'CLIENT_MANAGER') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
+    const incRes = await pool.query<{
+      id: string;
+      client_id: string;
+      building_id: string;
+      unit_id: string | null;
+      reported_by_user_id: string;
+      assigned_to_user_id: string | null;
+      status: string;
+    }>(
+      `SELECT id, client_id, building_id, unit_id, reported_by_user_id, assigned_to_user_id, status
+       FROM incidents
+       WHERE id = $1 AND deleted_at IS NULL
+       LIMIT 1`,
+      [incidentId]
+    );
+
+    const inc = incRes.rows[0];
+    if (!inc) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+    if (!canAccessTenantEntity(user, inc.client_id)) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    if (inc.status === 'CLOSED') {
+      return NextResponse.json({ error: 'No puedes adjuntar evidencias a una incidencia cerrada.' }, { status: 403 });
+    }
+
+    if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+      if (inc.reported_by_user_id !== user.id) {
+        if (!inc.unit_id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+        const ok = await pool.query<{ ok: boolean }>(
+          `SELECT true as ok FROM user_unit_assignments WHERE user_id = $1 AND unit_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL LIMIT 1`,
+          [user.id, inc.unit_id]
+        );
+        if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      }
+    } else if (user.internalRole === 'STAFF') {
+      if (inc.assigned_to_user_id !== user.id && inc.reported_by_user_id !== user.id) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      }
+    } else if (user.internalRole === 'BUILDING_ADMIN') {
+      const ok = await pool.query<{ ok: boolean }>(
+        `SELECT true as ok FROM user_building_assignments WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL LIMIT 1`,
+        [user.id, inc.building_id, inc.client_id]
+      );
+      if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
+    const clientId = bypassTenant ? inc.client_id : user.clientId!;
+    const now = new Date().toISOString();
+    const id = `ev_${Date.now()}_${randomUUID().slice(0, 8)}`;
+
+    let savedFile: Awaited<ReturnType<typeof saveEvidenceFile>> | null = null;
+    try {
+      savedFile = await saveEvidenceFile({
+        clientId,
+        buildingId: inc.building_id,
+        incidentId: inc.id,
+        evidenceId: id,
+        file,
+      });
+      const storedFile = savedFile;
+
+      const evidence = await withTransaction(pool, async (db) => {
+        const created = await db.query<EvidenceRow>(
+          `INSERT INTO evidence_attachments (id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, NULL, NULL, $6, $7, $8, $9, $10, $10, $11, $12)
+           RETURNING id, client_id, building_id, unit_id, incident_id, task_id, checklist_execution_id, file_name, mime_type, size_bytes, storage_path, public_path, url, uploaded_by_user_id, created_at, deleted_at`,
+          [
+            id,
+            clientId,
+            inc.building_id,
+            inc.unit_id,
+            inc.id,
+            storedFile.originalName,
+            storedFile.mimeType,
+            storedFile.sizeBytes,
+            storedFile.storagePath,
+            storedFile.publicPath,
+            user.id,
+            now,
+          ]
+        );
+
+        const entity = toEvidence(created.rows[0]);
+        await insertAuditLog(db, {
+          clientId,
+          userId: user.id,
+          action: 'CREATE',
+          entity: 'EvidenceAttachment',
+          entityId: entity.id,
+          metadata: {
+            buildingId: entity.buildingId,
+            incidentId: entity.incidentId ?? null,
+            mimeType: entity.mimeType,
+          },
+          newData: entity,
+        });
+        return entity;
+      });
+
+      return NextResponse.json({ evidence });
+    } catch (error) {
+      try {
+        if (savedFile?.storagePath) await deleteEvidenceFile(savedFile.storagePath);
+      } catch {}
+      const message = error instanceof Error ? error.message : 'No pudimos guardar la evidencia.';
+      const status = message.includes('Tipo de archivo') ? 400 : 500;
+      return NextResponse.json({ error: message || 'No pudimos guardar la evidencia.' }, { status });
+    }
+  }
+
   const execRes = await pool.query<{
     id: string;
     client_id: string;
@@ -314,7 +488,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ evidence });
   } catch (error) {
     try {
-      await deleteEvidenceFile(savedFile?.storagePath);
+      if (savedFile?.storagePath) await deleteEvidenceFile(savedFile.storagePath);
     } catch {}
     const message = error instanceof Error ? error.message : 'No pudimos guardar la evidencia.';
     const status = message.includes('Tipo de archivo') ? 400 : 500;

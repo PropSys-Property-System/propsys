@@ -5,14 +5,14 @@ import { Plus, Search } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
-import { createTicketForUser, listTicketsForUser, loadResidentTicketsPageData } from '@/lib/features/tickets/ticket-center.data';
+import { createTicketForUser, loadResidentTicketsPageData, TicketWithEvidence } from '@/lib/features/tickets/ticket-center.data';
 import { ResidentTicketCard, ResidentTicketComposerDialog } from '@/lib/features/tickets/ticket-center.ui';
-import { IncidentEntity } from '@/lib/types';
+import { evidenceRepo } from '@/lib/repos/operation/evidence.repo';
 import { formatClientBadge } from '@/lib/presentation/labels';
 
 export default function ResidentTicketsPage() {
   const { user } = useAuth();
-  const [allTickets, setAllTickets] = useState<IncidentEntity[]>([]);
+  const [allTickets, setAllTickets] = useState<TicketWithEvidence[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,8 @@ export default function ResidentTicketsPage() {
   const [createUnitId, setCreateUnitId] = useState('');
   const [createTitle, setCreateTitle] = useState('');
   const [createDescription, setCreateDescription] = useState('');
-  const [createPriority, setCreatePriority] = useState<IncidentEntity['priority']>('MEDIUM');
+  const [createPriority, setCreatePriority] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('MEDIUM');
+  const [createFile, setCreateFile] = useState<File | null>(null);
   const [units, setUnits] = useState<{ id: string; buildingId: string; number: string }[]>([]);
   const [buildings, setBuildings] = useState<{ id: string; name: string }[]>([]);
 
@@ -56,8 +57,8 @@ export default function ResidentTicketsPage() {
   const reload = async () => {
     if (!user) return;
     setActionError(null);
-    const data = await listTicketsForUser(user);
-    setAllTickets(data);
+    const data = await loadResidentTicketsPageData(user);
+    setAllTickets(data.tickets);
   };
 
   const tickets = useMemo(() => {
@@ -86,18 +87,26 @@ export default function ResidentTicketsPage() {
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await createTicketForUser(user, {
+      const newTicket = await createTicketForUser(user, {
         buildingId: unit.buildingId,
         unitId: unit.id,
         title: createTitle.trim(),
         description: createDescription.trim(),
         priority: createPriority,
       });
+
+      if (createFile) {
+        await evidenceRepo.uploadForIncident(user, { incidentId: newTicket.id, file: createFile }).catch(() => {
+          // Si falla, el ticket igual se creó.
+        });
+      }
+
       setIsCreateOpen(false);
       setCreateUnitId('');
       setCreateTitle('');
       setCreateDescription('');
       setCreatePriority('MEDIUM');
+      setCreateFile(null);
       await reload();
     } catch {
       setActionError('No pudimos crear la incidencia.');
@@ -168,11 +177,13 @@ export default function ResidentTicketsPage() {
         title={createTitle}
         description={createDescription}
         priority={createPriority}
+        evidenceFile={createFile}
         onClose={() => setIsCreateOpen(false)}
         onUnitChange={setCreateUnitId}
         onTitleChange={setCreateTitle}
         onDescriptionChange={setCreateDescription}
         onPriorityChange={setCreatePriority}
+        onEvidenceChange={setCreateFile}
         onSubmit={submitCreate}
       />
     </div>

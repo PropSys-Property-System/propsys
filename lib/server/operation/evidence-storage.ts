@@ -97,7 +97,8 @@ function resolveLegacyPublicEvidenceStoragePath(storagePath: string) {
 export async function saveEvidenceFile(input: {
   clientId: string;
   buildingId: string;
-  checklistExecutionId: string;
+  checklistExecutionId?: string;
+  incidentId?: string;
   evidenceId: string;
   file: File;
 }) {
@@ -109,9 +110,16 @@ export async function saveEvidenceFile(input: {
 
   const safeClientId = sanitizePathSegment(input.clientId, 'client');
   const safeBuildingId = sanitizePathSegment(input.buildingId, 'building');
-  const safeChecklistExecutionId = sanitizePathSegment(input.checklistExecutionId, 'execution');
+  const safeChecklistExecutionId = input.checklistExecutionId ? sanitizePathSegment(input.checklistExecutionId, 'execution') : undefined;
+  const safeIncidentId = input.incidentId ? sanitizePathSegment(input.incidentId, 'incident') : undefined;
   const safeEvidenceId = sanitizePathSegment(input.evidenceId, 'evidence');
-  const storagePath = `${safeClientId}/${safeBuildingId}/evidence/${safeChecklistExecutionId}/${safeEvidenceId}${extension}`;
+  
+  let parentPath = '';
+  if (safeChecklistExecutionId) parentPath = safeChecklistExecutionId;
+  else if (safeIncidentId) parentPath = `incident/${safeIncidentId}`;
+  else throw new Error('Se requiere checklistExecutionId o incidentId');
+
+  const storagePath = `${safeClientId}/${safeBuildingId}/evidence/${parentPath}/${safeEvidenceId}${extension}`;
   const publicPath = `/api/v1/operation/evidence/${encodeURIComponent(input.evidenceId)}`;
 
   const arrayBuffer = await input.file.arrayBuffer();

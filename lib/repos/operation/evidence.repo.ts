@@ -59,6 +59,60 @@ export const evidenceRepo = {
     throw new Error('Adjunta una foto o un archivo PDF como evidencia.');
   },
 
+  async listForIncident(user: User, incidentId: string): Promise<EvidenceAttachment[]> {
+    if (isDbMode()) {
+      const data = await fetchJsonOrThrow<{ evidence: EvidenceAttachment[] }>(
+        `/api/v1/operation/evidence?incidentId=${encodeURIComponent(incidentId)}`,
+        { credentials: 'include' }
+      );
+      return data.evidence;
+    }
+    await sleep(100);
+    return (await this.listForUser(user)).filter((item) => item.incidentId === incidentId);
+  },
+
+  async uploadForIncident(
+    user: User,
+    input: { incidentId: string; file: File }
+  ): Promise<EvidenceAttachment> {
+    if (isDbMode()) {
+      const formData = new FormData();
+      formData.set('incidentId', input.incidentId);
+      formData.set('file', input.file);
+
+      const res = await fetch('/api/v1/operation/evidence', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      const data = (await res.json().catch(() => null)) as { evidence?: EvidenceAttachment; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error || 'No autorizado');
+      if (!data?.evidence) throw new Error('Respuesta invalida');
+      return data.evidence;
+    }
+
+    await sleep(150);
+
+    const now = new Date().toISOString();
+    const id = `ev_${Date.now()}`;
+    const previewUrl = URL.createObjectURL(input.file);
+    const evidence: EvidenceAttachment = {
+      id,
+      clientId: requireClientContext(user, 'Selecciona un cliente para continuar.'),
+      buildingId: 'b1', // mock
+      incidentId: input.incidentId,
+      fileName: input.file.name,
+      mimeType: input.file.type || 'application/octet-stream',
+      sizeBytes: input.file.size,
+      publicPath: previewUrl,
+      url: previewUrl,
+      uploadedByUserId: user.id,
+      createdAt: now,
+    };
+    MOCK_EVIDENCE_ATTACHMENTS.unshift(evidence);
+    return evidence;
+  },
+
   async uploadForChecklistExecution(
     user: User,
     input: { checklistExecutionId: string; file: File }

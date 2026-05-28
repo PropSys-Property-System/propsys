@@ -262,4 +262,113 @@ describe('evidence API', () => {
     expect(data.evidence?.mimeType).toBe('image/jpeg');
     expect(data.evidence?.url).toBe('/api/v1/operation/evidence/ev_test');
   });
+
+  // --- Incident evidence tests ---
+
+  it('allows OCCUPANT to list evidence for their reported incident', async () => {
+    sessionUser.internalRole = 'OCCUPANT';
+    sessionUser.id = 'u_occ';
+    sessionUser.clientId = 'client_001';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT e.id')) {
+        return {
+          rows: [
+            evidenceRow({ id: 'ev_inc_1', incident_id: 'inc-1', uploaded_by_user_id: 'u_occ' })
+          ]
+        };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence', { method: 'GET' });
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { evidence: Array<{ id: string }> };
+    expect(data.evidence.map((item) => item.id)).toEqual(['ev_inc_1']);
+  });
+
+  it('allows OCCUPANT to upload evidence for their reported incident', async () => {
+    sessionUser.internalRole = 'OCCUPANT';
+    sessionUser.id = 'u_occ';
+    sessionUser.clientId = 'client_001';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM incidents')) {
+        return {
+          rows: [{ id: 'inc-1', client_id: 'client_001', building_id: 'b1', unit_id: 'u1', reported_by_user_id: 'u_occ', assigned_to_user_id: null }]
+        };
+      }
+      return { rows: [] };
+    });
+
+    storageMocks.saveEvidenceFile.mockResolvedValue({
+      originalName: 'ev_inc.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 4,
+      storagePath: '.data/uploads/evidence/incident/inc-1/ev_inc.jpg',
+      publicPath: '/api/v1/operation/evidence/ev_inc',
+    });
+
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+      if (sql.includes('INSERT INTO evidence_attachments')) {
+        return {
+          rows: [{
+            id: 'ev_inc', client_id: 'client_001', building_id: 'b1', unit_id: 'u1', incident_id: 'inc-1',
+            file_name: 'ev_inc.jpg', mime_type: 'image/jpeg', size_bytes: 4,
+            storage_path: '.data/uploads/evidence/incident/inc-1/ev_inc.jpg',
+            public_path: '/api/v1/operation/evidence/ev_inc', url: '/api/v1/operation/evidence/ev_inc',
+            uploaded_by_user_id: 'u_occ', created_at: new Date().toISOString(), deleted_at: null
+          }]
+        };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const formData = new FormData();
+    formData.set('incidentId', 'inc-1');
+    formData.set('file', new File([new Uint8Array([1, 2])], 'ev_inc.jpg', { type: 'image/jpeg' }));
+
+    const req = new Request('http://localhost/api/v1/operation/evidence', { method: 'POST', body: formData });
+    Object.defineProperty(req, 'formData', { value: async () => formData });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect(storageMocks.saveEvidenceFile).toHaveBeenCalledTimes(1);
+    
+    const data = (await res.json()) as { evidence?: { fileName: string } };
+    expect(data.evidence?.fileName).toBe('ev_inc.jpg');
+  });
+
+  it('returns 403 when OCCUPANT attempts to upload evidence to another users incident', async () => {
+    sessionUser.internalRole = 'OCCUPANT';
+    sessionUser.id = 'u_occ';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM incidents')) {
+        return {
+          rows: [{ id: 'inc-1', client_id: 'client_001', building_id: 'b1', unit_id: 'u1', reported_by_user_id: 'u_other', assigned_to_user_id: null }]
+        };
+      }
+      if (sql.includes('FROM user_unit_assignments')) {
+        return { rows: [] }; // No unit assignment either
+      }
+      return { rows: [] };
+    });
+
+    const formData = new FormData();
+    formData.set('incidentId', 'inc-1');
+    formData.set('file', new File([new Uint8Array([1])], 'test.jpg', { type: 'image/jpeg' }));
+    const req = new Request('http://localhost/api/v1/operation/evidence', { method: 'POST', body: formData });
+    Object.defineProperty(req, 'formData', { value: async () => formData });
+
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toBe('No autorizado');
+    expect(storageMocks.saveEvidenceFile).not.toHaveBeenCalled();
+  });
 });

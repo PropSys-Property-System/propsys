@@ -2,7 +2,10 @@ import { incidentsRepo } from '@/lib/repos/operation/incidents.repo';
 import { buildingsRepo } from '@/lib/repos/physical/buildings.repo';
 import { staffRepo } from '@/lib/repos/physical/staff.repo';
 import { unitsRepo } from '@/lib/repos/physical/units.repo';
-import type { IncidentEntity, User } from '@/lib/types';
+import { evidenceRepo } from '@/lib/repos/operation/evidence.repo';
+import type { IncidentEntity, User, EvidenceAttachment } from '@/lib/types';
+
+export type TicketWithEvidence = IncidentEntity & { evidence?: EvidenceAttachment[] };
 
 export type TicketBuildingOption = {
   id: string;
@@ -23,7 +26,7 @@ export type TicketStaffOption = {
 };
 
 export type AdminTicketsPageData = {
-  tickets: IncidentEntity[];
+  tickets: TicketWithEvidence[];
   buildings: TicketBuildingOption[];
   units: TicketUnitOption[];
   staffByBuilding: Record<string, TicketStaffOption[]>;
@@ -31,24 +34,26 @@ export type AdminTicketsPageData = {
 };
 
 export type ResidentTicketsPageData = {
-  tickets: IncidentEntity[];
+  tickets: TicketWithEvidence[];
   buildings: TicketBuildingOption[];
   units: TicketUnitOption[];
 };
 
 export type StaffTicketsPageData = {
-  tickets: IncidentEntity[];
+  tickets: TicketWithEvidence[];
   units: TicketUnitOption[];
 };
 
 export type CreateTicketInput = Pick<IncidentEntity, 'buildingId' | 'unitId' | 'title' | 'description' | 'priority'>;
 
 export async function loadAdminTicketsPageData(user: User): Promise<AdminTicketsPageData> {
-  const [tickets, buildings, units] = await Promise.all([
+  const [ticketsBase, buildings, units, evidence] = await Promise.all([
     incidentsRepo.listForUser(user),
     buildingsRepo.listForUser(user),
     unitsRepo.listForUser(user),
+    evidenceRepo.listForUser(user).catch(() => []),
   ]);
+  const tickets = ticketsBase.map((t) => ({ ...t, evidence: evidence.filter((e) => e.incidentId === t.id) }));
   const staffEntries = await Promise.all(
     buildings.map(async (building) => {
       const staff = await staffRepo.listForBuilding(user, building.id).catch(() => []);
@@ -76,11 +81,13 @@ export async function loadAdminTicketsPageData(user: User): Promise<AdminTickets
 }
 
 export async function loadResidentTicketsPageData(user: User): Promise<ResidentTicketsPageData> {
-  const [tickets, units, buildings] = await Promise.all([
+  const [ticketsBase, units, buildings, evidence] = await Promise.all([
     incidentsRepo.listForUser(user),
     unitsRepo.listForUser(user),
     buildingsRepo.listForUser(user),
+    evidenceRepo.listForUser(user).catch(() => []),
   ]);
+  const tickets = ticketsBase.map((t) => ({ ...t, evidence: evidence.filter((e) => e.incidentId === t.id) }));
 
   return {
     tickets,
@@ -90,7 +97,12 @@ export async function loadResidentTicketsPageData(user: User): Promise<ResidentT
 }
 
 export async function loadStaffTicketsPageData(user: User): Promise<StaffTicketsPageData> {
-  const [tickets, units] = await Promise.all([incidentsRepo.listForUser(user), unitsRepo.listForUser(user)]);
+  const [ticketsBase, units, evidence] = await Promise.all([
+    incidentsRepo.listForUser(user), 
+    unitsRepo.listForUser(user),
+    evidenceRepo.listForUser(user).catch(() => []),
+  ]);
+  const tickets = ticketsBase.map((t) => ({ ...t, evidence: evidence.filter((e) => e.incidentId === t.id) }));
 
   return {
     tickets,

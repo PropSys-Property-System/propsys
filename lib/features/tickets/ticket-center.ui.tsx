@@ -2,10 +2,10 @@ import { Wrench } from 'lucide-react';
 import { formatDateTime } from '@/lib/presentation/dates';
 import { labelClient, labelIncidentPriority, labelIncidentStatus } from '@/lib/presentation/labels';
 import type { IncidentEntity } from '@/lib/types';
-import type { TicketBuildingOption, TicketStaffOption, TicketUnitOption } from '@/lib/features/tickets/ticket-center.data';
+import type { TicketBuildingOption, TicketStaffOption, TicketUnitOption, TicketWithEvidence } from '@/lib/features/tickets/ticket-center.data';
 
 type AdminTicketCardProps = {
-  ticket: IncidentEntity;
+  ticket: TicketWithEvidence;
   buildingName: string;
   unitLabel?: string | null;
   canUpdate: boolean;
@@ -41,7 +41,7 @@ type TicketComposerDialogProps = {
 };
 
 type ResidentTicketCardProps = {
-  ticket: IncidentEntity;
+  ticket: TicketWithEvidence;
 };
 
 type ResidentTicketComposerDialogProps = {
@@ -62,7 +62,7 @@ type ResidentTicketComposerDialogProps = {
 };
 
 type StaffTicketCardProps = {
-  ticket: IncidentEntity;
+  ticket: TicketWithEvidence;
   isSubmitting: boolean;
   selectedStatus: IncidentEntity['status'] | '';
   allowedStatuses: IncidentEntity['status'][];
@@ -147,6 +147,22 @@ export function AdminTicketCard({
           </p>
         ) : null}
 
+        {ticket.evidence && ticket.evidence.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ticket.evidence.map((ev) => (
+              <a
+                key={ev.id}
+                href={ev.publicPath || ev.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-primary/5 text-primary text-xs font-bold hover:bg-primary/10 transition-colors"
+              >
+                Ver evidencia adjunta
+              </a>
+            ))}
+          </div>
+        )}
+
         {canUpdate && (
           <div className="mt-4 space-y-3">
             {staffOptions.length > 0 && (
@@ -230,6 +246,21 @@ export function ResidentTicketCard({ ticket }: ResidentTicketCardProps) {
         <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
           {formatDateTime(ticket.createdAt)}
         </p>
+        {ticket.evidence && ticket.evidence.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ticket.evidence.map((ev) => (
+              <a
+                key={ev.id}
+                href={ev.publicPath || ev.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-primary/5 text-primary text-xs font-bold hover:bg-primary/10 transition-colors"
+              >
+                Ver evidencia adjunta
+              </a>
+            ))}
+          </div>
+        )}
       </div>
       <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
         <Wrench className="w-6 h-6 text-primary" />
@@ -257,6 +288,21 @@ export function StaffTicketCard({
         </div>
         <p className="mt-3 text-sm font-black text-slate-900 truncate">{ticket.title}</p>
         <p className="mt-1 text-xs text-slate-500 font-medium">{ticket.description}</p>
+        {ticket.evidence && ticket.evidence.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ticket.evidence.map((ev) => (
+              <a
+                key={ev.id}
+                href={ev.publicPath || ev.url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center px-3 py-1.5 rounded-xl bg-primary/5 text-primary text-xs font-bold hover:bg-primary/10 transition-colors"
+              >
+                Ver evidencia adjunta
+              </a>
+            ))}
+          </div>
+        )}
         {canTransition ? (
           <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
             <select
@@ -424,11 +470,13 @@ export function ResidentTicketComposerDialog({
   title,
   description,
   priority,
+  evidenceFile,
   onClose,
   onUnitChange,
   onTitleChange,
   onDescriptionChange,
   onPriorityChange,
+  onEvidenceChange,
   onSubmit,
 }: ResidentTicketComposerDialogProps) {
   if (!isOpen) return null;
@@ -503,6 +551,17 @@ export function ResidentTicketComposerDialog({
               onChange={(event) => onDescriptionChange(event.target.value)}
               className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium min-h-[120px]"
             />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Adjuntar Evidencia (Opcional)</label>
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(event) => onEvidenceChange(event.target.files?.[0] || null)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            />
+            {evidenceFile && <p className="mt-1 ml-1 text-xs font-bold text-primary">Archivo seleccionado: {evidenceFile.name}</p>}
           </div>
         </div>
 
