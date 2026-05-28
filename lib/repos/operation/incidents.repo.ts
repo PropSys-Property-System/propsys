@@ -177,8 +177,8 @@ export const incidentsRepo = {
 
     const current = MOCK_INCIDENTS[idx];
     if (!canAccessClientRecord(user, current.clientId)) return null;
-    if (user.internalRole !== 'BUILDING_ADMIN') throw new Error('No autorizado');
-    if (!assignmentsRepo.isAssignedToBuilding(user, current.buildingId)) throw new Error('No autorizado');
+    if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER') throw new Error('No autorizado');
+    if (user.internalRole === 'BUILDING_ADMIN' && !assignmentsRepo.isAssignedToBuilding(user, current.buildingId)) throw new Error('No autorizado');
 
     const availableStaff = await staffRepo.listForBuilding(user, current.buildingId);
     const assignee = availableStaff.find((member) => member.id === assignedToUserId && member.status === 'ACTIVE');

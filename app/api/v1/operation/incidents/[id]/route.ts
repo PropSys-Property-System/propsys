@@ -100,7 +100,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   if (assignedToUserId) {
-    if (user.internalRole !== 'BUILDING_ADMIN') {
+    if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 

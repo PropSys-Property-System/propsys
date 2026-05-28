@@ -132,4 +132,72 @@ describe('operation incidents [id] API (audit hardening)', () => {
     expect(auditParams?.[3]).toBe('UPDATE');
     expect(auditParams?.[4]).toBe('Incident');
   });
+
+  it('assigns incident and records audit log (CLIENT_MANAGER)', async () => {
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    (sessionUser as unknown as { role: string }).role = 'MANAGER';
+    (sessionUser as unknown as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as unknown as { id: string }).id = 'u_cm';
+    (sessionUser as unknown as { clientId: string }).clientId = 'client_001';
+    (sessionUser as unknown as { scope: string }).scope = 'client';
+
+    const current = {
+      id: 'inc_3',
+      client_id: 'client_001',
+      building_id: 'b1',
+      unit_id: null,
+      title: 'Gotera',
+      description: 'Agua',
+      status: 'REPORTED',
+      priority: 'MEDIUM',
+      reported_by_user_id: 'u3',
+      assigned_to_user_id: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    let auditParams: unknown[] | null = null;
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM incidents') && sql.includes('WHERE id = $1')) return { rows: [current] };
+      // Assignee check
+      if (sql.includes('FROM users u') && sql.includes('JOIN user_building_assignments')) return { rows: [{ ok: true }] };
+      return { rows: [] };
+    });
+
+    clientQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+      if (sql.includes('UPDATE incidents')) return { rows: [{ ...current, status: 'ASSIGNED', assigned_to_user_id: 'u_staff' }] };
+      if (sql.includes('INSERT INTO audit_logs')) {
+        auditParams = params ?? null;
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/incidents/inc_3', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'ASSIGNED', assignedToUserId: 'u_staff' }),
+    });
+    const res = await patchIncident(req, { params: Promise.resolve({ id: 'inc_3' }) });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { incident?: { status: string } };
+    expect(data.incident?.status).toBe('ASSIGNED');
+    expect(auditParams?.[3]).toBe('UPDATE');
+  });
+
+  it('returns 403 when OCCUPANT tries to change incident status', async () => {
+    poolQuery.mockReset();
+    (sessionUser as unknown as { internalRole: string }).internalRole = 'OCCUPANT';
+
+    const req = new Request('http://localhost/api/v1/operation/incidents/inc_3', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'RESOLVED' }),
+    });
+    const res = await patchIncident(req, { params: Promise.resolve({ id: 'inc_3' }) });
+    expect(res.status).toBe(403);
+  });
 });

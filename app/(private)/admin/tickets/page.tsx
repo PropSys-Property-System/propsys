@@ -98,8 +98,8 @@ export default function AdminTicketsPage() {
   );
   const unitNumberById = useMemo(() => new Map(units.map((unit) => [unit.id, unit.number])), [units]);
 
-  const canCreate = user?.internalRole === 'BUILDING_ADMIN';
-  const canUpdate = user?.internalRole === 'BUILDING_ADMIN';
+  const canCreate = user?.internalRole === 'BUILDING_ADMIN' || user?.internalRole === 'CLIENT_MANAGER';
+  const canUpdate = user?.internalRole === 'BUILDING_ADMIN' || user?.internalRole === 'CLIENT_MANAGER';
   const allStatuses: IncidentEntity['status'][] = ['REPORTED', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
   const ticketCounts = useMemo(
     () => ({
