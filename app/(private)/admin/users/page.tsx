@@ -36,6 +36,10 @@ export default function UsersPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [clients, setClients] = useState<ClientAccount[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterRole, setFilterRole] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterBuilding, setFilterBuilding] = useState('ALL');
+  const [filterUnit, setFilterUnit] = useState('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -155,6 +159,11 @@ export default function UsersPage() {
   const users = useMemo(() => {
     const normalizedTerm = searchTerm.toLowerCase();
     return allUsers.filter((candidate) => {
+      if (filterRole !== 'ALL' && candidate.internalRole !== filterRole) return false;
+      if (filterStatus !== 'ALL' && candidate.status !== filterStatus) return false;
+      if (filterBuilding !== 'ALL' && candidate.buildingId !== filterBuilding) return false;
+      if (filterUnit !== 'ALL' && candidate.unitId !== filterUnit) return false;
+
       const roleLabel = labelUserRole(candidate.role).toLowerCase();
       const buildingName = candidate.buildingId ? buildingNameById.get(candidate.buildingId)?.toLowerCase() ?? '' : '';
       const unitLabel = candidate.unitId ? unitLabelById.get(candidate.unitId)?.toLowerCase() ?? '' : '';
@@ -167,7 +176,7 @@ export default function UsersPage() {
         unitLabel.includes(normalizedTerm)
       );
     });
-  }, [allUsers, buildingNameById, searchTerm, unitLabelById]);
+  }, [allUsers, buildingNameById, searchTerm, filterRole, filterStatus, filterBuilding, filterUnit, unitLabelById]);
 
   const canInviteUsers = user?.internalRole === 'ROOT_ADMIN' || user?.internalRole === 'CLIENT_MANAGER';
   const canCreateClient = user?.internalRole === 'ROOT_ADMIN';
@@ -202,15 +211,67 @@ export default function UsersPage() {
       <PageHeader title="Gestion de Usuarios" description="Administra los roles y accesos de PropSys" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
-        <div className="relative group max-w-2xl">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Buscar por nombre, email o rol..."
-            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-          />
+        <div className="flex flex-col md:flex-row flex-wrap gap-4 max-w-5xl">
+          <div className="relative group flex-1 min-w-[250px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por nombre, email o rol..."
+              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            />
+          </div>
+          <select 
+            value={filterRole} 
+            onChange={(e) => setFilterRole(e.target.value)}
+            className="px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            aria-label="Filtrar por rol"
+          >
+            <option value="ALL">Todos los roles</option>
+            <option value="CLIENT_MANAGER">Gerente</option>
+            <option value="BUILDING_ADMIN">Administrador</option>
+            <option value="STAFF">Personal</option>
+            <option value="OWNER">Propietario</option>
+            <option value="OCCUPANT">Inquilino</option>
+          </select>
+          <select 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            aria-label="Filtrar por estado"
+          >
+            <option value="ALL">Todos los estados</option>
+            <option value="ACTIVE">Activo</option>
+            <option value="INACTIVE">Inactivo / Pendiente</option>
+            <option value="SUSPENDED">Suspendido</option>
+          </select>
+          {buildings.length > 0 && (
+            <select
+              value={filterBuilding}
+              onChange={(e) => { setFilterBuilding(e.target.value); setFilterUnit('ALL'); }}
+              className="px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+              aria-label="Filtrar por edificio"
+            >
+              <option value="ALL">Todos los edificios</option>
+              {buildings.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
+          {units.some((u) => u.buildingId === filterBuilding) && filterBuilding !== 'ALL' && (
+            <select
+              value={filterUnit}
+              onChange={(e) => setFilterUnit(e.target.value)}
+              className="px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+              aria-label="Filtrar por unidad"
+            >
+              <option value="ALL">Todas las unidades</option>
+              {units.filter((u) => u.buildingId === filterBuilding).map((u) => (
+                <option key={u.id} value={u.id}>{u.number}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {actionError ? (
