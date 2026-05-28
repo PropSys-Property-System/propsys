@@ -168,7 +168,6 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-  if (user.internalRole === 'OCCUPANT') return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   const bypassTenant = canBypassTenantScope(user);
   if (!hasTenantClientContext(user)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
@@ -202,14 +201,14 @@ export async function POST(req: Request) {
     if (!unitRes.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
-  if (user.internalRole === 'OWNER') {
+  if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
     if (!unitId) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
        FROM user_unit_assignments
-       WHERE user_id = $1 AND unit_id = $2 AND client_id = $3 AND assignment_type = 'OWNER' AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND unit_id = $2 AND client_id = $3 AND assignment_type = $4 AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, unitId, clientId]
+      [user.id, unitId, clientId, user.internalRole]
     );
     if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   } else if (user.internalRole === 'STAFF' || user.internalRole === 'BUILDING_ADMIN') {

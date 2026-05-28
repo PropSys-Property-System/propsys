@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
@@ -66,7 +66,7 @@ export default function ResidentTicketsPage() {
   }, [allTickets, searchTerm]);
   const buildingNameById = useMemo(() => new Map(buildings.map((building) => [building.id, building.name])), [buildings]);
 
-  const canCreate = user?.internalRole === 'OWNER';
+  const canCreate = user?.internalRole === 'OWNER' || user?.internalRole === 'OCCUPANT';
 
   const submitCreate = async () => {
     if (!user) return;

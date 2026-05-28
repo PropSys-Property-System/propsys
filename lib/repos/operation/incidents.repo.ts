@@ -58,13 +58,13 @@ export const incidentsRepo = {
     }
     await sleep(250);
 
-    if (user.internalRole === 'OCCUPANT') throw new Error('No autorizado');
-
     const clientId = requireClientContext(user, 'Selecciona un cliente para continuar.');
 
-    if (user.internalRole === 'OWNER') {
+    if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
       if (!input.unitId) throw new Error('No autorizado');
-      if (!assignmentsRepo.isOwnerOfUnit(user, input.unitId)) throw new Error('No autorizado');
+      const assignments = assignmentsRepo.listUnitAssignmentsForUser(user);
+      const isAuthorized = assignments.some(a => a.assignmentType === user.internalRole && a.unitId === input.unitId);
+      if (!isAuthorized) throw new Error('No autorizado');
 
       const tenantUnits = filterItemsByTenant(MOCK_UNITS, user);
       const unit = tenantUnits.find((u) => u.id === input.unitId);

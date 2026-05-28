@@ -207,13 +207,58 @@ describe('operation incidents POST (audit regression)', () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
-  it('returns 403 when OCCUPANT attempts to create an incident', async () => {
+  it('creates an incident as OCCUPANT for an assigned unit', async () => {
     sessionUser.internalRole = 'OCCUPANT';
+    let unitParams: unknown[] | undefined;
+
+    poolQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('SELECT client_id FROM buildings')) return { rows: [{ client_id: 'client_001' }] };
+      if (sql.includes('FROM units')) {
+        return { rows: [{ id: 'unit-102' }] };
+      }
+      if (sql.includes('FROM user_unit_assignments')) {
+        unitParams = params;
+        return { rows: [{ ok: true }] };
+      }
+      return { rows: [] };
+    });
+
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+      if (sql.includes('INSERT INTO incidents')) return { rows: [incidentCreatedRow('b1', 'client_001', 'unit-102')] };
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
 
     const req = new Request('http://localhost/api/v1/operation/incidents', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ buildingId: 'b1', title: 'Fuga', description: 'Fuga de agua', priority: 'HIGH' }),
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'unit-102', title: 'Fuga', description: 'Fuga de agua', priority: 'HIGH' }),
+    });
+
+    const res = await createIncident(req);
+    expect(res.status).toBe(200);
+    expect(unitParams).toEqual(['u_staff', 'unit-102', 'client_001', 'OCCUPANT']);
+  });
+
+  it('returns 403 when OCCUPANT attempts to create an incident for an unassigned unit', async () => {
+    sessionUser.internalRole = 'OCCUPANT';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT client_id FROM buildings')) return { rows: [{ client_id: 'client_001' }] };
+      if (sql.includes('FROM units')) {
+        return { rows: [{ id: 'unit-102' }] };
+      }
+      if (sql.includes('FROM user_unit_assignments')) {
+        return { rows: [] }; // No assignment
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/incidents', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'unit-102', title: 'Fuga', description: 'Fuga de agua', priority: 'HIGH' }),
     });
 
     const res = await createIncident(req);
