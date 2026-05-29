@@ -175,7 +175,7 @@ export default function AdminReservationsPage() {
                     key={reservation.id}
                     reservation={reservation}
                     displayStatus={displayStatus}
-                    areaName={areaNameById.get(reservation.commonAreaId) ?? 'Area comun'}
+                    areaName={areaNameById.get(reservation.commonAreaId) ?? 'Área común'}
                     unitLabel={unitLabelById.get(reservation.unitId) ?? reservation.unitId}
                     buildingName={buildingNameById.get(reservation.buildingId) ?? 'Edificio'}
                     canManage={Boolean(canManage)}
@@ -204,7 +204,7 @@ export default function AdminReservationsPage() {
                     key={reservation.id}
                     reservation={reservation}
                     displayStatus={displayStatus}
-                    areaName={areaNameById.get(reservation.commonAreaId) ?? 'Area comun'}
+                    areaName={areaNameById.get(reservation.commonAreaId) ?? 'Área común'}
                     unitLabel={unitLabelById.get(reservation.unitId) ?? reservation.unitId}
                     buildingName={buildingNameById.get(reservation.buildingId) ?? 'Edificio'}
                     canManage={Boolean(canManage)}

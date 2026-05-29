@@ -147,7 +147,7 @@ describe('POST /api/auth/invitations/accept', () => {
 
     expect(res.status).toBe(400);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe('La contraseña debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.');
+    expect(data.error).toBe('La contraseña debe tener al menos 12 caracteres e incluir mayúscula, minúscula, número y símbolo.');
     expect(connect).not.toHaveBeenCalled();
     expect(argon2.hash).not.toHaveBeenCalled();
   });

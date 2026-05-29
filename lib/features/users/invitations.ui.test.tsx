@@ -190,7 +190,7 @@ describe('InvitationCreationDialog', () => {
 
       return (
         <>
-          <span>Invitaciónes creadas: {createdCount}</span>
+          <span>Invitaciones creadas: {createdCount}</span>
           <InvitationCreationDialog
             isOpen
             title="Invitar usuario"
@@ -216,7 +216,7 @@ describe('InvitationCreationDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Invitaciónes creadas: 1')).toBeInTheDocument();
+      expect(screen.getByText('Invitaciones creadas: 1')).toBeInTheDocument();
     });
     expect(screen.getByText('Invitación creada')).toBeInTheDocument();
     expect(screen.getByText('http://localhost/invitations/accept?token=link-token')).toBeInTheDocument();
@@ -226,7 +226,7 @@ describe('InvitationCreationDialog', () => {
     renderDialog({
       defaultRole: 'OWNER',
       createInvitation: vi.fn(async () => {
-        throw new Error('No hay proveedor de correo configurado para enviar invitaciónes.');
+        throw new Error('No hay proveedor de correo configurado para enviar invitaciones.');
       }),
     });
 
@@ -237,7 +237,7 @@ describe('InvitationCreationDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /enviar invitación/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('No hay proveedor de correo configurado para enviar invitaciónes.')).toBeInTheDocument();
+      expect(screen.getByText('No hay proveedor de correo configurado para enviar invitaciones.')).toBeInTheDocument();
     });
   });
 

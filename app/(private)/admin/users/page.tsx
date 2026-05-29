@@ -208,7 +208,7 @@ export default function UsersPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader title="Gestion de Usuarios" description="Administra los roles y accesos de PropSys" actions={actions} />
+      <PageHeader title="Gestión de usuarios" description="Administra los roles y accesos de PropSys" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
         <div className="flex flex-col md:flex-row flex-wrap gap-4 max-w-5xl">

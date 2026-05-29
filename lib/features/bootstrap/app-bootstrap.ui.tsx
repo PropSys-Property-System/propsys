@@ -116,7 +116,7 @@ export function SetupProfileStep() {
           <input type="text" placeholder="Ej. Juan Perez" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all" />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-black text-slate-400 uppercase tracking-wider ml-1">Telefono</label>
+          <label className="text-xs font-black text-slate-400 uppercase tracking-wider ml-1">Teléfono</label>
           <input type="tel" placeholder="+51 999 999 999" className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all" />
         </div>
       </div>

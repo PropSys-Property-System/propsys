@@ -5,11 +5,11 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Copy, Loader2, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 
 const PASSWORD_ERROR =
-  'La contraseña debe tener al menos 12 caracteres, mayuscula, minuscula, numero, simbolo y no debe tener espacios.';
+  'La contraseña debe tener al menos 12 caracteres, mayúscula, minúscula, número, símbolo y no debe tener espacios.';
 const CONFIRM_ERROR = 'No pudimos restablecer la contraseña. Solicita un nuevo enlace.';
-const REQUEST_SUCCESS = 'Si el correo existe, recibiras instrucciones para restablecer tu contraseña.';
+const REQUEST_SUCCESS = 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña.';
 const PROVIDER_ERROR =
-  'No hay proveedor de correo configurado para enviar enlaces de recuperacion. Reemplaza re_xxxxxxxxx por tu API key real de Resend.';
+  'No hay proveedor de correo configurado para enviar enlaces de recuperación. Reemplaza re_xxxxxxxxx por tu API key real de Resend.';
 
 function isStrongPassword(password: string): boolean {
   return (
@@ -66,7 +66,7 @@ export function PasswordResetRequestView() {
     setIsSuccess(false);
 
     if (!normalizedEmail) {
-      setError('Ingresa tu correo electronico.');
+      setError('Ingresa tu correo electrónico.');
       return;
     }
 
@@ -113,7 +113,7 @@ export function PasswordResetRequestView() {
 
         <div className="space-y-2">
           <label htmlFor="reset-email" className="text-xs font-black uppercase tracking-widest text-slate-500">
-            Correo electronico
+            Correo electrónico
           </label>
           <div className="relative group">
             <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" />
@@ -221,7 +221,7 @@ export function PasswordResetConfirmView({ token }: { token: string }) {
     <PasswordResetShell mode="confirm">
       {!trimmedToken ? (
         <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-4 text-center text-sm font-bold text-red-700">
-          Enlace invalido o incompleto.
+          Enlace inválido o incompleto.
         </div>
       ) : isSuccess ? (
         <div className="text-center space-y-8">
@@ -273,7 +273,7 @@ export function PasswordResetConfirmView({ token }: { token: string }) {
           </div>
 
           <p className="text-xs font-medium leading-relaxed text-slate-500">
-            Usa al menos 12 caracteres con mayuscula, minuscula, numero y simbolo. No uses espacios.
+            Usa al menos 12 caracteres con mayúscula, minúscula, número y símbolo. No uses espacios.
           </p>
 
           {error ? <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{error}</div> : null}

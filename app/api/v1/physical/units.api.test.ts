@@ -106,7 +106,7 @@ describe('physical units API', () => {
     const res = await createUnit(req);
     expect(res.status).toBe(409);
     const data = (await res.json()) as { error?: string };
-    expect(data.error).toBe('Ya existe una unidad con ese numero en este edificio.');
+    expect(data.error).toBe('Ya existe una unidad con ese número en este edificio.');
     expect(connect).not.toHaveBeenCalled();
   });
 

@@ -200,7 +200,7 @@ export function InvitationCreationDialog({
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Link de invitación</p>
                 <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
-                  <span className="font-bold">⚠️ Copia este enlace ahora.</span> Mientras no haya proveedor de correo, debes enviarlo manualmente al usuario. Si cierras esta ventana, la reemisión quedará para un módulo futuro de gestión de invitaciónes.
+                  <span className="font-bold">⚠️ Copia este enlace ahora.</span> Mientras no haya proveedor de correo, debes enviarlo manualmente al usuario. Si cierras esta ventana, la reemisión quedará para un módulo futuro de gestión de invitaciones.
                 </div>
                 <p className="mt-2 break-all text-sm font-bold text-emerald-900">{inviteLink}</p>
                 <button

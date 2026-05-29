@@ -122,7 +122,7 @@ export default function AdminTicketsPage() {
     }
 
     if (!createTitle.trim() || !createDescription.trim()) {
-      setActionError('Completa titulo y descripcion.');
+      setActionError('Completa título y descripción.');
       return;
     }
 
@@ -284,7 +284,7 @@ export default function AdminTicketsPage() {
               type="text"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar por titulo o descripcion..."
+              placeholder="Buscar por título o descripción..."
               className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
             />
           </div>

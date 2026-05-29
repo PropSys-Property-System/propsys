@@ -101,7 +101,7 @@ export const unitsRepo = {
       (unit) => unit.buildingId === input.buildingId && unit.number.trim().toLowerCase() === input.number.trim().toLowerCase()
     );
     if (alreadyExists) {
-      throw new Error('Ya existe una unidad con ese numero en este edificio.');
+      throw new Error('Ya existe una unidad con ese número en este edificio.');
     }
 
     const now = new Date().toISOString();

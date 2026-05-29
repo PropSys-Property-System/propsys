@@ -117,7 +117,7 @@ export default function AdminCommonAreasPage() {
       setActionMessage(null);
       const updated = await updateCommonAreaApprovalForUser(user, area.id, nextRequiresApproval);
       setAreas((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
-      setActionMessage(`Area comun ${updated.name} actualizada.`);
+      setActionMessage(`Área común ${updated.name} actualizada.`);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos actualizar el área comun.');
     } finally {
@@ -164,7 +164,7 @@ export default function AdminCommonAreasPage() {
           requiresApproval: composerRequiresApproval,
         });
         setAreas((current) => current.map((area) => (area.id === updated.id ? updated : area)));
-        setActionMessage(`Area comun ${updated.name} actualizada.`);
+        setActionMessage(`Área común ${updated.name} actualizada.`);
       } else {
         const created = await createCommonAreaForUser(user, {
           buildingId: selectedBuildingId,
@@ -173,7 +173,7 @@ export default function AdminCommonAreasPage() {
           requiresApproval: composerRequiresApproval,
         });
         setAreas((current) => [created, ...current]);
-        setActionMessage(`Area comun ${created.name} creada.`);
+        setActionMessage(`Área común ${created.name} creada.`);
       }
       setIsComposerOpen(false);
     } catch (err) {
@@ -193,7 +193,7 @@ export default function AdminCommonAreasPage() {
       const archived = await archiveCommonAreaForUser(user, area.id);
       setAreas((current) => current.filter((item) => item.id !== area.id));
       setArchivedAreas((current) => [archived, ...current]);
-      setActionMessage(`Area comun ${archived.name} archivada.`);
+      setActionMessage(`Área común ${archived.name} archivada.`);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos archivar el área comun.');
     }
@@ -210,7 +210,7 @@ export default function AdminCommonAreasPage() {
       setArchivedAreas((current) => current.filter((item) => item.id !== area.id));
       setAreas((current) => [restored, ...current]);
       setShowArchived(false);
-      setActionMessage(`Area comun ${restored.name} restaurada.`);
+      setActionMessage(`Área común ${restored.name} restaurada.`);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos restaurar el área comun.');
     }
@@ -231,7 +231,7 @@ export default function AdminCommonAreasPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader title="Areas Comunes" description="Configura espacios reservables y reglas de aprobacion" actions={actions} />
+      <PageHeader title="Áreas comunes" description="Configura espacios reservables y reglas de aprobacion" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
         {actionError && <ErrorState title="Accion no disponible" description={actionError} />}
@@ -278,7 +278,7 @@ export default function AdminCommonAreasPage() {
         ) : !selectedBuildingId ? (
           <EmptyState title="Sin edificio" description="No hay un edificio seleccionado." />
         ) : filteredAreas.length === 0 ? (
-          <EmptyState title="Sin areas" description={searchTerm ? `No hay coincidencias para "${searchTerm}".` : 'Aun no hay áreas comunes configuradas.'} />
+          <EmptyState title="Sin áreas" description={searchTerm ? `No hay coincidencias para "${searchTerm}".` : 'Aún no hay áreas comunes configuradas.'} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-5xl">
             {filteredAreas.map((area) => (

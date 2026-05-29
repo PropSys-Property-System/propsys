@@ -18,7 +18,7 @@ describe('PasswordResetRequestView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
 
-    expect(screen.getByText('Ingresa tu correo electronico.')).toBeInTheDocument();
+    expect(screen.getByText('Ingresa tu correo electrónico.')).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -29,11 +29,11 @@ describe('PasswordResetRequestView', () => {
     } as Response);
     render(<PasswordResetRequestView />);
 
-    fireEvent.change(screen.getByLabelText('Correo electronico'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'user@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Si el correo existe, recibiras instrucciones para restablecer tu contraseña.')).toBeInTheDocument();
+      expect(screen.getByText('Si el correo existe, recibirás instrucciones para restablecer tu contraseña.')).toBeInTheDocument();
     });
   });
 
@@ -47,7 +47,7 @@ describe('PasswordResetRequestView', () => {
     } as Response);
     render(<PasswordResetRequestView />);
 
-    fireEvent.change(screen.getByLabelText('Correo electronico'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'user@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
 
     await waitFor(() => {
@@ -67,11 +67,11 @@ describe('PasswordResetRequestView', () => {
     } as Response);
     render(<PasswordResetRequestView />);
 
-    fireEvent.change(screen.getByLabelText('Correo electronico'), { target: { value: 'user@example.com' } });
+    fireEvent.change(screen.getByLabelText('Correo electrónico'), { target: { value: 'user@example.com' } });
     fireEvent.click(screen.getByRole('button', { name: /enviar enlace/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/No hay proveedor de correo configurado para enviar enlaces de recuperacion\./)).toBeInTheDocument();
+      expect(screen.getByText(/No hay proveedor de correo configurado para enviar enlaces de recuperación\./)).toBeInTheDocument();
     });
   });
 });
@@ -84,7 +84,7 @@ describe('PasswordResetConfirmView', () => {
   it('muestra error cuando falta token', () => {
     render(<PasswordResetConfirmView token="" />);
 
-    expect(screen.getByText('Enlace invalido o incompleto.')).toBeInTheDocument();
+    expect(screen.getByText('Enlace inválido o incompleto.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Nueva contraseña')).not.toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe('PasswordResetConfirmView', () => {
     fireEvent.change(screen.getByLabelText('Confirmar contraseña'), { target: { value: 'weak' } });
     fireEvent.click(screen.getByRole('button', { name: /actualizar contraseña/i }));
 
-    expect(screen.getByText('La contraseña debe tener al menos 12 caracteres, mayuscula, minuscula, numero, simbolo y no debe tener espacios.')).toBeInTheDocument();
+    expect(screen.getByText('La contraseña debe tener al menos 12 caracteres, mayúscula, minúscula, número, símbolo y no debe tener espacios.')).toBeInTheDocument();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -137,7 +137,7 @@ describe('PasswordResetConfirmView', () => {
   it('muestra error generico cuando el endpoint falla y no renderiza el token', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: false,
-      json: async () => ({ error: 'Reset invalido o expirado.' }),
+      json: async () => ({ error: 'Reset inválido o expirado.' }),
     } as Response);
     render(<PasswordResetConfirmView token="secret-token" />);
 

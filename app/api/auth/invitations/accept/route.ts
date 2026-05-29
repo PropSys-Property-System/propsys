@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   if (!validateAccountPassword(password)) {
     return NextResponse.json(
-      { error: 'La contraseña debe tener al menos 12 caracteres e incluir mayuscula, minuscula, numero y simbolo.' },
+      { error: 'La contraseña debe tener al menos 12 caracteres e incluir mayúscula, minúscula, número y símbolo.' },
       { status: 400 }
     );
   }

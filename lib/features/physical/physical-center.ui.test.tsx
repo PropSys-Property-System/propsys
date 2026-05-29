@@ -80,7 +80,7 @@ describe('BuildingUnitsDialog assignment UI', () => {
 
   it('displays correct labels for creating a new unit', () => {
     renderDialog();
-    expect(screen.getByText(/numero de unidad/i)).toBeInTheDocument();
+    expect(screen.getByText(/número de unidad/i)).toBeInTheDocument();
     expect(screen.getByText(/piso/i, { selector: 'label' })).toBeInTheDocument();
   });
 });

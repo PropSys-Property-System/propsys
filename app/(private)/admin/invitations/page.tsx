@@ -34,7 +34,7 @@ export default function AdminInvitationsPage() {
         setInvitations(data.data || []);
       }
     } catch {
-      setMessage({ text: 'Error al cargar invitaciónes', type: 'error' });
+      setMessage({ text: 'Error al cargar invitaciones', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -87,8 +87,8 @@ export default function AdminInvitationsPage() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader 
-        title="Invitaciónes Pendientes" 
-        description="Gestiona invitaciónes enviadas que aún no han sido aceptadas." 
+        title="Invitaciones Pendientes" 
+        description="Gestiona invitaciones enviadas que aún no han sido aceptadas." 
       />
 
       <div className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
@@ -103,11 +103,11 @@ export default function AdminInvitationsPage() {
 
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-slate-500">Cargando invitaciónes...</div>
+            <div className="p-8 text-center text-slate-500">Cargando invitaciones...</div>
           ) : invitations.length === 0 ? (
             <div className="p-12 text-center">
               <Mail className="mx-auto h-12 w-12 text-slate-300 mb-3" />
-              <p className="text-slate-500">No hay invitaciónes pendientes</p>
+              <p className="text-slate-500">No hay invitaciones pendientes</p>
             </div>
           ) : (
             <div className="overflow-x-auto">

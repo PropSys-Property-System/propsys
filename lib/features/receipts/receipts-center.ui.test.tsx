@@ -158,7 +158,7 @@ describe('payment proof receipt UI', () => {
         ]}
         pendingActionId={null}
         reviewComments={{}}
-        emptyDescription="Este recibo aun no tiene comprobantes registrados."
+        emptyDescription="Este recibo aún no tiene comprobantes registrados."
         buildingById={new Map([['b1', { id: 'b1', name: 'Torre Alerce' }]])}
         unitById={new Map([['unit_1', { id: 'unit_1', buildingId: 'b1', number: '101' }]])}
         onOpenProof={vi.fn()}
@@ -172,7 +172,7 @@ describe('payment proof receipt UI', () => {
     expect(screen.getByText('nuevo.pdf')).toBeInTheDocument();
     expect(screen.getByText('rechazado.pdf')).toBeInTheDocument();
     expect(screen.getByText(/Comentario: No legible/)).toBeInTheDocument();
-    expect(screen.queryByText('Este recibo aun no tiene comprobantes registrados.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Este recibo aún no tiene comprobantes registrados.')).not.toBeInTheDocument();
     const renderedText = container.textContent ?? '';
     expect(renderedText.indexOf('nuevo.pdf')).toBeLessThan(renderedText.indexOf('rechazado.pdf'));
 
@@ -189,7 +189,7 @@ describe('payment proof receipt UI', () => {
         proofs={[]}
         pendingActionId={null}
         reviewComments={{}}
-        emptyDescription="Este recibo aun no tiene comprobantes registrados."
+        emptyDescription="Este recibo aún no tiene comprobantes registrados."
         onOpenProof={vi.fn()}
         onReviewCommentChange={vi.fn()}
         onApprove={vi.fn()}
@@ -197,7 +197,7 @@ describe('payment proof receipt UI', () => {
       />
     );
 
-    expect(screen.getByText('Este recibo aun no tiene comprobantes registrados.')).toBeInTheDocument();
+    expect(screen.getByText('Este recibo aún no tiene comprobantes registrados.')).toBeInTheDocument();
     expect(screen.queryByText('REC-001')).not.toBeInTheDocument();
   });
 

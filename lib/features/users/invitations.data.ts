@@ -30,7 +30,7 @@ export type CreateUserInvitationResult = {
 };
 
 const EMAIL_PROVIDER_ERROR =
-  'No hay proveedor de correo configurado para enviar invitaciónes. Reemplaza re_xxxxxxxxx por tu API key real de Resend.';
+  'No hay proveedor de correo configurado para enviar invitaciones. Reemplaza re_xxxxxxxxx por tu API key real de Resend.';
 
 function shouldSendBuildingId(role: UserInvitationRole): boolean {
   return role === 'BUILDING_ADMIN' || role === 'STAFF';

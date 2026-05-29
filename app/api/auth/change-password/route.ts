@@ -47,7 +47,7 @@ export async function POST(req: Request) {
 
   if (!validateAccountPassword(newPassword)) {
     return NextResponse.json(
-      { error: 'La nueva contraseña debe tener al menos 8 caracteres, incluir una letra y un numero.' },
+      { error: 'La nueva contraseña debe tener al menos 8 caracteres, incluir una letra y un número.' },
       { status: 400 }
     );
   }

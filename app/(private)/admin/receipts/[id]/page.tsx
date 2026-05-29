@@ -209,7 +209,7 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
     }
     const amount = Number(editAmount);
     if (!Number.isFinite(amount) || amount <= 0 || !editDescription.trim() || !editIssueDate || !editDueDate) {
-      setActionError('Completa monto, descripcion y fechas validas.');
+      setActionError('Completa monto, descripción y fechas válidas.');
       return;
     }
     try {
@@ -313,7 +313,7 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
                 value={editDescription}
                 onChange={(event) => setEditDescription(event.target.value)}
                 className="rounded-xl border border-slate-200 px-3 py-2 text-sm md:col-span-2"
-                placeholder="Descripcion"
+                placeholder="Descripción"
               />
             </div>
             <div className="mt-5 flex justify-end gap-2">

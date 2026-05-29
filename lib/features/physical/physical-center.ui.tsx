@@ -214,7 +214,7 @@ export function BuildingUnitsDialog({
             <div className="md:col-span-2 text-sm font-bold text-slate-500">Cargando unidades...</div>
           ) : units.length === 0 ? (
             <div className="md:col-span-2 bg-slate-50 border border-slate-100 rounded-2xl p-5 text-sm font-bold text-slate-500">
-              Este edificio aun no tiene unidades registradas.
+              Este edificio aún no tiene unidades registradas.
             </div>
           ) : (
             units.map((unit) => (
@@ -323,7 +323,7 @@ export function BuildingUnitsDialog({
             <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Nueva unidad</p>
             <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Numero de unidad</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Número de unidad</label>
                 <input
                   value={number}
                   onChange={(event) => onNumberChange(event.target.value)}

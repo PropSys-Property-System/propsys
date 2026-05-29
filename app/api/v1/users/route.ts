@@ -6,7 +6,7 @@ import { mapInternalRoleToUIRole } from '@/lib/auth/role-mapping';
 import type { User } from '@/lib/types';
 
 const DIRECT_USER_CREATION_DEPRECATED_MESSAGE =
-  'La creacion directa de usuarios fue reemplazada por invitaciónes. Usa /api/v1/users/invitations.';
+  'La creación directa de usuarios fue reemplazada por invitaciones. Usa /api/v1/users/invitations.';
 
 function toUser(row: {
   id: string;

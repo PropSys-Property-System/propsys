@@ -102,7 +102,7 @@ function buildAgendaReservations(
     .slice(0, 4)
     .map((reservation) => ({
       id: reservation.id,
-      commonAreaName: commonAreaNameById[reservation.commonAreaId] ?? 'Area comun',
+      commonAreaName: commonAreaNameById[reservation.commonAreaId] ?? 'Área común',
       buildingName: buildingNameById[reservation.buildingId] ?? 'Edificio',
       startAt: reservation.startAt,
       endAt: reservation.endAt,

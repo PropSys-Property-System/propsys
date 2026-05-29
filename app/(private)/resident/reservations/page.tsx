@@ -236,7 +236,7 @@ export default function ResidentReservationsPage() {
                     key={reservation.id}
                     reservation={reservation}
                     displayStatus={displayStatus}
-                    areaName={areaNameById.get(reservation.commonAreaId) ?? 'Area comun'}
+                    areaName={areaNameById.get(reservation.commonAreaId) ?? 'Área común'}
                     unitLabel={unitLabelById.get(reservation.unitId) ?? reservation.unitId}
                     buildingName={buildingNameById.get(reservation.buildingId) ?? 'Edificio'}
                     canCancel={Boolean(
@@ -269,7 +269,7 @@ export default function ResidentReservationsPage() {
                     key={reservation.id}
                     reservation={reservation}
                     displayStatus={displayStatus}
-                    areaName={areaNameById.get(reservation.commonAreaId) ?? 'Area comun'}
+                    areaName={areaNameById.get(reservation.commonAreaId) ?? 'Área común'}
                     unitLabel={unitLabelById.get(reservation.unitId) ?? reservation.unitId}
                     buildingName={buildingNameById.get(reservation.buildingId) ?? 'Edificio'}
                     canCancel={false}

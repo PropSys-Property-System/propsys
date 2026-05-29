@@ -83,7 +83,7 @@ export default function StaffTicketsPage() {
     if (!user) return;
 
     if (!createTitle.trim() || !createDescription.trim()) {
-      setActionError('Completa titulo y descripcion.');
+      setActionError('Completa título y descripción.');
       return;
     }
 

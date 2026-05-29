@@ -242,7 +242,7 @@ export default function BuildingsPage() {
   async function handleCreateUnit() {
     if (!user || !unitBuilding) return;
     if (!unitNumber.trim()) {
-      setUnitError('Ingresa el numero de unidad.');
+      setUnitError('Ingresa el número de unidad.');
       return;
     }
 
@@ -400,7 +400,7 @@ export default function BuildingsPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader title="Gestion de Edificios" description="Administra el portafolio de edificios de PropSys" actions={actions} />
+      <PageHeader title="Gestión de edificios" description="Administra el portafolio de edificios de PropSys" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
         {canArchive ? (
@@ -447,7 +447,7 @@ export default function BuildingsPage() {
               type="text"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar por nombre, direccion o ciudad..."
+              placeholder="Buscar por nombre, dirección o ciudad..."
               className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
             />
           </div>

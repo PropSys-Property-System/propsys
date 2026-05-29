@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
   if (!isEmailProviderConfigured()) {
     const res = NextResponse.json(
-      { error: 'No hay proveedor de correo configurado para enviar recuperacion de contraseña. Reemplaza re_xxxxxxxxx por tu API key real de Resend.' },
+      { error: 'No hay proveedor de correo configurado para enviar recuperación de contraseña. Reemplaza re_xxxxxxxxx por tu API key real de Resend.' },
       { status: 503 }
     );
     res.headers.set('Cache-Control', 'no-store');
@@ -152,6 +152,6 @@ export async function POST(req: Request) {
     res.headers.set('Cache-Control', 'no-store');
     return res;
   } catch {
-    return NextResponse.json({ error: 'No se pudo solicitar la recuperacion de contraseña.' }, { status: 500 });
+    return NextResponse.json({ error: 'No se pudo solicitar la recuperación de contraseña.' }, { status: 500 });
   }
 }

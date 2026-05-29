@@ -173,7 +173,7 @@ export default function ClientsPage() {
   if (!canManageClients) {
     return (
       <div className="flex flex-col h-full bg-slate-50/50">
-        <PageHeader title="Gestion de Clientes" description="Administración global de clientes." />
+        <PageHeader title="Gestión de clientes" description="Administración global de clientes." />
         <div className="p-6 md:p-8">
           <ErrorState title="Acceso denegado" description="No tienes permisos para ver esta pagina." />
         </div>
@@ -199,7 +199,7 @@ export default function ClientsPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader title="Gestion de Clientes" description="Administra las empresas que usan PropSys." actions={actions} />
+      <PageHeader title="Gestión de clientes" description="Administra las empresas que usan PropSys." actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
         <div className="relative group max-w-2xl">

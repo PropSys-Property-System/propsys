@@ -75,7 +75,7 @@ export async function sendPasswordResetEmail(input: SendPasswordResetEmailInput)
   await sendResendEmail({
     from: getFromEmail(),
     to: input.to,
-    subject: 'Recuperacion de contraseña de PropSys',
+    subject: 'Recuperación de contraseña de PropSys',
     html: renderPasswordResetEmailHtml(input),
   });
 }

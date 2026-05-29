@@ -174,7 +174,7 @@ export async function POST(req: Request) {
     [buildingId, number]
   );
   if (duplicateRes.rows[0]) {
-    return NextResponse.json({ error: 'Ya existe una unidad con ese numero en este edificio.' }, { status: 409 });
+    return NextResponse.json({ error: 'Ya existe una unidad con ese número en este edificio.' }, { status: 409 });
   }
 
   const id = `unit_${Date.now()}_${randomUUID().slice(0, 8)}`;

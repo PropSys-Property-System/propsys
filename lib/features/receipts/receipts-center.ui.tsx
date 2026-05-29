@@ -371,7 +371,7 @@ export function ReceiptComposerDialog({
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripcion (opcional)</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripción (opcional)</label>
             <input
               value={description}
               onChange={(event) => onDescriptionChange(event.target.value)}
@@ -530,7 +530,7 @@ export function AdminReceiptDetailView({
                         </span>
                       ) : null}
                       <span className="px-2 py-0.5 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
-                        {building?.address || 'Direccion N/A'}
+                        {building?.address || 'Dirección N/A'}
                       </span>
                     </div>
                   </div>
@@ -866,7 +866,7 @@ export function AdminPaymentProofsPanel({
                     <p className="text-sm font-black text-slate-900">{item.number}</p>
                     <StatusBadge status={item.status} />
                   </div>
-                  <p className="mt-2 text-xs font-medium text-slate-600">{item.description || 'Recibo pendiente de gestion'}</p>
+                  <p className="mt-2 text-xs font-medium text-slate-600">{item.description || 'Recibo pendiente de gestión'}</p>
                   <p className="mt-1 text-xs font-medium text-slate-500">
                     {buildingName} - Unidad {unitNumber}
                   </p>
@@ -1090,7 +1090,7 @@ export function ResidentReceiptDetailView({
                     <BuildingIcon className="w-3.5 h-3.5 mr-1.5" /> Edificio
                   </p>
                   <p className="text-sm font-bold text-slate-700">{building?.name ?? 'N/A'}</p>
-                  <p className="text-xs text-slate-400 font-medium">{building?.address ?? 'Direccion N/A'}</p>
+                  <p className="text-xs text-slate-400 font-medium">{building?.address ?? 'Dirección N/A'}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center">

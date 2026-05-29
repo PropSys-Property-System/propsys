@@ -57,7 +57,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   if (invitation.status !== 'PENDING') {
-    return NextResponse.json({ error: 'Solo se pueden modificar invitaciónes PENDING' }, { status: 400 });
+    return NextResponse.json({ error: 'Solo se pueden modificar invitaciones PENDING' }, { status: 400 });
   }
 
   const now = new Date();

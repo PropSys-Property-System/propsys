@@ -186,7 +186,7 @@ export function NoticeComposerDialog({
           )}
 
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Titulo</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Título</label>
             <input
               value={title}
               onChange={(event) => onTitleChange(event.target.value)}

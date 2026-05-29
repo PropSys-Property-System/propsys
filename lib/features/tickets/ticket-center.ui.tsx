@@ -425,7 +425,7 @@ export function TicketComposerDialog({
           </div>
 
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Titulo</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Título</label>
             <input
               value={title}
               onChange={(event) => onTitleChange(event.target.value)}
@@ -434,7 +434,7 @@ export function TicketComposerDialog({
           </div>
 
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripcion</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripción</label>
             <textarea
               value={description}
               onChange={(event) => onDescriptionChange(event.target.value)}
@@ -659,7 +659,7 @@ export function StaffTicketComposerDialog({
           </div>
 
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Titulo</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Título</label>
             <input
               value={title}
               onChange={(event) => onTitleChange(event.target.value)}
@@ -668,7 +668,7 @@ export function StaffTicketComposerDialog({
           </div>
 
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripcion</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripción</label>
             <textarea
               value={description}
               onChange={(event) => onDescriptionChange(event.target.value)}

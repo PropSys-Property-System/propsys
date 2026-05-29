@@ -288,7 +288,7 @@ export default function AdminReceiptsPage() {
       <button
         type="button"
         onClick={() => {
-          const header = ['numero', 'descripcion', 'monto', 'moneda', 'emision', 'vencimiento', 'estado', 'edificio', 'unidad'];
+          const header = ['número', 'descripción', 'monto', 'moneda', 'emisión', 'vencimiento', 'estado', 'edificio', 'unidad'];
           const rows = visibleReceipts.map((item) => [
             item.number,
             item.description,
@@ -331,7 +331,7 @@ export default function AdminReceiptsPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader title="Gestion de Recibos" description="Administra, emite y controla los pagos de la comunidad" actions={actions} />
+      <PageHeader title="Gestión de Recibos" description="Administra, emite y controla los pagos de la comunidad" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -339,7 +339,7 @@ export default function AdminReceiptsPage() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
             <input
               type="text"
-              placeholder="Buscar por numero o descripcion..."
+              placeholder="Buscar por número o descripción..."
               className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
@@ -383,10 +383,10 @@ export default function AdminReceiptsPage() {
             }
             className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
           >
-            <option value="ISSUE_DESC">Emision mas reciente</option>
-            <option value="ISSUE_ASC">Emision mas antigua</option>
+            <option value="ISSUE_DESC">Emisión más reciente</option>
+            <option value="ISSUE_ASC">Emisión más antigua</option>
             <option value="DUE_ASC">Vence primero</option>
-            <option value="DUE_DESC">Vence despues</option>
+            <option value="DUE_DESC">Vence después</option>
             <option value="AMOUNT_DESC">Monto mayor</option>
             <option value="AMOUNT_ASC">Monto menor</option>
           </select>
@@ -443,7 +443,7 @@ export default function AdminReceiptsPage() {
             <div className="py-12">
               <EmptyState
                 title="No se encontraron recibos"
-                description={searchTerm ? `No hay resultados para "${searchTerm}"` : 'Aun no se han emitido recibos en el sistema.'}
+                description={searchTerm ? `No hay resultados para "${searchTerm}"` : 'Aún no se han emitido recibos en el sistema.'}
               />
             </div>
           )}

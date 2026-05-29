@@ -130,7 +130,7 @@ export default function AdminNoticesPage() {
     }
 
     if (!createTitle.trim() || !createBody.trim()) {
-      setActionError('Completa titulo y contenido.');
+      setActionError('Completa título y contenido.');
       return;
     }
 
