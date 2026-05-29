@@ -138,8 +138,13 @@ export async function saveEvidenceFile(input: {
       contentType: mimeType,
     });
   } else {
-    // Local filesystem fallback (dev only — files written to .data/uploads/evidence/)
-    const absolutePath = resolvePrivateEvidenceStoragePath(storagePath);
+    // Local filesystem fallback (dev only — files written to .data/uploads/evidence/).
+    // Build path directly under PRIVATE_EVIDENCE_DIRECTORY using storagePath as sub-key,
+    // so readEvidenceFile can serve it back later.
+    const localStoragePath = path.join(PRIVATE_EVIDENCE_DIRECTORY, storagePath);
+    const absolutePath = path.resolve(process.cwd(), localStoragePath);
+    const absolutePrivateRoot = path.resolve(process.cwd(), PRIVATE_EVIDENCE_DIRECTORY);
+    if (!isPathInsideRoot(absolutePath, absolutePrivateRoot)) throw new Error('Ruta de evidencia invalida.');
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, fileBuffer);
   }

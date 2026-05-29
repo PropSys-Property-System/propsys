@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteEvidenceFile, readEvidenceFile, saveEvidenceFile } from './evidence-storage';
 
 const fsMocks = vi.hoisted(() => ({
@@ -39,6 +39,14 @@ describe('evidence storage', () => {
     supabaseMocks.uploadPrivateObject.mockReset();
     supabaseMocks.downloadPrivateObject.mockReset();
     supabaseMocks.deletePrivateObject.mockReset();
+    // Simulate Supabase Storage being configured so tests exercise the Supabase path.
+    process.env['SUPABASE_URL'] = 'https://test.supabase.co';
+    process.env['SUPABASE_STORAGE_EVIDENCE_BUCKET'] = 'test-evidence-bucket';
+  });
+
+  afterEach(() => {
+    delete process.env['SUPABASE_URL'];
+    delete process.env['SUPABASE_STORAGE_EVIDENCE_BUCKET'];
   });
 
   it('stores new evidence in private Supabase Storage and exposes only the authenticated API URL', async () => {
@@ -128,5 +136,32 @@ describe('evidence storage', () => {
       bucketEnvName: 'SUPABASE_STORAGE_EVIDENCE_BUCKET',
       objectKey: 'client_001/b1/evidence/chk-exec-1/ev_test.jpg',
     });
+  });
+
+  it('falls back to local filesystem when Supabase Storage env vars are absent', async () => {
+    // Remove env vars that were set in beforeEach.
+    delete process.env['SUPABASE_URL'];
+    delete process.env['SUPABASE_STORAGE_EVIDENCE_BUCKET'];
+
+    fsMocks.mkdir.mockResolvedValue(undefined);
+    fsMocks.writeFile.mockResolvedValue(undefined);
+
+    const file = new File([new Uint8Array([1, 2, 3])], 'foto.jpg', { type: 'image/jpeg' });
+
+    const saved = await saveEvidenceFile({
+      clientId: 'client_001',
+      buildingId: 'b1',
+      checklistExecutionId: 'chk-exec-1',
+      evidenceId: 'ev_local',
+      file,
+    });
+
+    expect(saved.storagePath).toBe('client_001/b1/evidence/chk-exec-1/ev_local.jpg');
+    expect(saved.publicPath).toBe('/api/v1/operation/evidence/ev_local');
+    expect(supabaseMocks.uploadPrivateObject).not.toHaveBeenCalled();
+    expect(fsMocks.mkdir).toHaveBeenCalled();
+    expect(fsMocks.writeFile).toHaveBeenCalled();
+    const writtenPath = String(fsMocks.writeFile.mock.calls[0][0]);
+    expect(writtenPath).toContain(path.join('.data', 'uploads', 'evidence'));
   });
 });
