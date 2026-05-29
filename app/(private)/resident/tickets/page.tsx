@@ -96,9 +96,15 @@ export default function ResidentTicketsPage() {
       });
 
       if (createFile) {
-        await evidenceRepo.uploadForIncident(user, { incidentId: newTicket.id, file: createFile }).catch(() => {
-          // Si falla, el ticket igual se creó.
-        });
+        try {
+          await evidenceRepo.uploadForIncident(user, { incidentId: newTicket.id, file: createFile });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'La incidencia se creó, pero falló la subida de evidencia.';
+          setActionError(msg);
+          setIsSubmitting(false);
+          await reload();
+          return;
+        }
       }
 
       setIsCreateOpen(false);
