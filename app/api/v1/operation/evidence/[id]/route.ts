@@ -20,7 +20,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     user.internalRole !== 'ROOT_ADMIN' &&
     user.internalRole !== 'CLIENT_MANAGER' &&
     user.internalRole !== 'BUILDING_ADMIN' &&
-    user.internalRole !== 'STAFF'
+    user.internalRole !== 'STAFF' &&
+    user.internalRole !== 'OWNER' &&
+    user.internalRole !== 'OCCUPANT'
   ) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
@@ -34,15 +36,18 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     id: string;
     client_id: string;
     building_id: string;
+    unit_id: string | null;
+    incident_id: string | null;
     checklist_execution_id: string | null;
     storage_path: string | null;
     public_path: string | null;
     url: string | null;
     file_name: string;
     mime_type: string;
+    uploaded_by_user_id: string;
     deleted_at: string | null;
   }>(
-    `SELECT id, client_id, building_id, checklist_execution_id, storage_path, public_path, url, file_name, mime_type, deleted_at
+    `SELECT id, client_id, building_id, unit_id, incident_id, checklist_execution_id, storage_path, public_path, url, file_name, mime_type, uploaded_by_user_id, deleted_at
      FROM evidence_attachments
      WHERE id = $1
      LIMIT 1`,
@@ -54,6 +59,47 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
   }
 
+  // ── OWNER / OCCUPANT ─────────────────────────────────────────────────────
+  // Allowed if: (1) they uploaded it, (2) they reported the incident it belongs
+  // to, or (3) they have an active unit assignment to the incident's unit.
+  if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
+    // (1) uploader
+    if (evidence.uploaded_by_user_id === user.id) {
+      // authorized — fall through to file serve
+    } else if (evidence.incident_id) {
+      // (2) reporter of the incident
+      const incRes = await pool.query<{ reported_by_user_id: string; unit_id: string | null }>(
+        `SELECT reported_by_user_id, unit_id
+         FROM incidents
+         WHERE id = $1 AND client_id = $2
+         LIMIT 1`,
+        [evidence.incident_id, evidence.client_id]
+      );
+      const inc = incRes.rows[0];
+      if (!inc) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+
+      if (inc.reported_by_user_id === user.id) {
+        // authorized — fall through
+      } else if (inc.unit_id) {
+        // (3) active unit assignment
+        const ok = await pool.query<{ ok: boolean }>(
+          `SELECT true as ok
+           FROM user_unit_assignments
+           WHERE user_id = $1 AND unit_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+           LIMIT 1`,
+          [user.id, inc.unit_id]
+        );
+        if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      } else {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      }
+    } else {
+      // No incident context and not the uploader → deny
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+  }
+
+  // ── STAFF ─────────────────────────────────────────────────────────────────
   if (user.internalRole === 'STAFF') {
     if (!evidence.checklist_execution_id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     const execRes = await pool.query<{ assigned_to_user_id: string }>(
@@ -68,6 +114,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     }
   }
 
+  // ── BUILDING_ADMIN ────────────────────────────────────────────────────────
   if (user.internalRole === 'BUILDING_ADMIN') {
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
@@ -91,6 +138,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     },
   });
 }
+
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req);

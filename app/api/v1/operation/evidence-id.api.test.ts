@@ -41,6 +41,8 @@ vi.mock('@/lib/server/auth/get-session-user', () => ({
 function evidenceRow(
   overrides: Partial<{
     checklist_execution_id: string | null;
+    incident_id: string | null;
+    unit_id: string | null;
     file_name: string;
     mime_type: string;
     public_path: string | null;
@@ -53,6 +55,8 @@ function evidenceRow(
     id: 'ev_1',
     client_id: 'client_001',
     building_id: 'b1',
+    unit_id: null,
+    incident_id: null,
     checklist_execution_id: 'chk-exec-1',
     file_name: 'evidencia.jpg',
     mime_type: 'image/jpeg',
@@ -209,5 +213,240 @@ describe('evidence DELETE /[id] (audit regression)', () => {
     const res = await deleteEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
     expect(res.status).toBe(403);
     expect(connect).not.toHaveBeenCalled();
+  });
+
+  // ── OWNER / OCCUPANT GET authorization ──────────────────────────────────
+
+  it('allows OWNER who uploaded the evidence to read it (uploaded_by_user_id match)', async () => {
+    sessionUser.internalRole = 'OWNER';
+    sessionUser.id = 'u_owner';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [evidenceRow({
+            incident_id: 'inc-1',
+            unit_id: 'u1',
+            checklist_execution_id: null,
+            uploaded_by_user_id: 'u_owner',
+          })],
+        };
+      }
+      return { rows: [] };
+    });
+    storageMocks.readEvidenceFile.mockResolvedValue(Buffer.from([7, 8, 9]));
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(200);
+    expect(storageMocks.readEvidenceFile).toHaveBeenCalledTimes(1);
+    // Must NOT query incidents because uploader match short-circuits
+    const calls = poolQuery.mock.calls.map(([sql]) => sql as string);
+    expect(calls.every((s) => !s.includes('FROM incidents'))).toBe(true);
+  });
+
+  it('allows OWNER who reported the incident to read evidence uploaded by someone else', async () => {
+    sessionUser.internalRole = 'OWNER';
+    sessionUser.id = 'u_owner';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [evidenceRow({
+            incident_id: 'inc-1',
+            unit_id: 'u1',
+            checklist_execution_id: null,
+            uploaded_by_user_id: 'u_admin', // NOT the owner
+          })],
+        };
+      }
+      if (sql.includes('FROM incidents')) {
+        return { rows: [{ reported_by_user_id: 'u_owner', unit_id: 'u1' }] };
+      }
+      return { rows: [] };
+    });
+    storageMocks.readEvidenceFile.mockResolvedValue(Buffer.from([10, 11]));
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('allows OCCUPANT with active unit assignment to read evidence of their unit incident', async () => {
+    sessionUser.internalRole = 'OCCUPANT';
+    sessionUser.id = 'u_occ';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [evidenceRow({
+            incident_id: 'inc-1',
+            unit_id: 'u1',
+            checklist_execution_id: null,
+            uploaded_by_user_id: 'u_other',
+          })],
+        };
+      }
+      if (sql.includes('FROM incidents')) {
+        // incident reported by someone else but unit matches
+        return { rows: [{ reported_by_user_id: 'u_other', unit_id: 'u1' }] };
+      }
+      if (sql.includes('FROM user_unit_assignments')) {
+        // occupant has active assignment to that unit
+        return { rows: [{ ok: true }] };
+      }
+      return { rows: [] };
+    });
+    storageMocks.readEvidenceFile.mockResolvedValue(Buffer.from([1]));
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 403 when OWNER/OCCUPANT belongs to a different unit and is not the uploader', async () => {
+    sessionUser.internalRole = 'OWNER';
+    sessionUser.id = 'u_wrong';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [evidenceRow({
+            incident_id: 'inc-1',
+            unit_id: 'u1',
+            checklist_execution_id: null,
+            uploaded_by_user_id: 'u_other',
+          })],
+        };
+      }
+      if (sql.includes('FROM incidents')) {
+        return { rows: [{ reported_by_user_id: 'u_other', unit_id: 'u1' }] };
+      }
+      if (sql.includes('FROM user_unit_assignments')) {
+        // no active assignment for this user on that unit
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(403);
+    expect(storageMocks.readEvidenceFile).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when OWNER requests evidence with no incident context and is not the uploader', async () => {
+    sessionUser.internalRole = 'OWNER';
+    sessionUser.id = 'u_owner';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [evidenceRow({
+            incident_id: null,           // no incident
+            checklist_execution_id: null,
+            uploaded_by_user_id: 'u_staff', // not the owner
+          })],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(403);
+    expect(storageMocks.readEvidenceFile).not.toHaveBeenCalled();
+  });
+
+  it('allows CLIENT_MANAGER of the same client to read incident evidence', async () => {
+    sessionUser.internalRole = 'CLIENT_MANAGER';
+    sessionUser.id = 'u_mgr';
+    sessionUser.clientId = 'client_001';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [evidenceRow({
+            incident_id: 'inc-1',
+            unit_id: 'u1',
+            checklist_execution_id: null,
+            uploaded_by_user_id: 'u_owner',
+          })],
+        };
+      }
+      return { rows: [] };
+    });
+    storageMocks.readEvidenceFile.mockResolvedValue(Buffer.from([1, 2]));
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(200);
+    // No STAFF/OWNER branches should have been entered
+    const calls = poolQuery.mock.calls.map(([sql]) => sql as string);
+    expect(calls.every((s) => !s.includes('FROM incidents') && !s.includes('FROM user_unit_assignments'))).toBe(true);
+  });
+
+  it('allows BUILDING_ADMIN assigned to the building to read incident evidence', async () => {
+    sessionUser.internalRole = 'BUILDING_ADMIN';
+    sessionUser.id = 'u_badmin';
+    sessionUser.clientId = 'client_001';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [evidenceRow({
+            incident_id: 'inc-1',
+            unit_id: 'u1',
+            checklist_execution_id: null,
+            uploaded_by_user_id: 'u_owner',
+          })],
+        };
+      }
+      if (sql.includes('FROM user_building_assignments')) {
+        return { rows: [{ ok: true }] };
+      }
+      return { rows: [] };
+    });
+    storageMocks.readEvidenceFile.mockResolvedValue(Buffer.from([3, 4]));
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 403 when BUILDING_ADMIN is not assigned to the evidence building', async () => {
+    sessionUser.internalRole = 'BUILDING_ADMIN';
+    sessionUser.id = 'u_badmin';
+    sessionUser.clientId = 'client_001';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [evidenceRow({
+            incident_id: 'inc-1',
+            unit_id: 'u1',
+            checklist_execution_id: null,
+            uploaded_by_user_id: 'u_owner',
+          })],
+        };
+      }
+      if (sql.includes('FROM user_building_assignments')) {
+        return { rows: [] }; // not assigned
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(403);
+    expect(storageMocks.readEvidenceFile).not.toHaveBeenCalled();
   });
 });
