@@ -1,4 +1,4 @@
-import { readFile, unlink } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   deletePrivateObject,
@@ -123,16 +123,30 @@ export async function saveEvidenceFile(input: {
   const publicPath = `/api/v1/operation/evidence/${encodeURIComponent(input.evidenceId)}`;
 
   const arrayBuffer = await input.file.arrayBuffer();
-  await uploadPrivateObject({
-    bucketEnvName: EVIDENCE_BUCKET_ENV,
-    objectKey: storagePath,
-    body: Buffer.from(arrayBuffer),
-    contentType: resolveMimeType(safeFileName, input.file.type),
-  });
+  const fileBuffer = Buffer.from(arrayBuffer);
+  const mimeType = resolveMimeType(safeFileName, input.file.type);
+
+  // Use Supabase Storage when configured; fall back to local filesystem for dev.
+  const supabaseUrl = process.env['SUPABASE_URL']?.trim();
+  const supabaseBucket = process.env[EVIDENCE_BUCKET_ENV]?.trim();
+
+  if (supabaseUrl && supabaseBucket) {
+    await uploadPrivateObject({
+      bucketEnvName: EVIDENCE_BUCKET_ENV,
+      objectKey: storagePath,
+      body: fileBuffer,
+      contentType: mimeType,
+    });
+  } else {
+    // Local filesystem fallback (dev only — files written to .data/uploads/evidence/)
+    const absolutePath = resolvePrivateEvidenceStoragePath(storagePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, fileBuffer);
+  }
 
   return {
     originalName: safeFileName,
-    mimeType: resolveMimeType(safeFileName, input.file.type),
+    mimeType,
     publicPath,
     sizeBytes: input.file.size,
     storagePath,

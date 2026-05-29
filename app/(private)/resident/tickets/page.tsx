@@ -95,24 +95,27 @@ export default function ResidentTicketsPage() {
         priority: createPriority,
       });
 
-      if (createFile) {
-        try {
-          await evidenceRepo.uploadForIncident(user, { incidentId: newTicket.id, file: createFile });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'La incidencia se creó, pero falló la subida de evidencia.';
-          setActionError(msg);
-          setIsSubmitting(false);
-          await reload();
-          return;
-        }
-      }
-
+      // Close and reset the modal immediately after the ticket is created.
+      // This prevents duplicate submissions if the user clicks "Crear" again.
+      const fileToUpload = createFile;
       setIsCreateOpen(false);
       setCreateUnitId('');
       setCreateTitle('');
       setCreateDescription('');
       setCreatePriority('MEDIUM');
       setCreateFile(null);
+
+      // Upload evidence after the modal is already closed.
+      // If it fails, show a page-level banner — the ticket already exists.
+      if (fileToUpload) {
+        try {
+          await evidenceRepo.uploadForIncident(user, { incidentId: newTicket.id, file: fileToUpload });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'La incidencia se creó, pero falló la subida de evidencia.';
+          setActionError(msg);
+        }
+      }
+
       await reload();
     } catch {
       setActionError('No pudimos crear la incidencia.');
@@ -120,6 +123,7 @@ export default function ResidentTicketsPage() {
       setIsSubmitting(false);
     }
   };
+
 
   const actions = canCreate ? (
     <button
