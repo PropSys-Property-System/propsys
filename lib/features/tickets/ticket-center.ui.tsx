@@ -53,7 +53,9 @@ type ResidentTicketComposerDialogProps = {
   title: string;
   description: string;
   priority: IncidentEntity['priority'];
+  error?: string | null;
   onClose: () => void;
+  onBuildingChange?: (buildingId: string) => void;
   onUnitChange: (unitId: string) => void;
   onTitleChange: (title: string) => void;
   onDescriptionChange: (description: string) => void;
@@ -472,12 +474,13 @@ export function ResidentTicketComposerDialog({
   title,
   description,
   priority,
-  evidenceFile,
+  error,
   onClose,
   onUnitChange,
   onTitleChange,
   onDescriptionChange,
   onPriorityChange,
+  evidenceFile,
   onEvidenceChange,
   onSubmit,
 }: ResidentTicketComposerDialogProps) {
@@ -501,6 +504,11 @@ export function ResidentTicketComposerDialog({
         </div>
 
         <div className="mt-5 space-y-3">
+          {error && (
+            <div className="p-3 bg-rose-50 text-rose-600 text-xs font-bold rounded-xl border border-rose-100">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Unidad</label>
             <select

@@ -183,6 +183,7 @@ export default function ResidentTicketsPage() {
         title={createTitle}
         description={createDescription}
         priority={createPriority}
+        error={actionError}
         evidenceFile={createFile}
         onClose={() => setIsCreateOpen(false)}
         onUnitChange={setCreateUnitId}

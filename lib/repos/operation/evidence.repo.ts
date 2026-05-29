@@ -12,7 +12,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const evidenceRepo = {
   async listForUser(user: User): Promise<EvidenceAttachment[]> {
     if (isDbMode()) {
-      const data = await fetchJsonOrThrow<{ evidence: EvidenceAttachment[] }>('/api/v1/operation/evidence', {
+      const data = await fetchJsonOrThrow<{ evidence: EvidenceAttachment[] }>(`/api/v1/operation/evidence?_t=${Date.now()}`, {
         credentials: 'include',
       });
       return data.evidence;
