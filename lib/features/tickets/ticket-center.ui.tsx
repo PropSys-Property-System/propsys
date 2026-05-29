@@ -58,6 +58,8 @@ type ResidentTicketComposerDialogProps = {
   onTitleChange: (title: string) => void;
   onDescriptionChange: (description: string) => void;
   onPriorityChange: (priority: IncidentEntity['priority']) => void;
+  evidenceFile: File | null;
+  onEvidenceChange: (file: File | null) => void;
   onSubmit: () => void;
 };
 
