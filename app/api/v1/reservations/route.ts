@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { getPool } from '@/lib/server/db/client';
 import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
@@ -109,6 +109,27 @@ function toLegacyReservation(e: ReservationEntity): Reservation {
   };
 }
 
+function toAvailabilityBusyBlock(e: ReservationEntity) {
+  const safeId = createHash('sha256')
+    .update([e.clientId, e.buildingId, e.commonAreaId, e.startAt, e.endAt].join(':'))
+    .digest('hex')
+    .slice(0, 16);
+
+  return {
+    id: `busy_${safeId}`,
+    buildingId: e.buildingId,
+    commonAreaId: e.commonAreaId,
+    startAt: e.startAt,
+    endAt: e.endAt,
+    busy: true,
+  };
+}
+
+function toResidentAvailabilityReservation(e: ReservationEntity, userId: string) {
+  if (e.createdByUserId === userId) return toLegacyReservation(e);
+  return toAvailabilityBusyBlock(e);
+}
+
 export async function GET(req: Request) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
@@ -146,11 +167,12 @@ export async function GET(req: Request) {
          WHERE deleted_at IS NULL
            ${tenantWhere}
            AND building_id = ANY($${tenantParams.length + 1}::text[])
+           AND status IN ('REQUESTED', 'APPROVED')
          ORDER BY start_at DESC`,
         [...tenantParams, buildingIds]
       );
-      const entities = rows.rows.map(toEntity);
-      return NextResponse.json({ reservations: entities.map(toLegacyReservation) });
+      const entities = rows.rows.map(toEntity).filter((entity) => entity.status === 'REQUESTED' || entity.status === 'APPROVED');
+      return NextResponse.json({ reservations: entities.map((entity) => toResidentAvailabilityReservation(entity, user.id)) });
     }
 
     const unitIds = await listUnitIdsForUser(pool, user);

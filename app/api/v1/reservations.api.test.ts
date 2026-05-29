@@ -170,6 +170,173 @@ describe('reservations API (route handlers)', () => {
     expect(ids.has('resv_c2')).toBe(false);
   });
 
+  it('returns resident availability with own details and other reservations as sanitized busy blocks', async () => {
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'OCCUPANT';
+    (sessionUser as { role: string }).role = 'TENANT';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u5';
+
+    const own = reservationRow({
+      id: 'resv_own',
+      clientId: 'client_001',
+      buildingId: 'b1',
+      unitId: 'unit-102',
+      commonAreaId: 'ca-1',
+      createdByUserId: 'u5',
+      status: 'APPROVED',
+    });
+    const other = reservationRow({
+      id: 'resv_other',
+      clientId: 'client_001',
+      buildingId: 'b1',
+      unitId: 'unit-999',
+      commonAreaId: 'ca-2',
+      createdByUserId: 'u_other',
+      status: 'REQUESTED',
+    });
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT DISTINCT u.building_id')) return { rows: [{ building_id: 'b1' }] };
+      if (sql.includes('FROM reservations')) return { rows: [own, other] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/reservations?scope=availability', { method: 'GET' });
+    const res = await listReservations(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { reservations: Array<Record<string, unknown>> };
+
+    const ownReservation = data.reservations.find((reservation) => reservation.id === 'resv_own');
+    expect(ownReservation).toMatchObject({
+      id: 'resv_own',
+      buildingId: 'b1',
+      unitId: 'unit-102',
+      commonAreaId: 'ca-1',
+      createdByUserId: 'u5',
+      status: 'APPROVED',
+    });
+
+    const busyBlock = data.reservations.find((reservation) => reservation.commonAreaId === 'ca-2');
+    expect(busyBlock).toMatchObject({
+      buildingId: 'b1',
+      commonAreaId: 'ca-2',
+      startAt: other.start_at,
+      endAt: other.end_at,
+      busy: true,
+    });
+    expect(busyBlock?.id).toEqual(expect.stringMatching(/^busy_[a-f0-9]{16}$/));
+    expect(busyBlock?.id).not.toBe('resv_other');
+    expect(busyBlock).not.toHaveProperty('unitId');
+    expect(busyBlock).not.toHaveProperty('createdByUserId');
+    expect(busyBlock).not.toHaveProperty('status');
+    expect(busyBlock).not.toHaveProperty('clientId');
+  });
+
+  it('omits cancelled and rejected reservations from resident availability', async () => {
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'OCCUPANT';
+    (sessionUser as { role: string }).role = 'TENANT';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u5';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT DISTINCT u.building_id')) return { rows: [{ building_id: 'b1' }] };
+      if (sql.includes('FROM reservations')) {
+        return {
+          rows: [
+            reservationRow({
+              id: 'resv_requested',
+              clientId: 'client_001',
+              buildingId: 'b1',
+              unitId: 'unit-101',
+              commonAreaId: 'ca-1',
+              createdByUserId: 'u_other',
+              status: 'REQUESTED',
+            }),
+            reservationRow({
+              id: 'resv_cancelled',
+              clientId: 'client_001',
+              buildingId: 'b1',
+              unitId: 'unit-102',
+              commonAreaId: 'ca-1',
+              createdByUserId: 'u_other',
+              status: 'CANCELLED',
+            }),
+            reservationRow({
+              id: 'resv_rejected',
+              clientId: 'client_001',
+              buildingId: 'b1',
+              unitId: 'unit-103',
+              commonAreaId: 'ca-1',
+              createdByUserId: 'u_other',
+              status: 'REJECTED',
+            }),
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/reservations?scope=availability', { method: 'GET' });
+    const res = await listReservations(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { reservations: Array<{ id: string }> };
+
+    expect(data.reservations).toHaveLength(1);
+    expect(data.reservations[0].id).toEqual(expect.stringMatching(/^busy_[a-f0-9]{16}$/));
+  });
+
+  it('keeps client manager availability responses detailed for management views', async () => {
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'CLIENT_MANAGER';
+    (sessionUser as { role: string }).role = 'MANAGER';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u_mgr';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT id FROM buildings WHERE client_id = $1')) return { rows: [{ id: 'b1' }] };
+      if (sql.includes('FROM reservations')) {
+        return {
+          rows: [
+            reservationRow({
+              id: 'resv_managed',
+              clientId: 'client_001',
+              buildingId: 'b1',
+              unitId: 'unit-101',
+              commonAreaId: 'ca-1',
+              createdByUserId: 'u_resident',
+              status: 'REQUESTED',
+            }),
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/reservations?scope=availability', { method: 'GET' });
+    const res = await listReservations(req);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { reservations: Array<Record<string, unknown>> };
+
+    expect(data.reservations).toHaveLength(1);
+    expect(data.reservations[0]).toMatchObject({
+      id: 'resv_managed',
+      buildingId: 'b1',
+      unitId: 'unit-101',
+      commonAreaId: 'ca-1',
+      createdByUserId: 'u_resident',
+      status: 'REQUESTED',
+    });
+    expect(data.reservations[0]).not.toHaveProperty('busy');
+  });
+
   it('rejects creating a reservation for a unit without the matching occupant assignment', async () => {
     poolQuery.mockReset();
     clientQuery.mockReset();
