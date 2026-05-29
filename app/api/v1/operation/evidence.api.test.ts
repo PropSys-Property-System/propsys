@@ -371,4 +371,98 @@ describe('evidence API', () => {
     expect(data.error).toBe('No autorizado');
     expect(storageMocks.saveEvidenceFile).not.toHaveBeenCalled();
   });
+
+  // Regression: incidents table has no deleted_at column in production (Postgres 42703).
+  // The route must NOT include `deleted_at IS NULL` in any query against `incidents`.
+  it('regression: POST incident evidence query does not use incidents.deleted_at', async () => {
+    sessionUser.internalRole = 'OWNER';
+    sessionUser.id = 'u_owner';
+    sessionUser.clientId = 'client_001';
+
+    const capturedSqls: string[] = [];
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      capturedSqls.push(sql);
+      if (sql.includes('FROM incidents')) {
+        return {
+          rows: [{ id: 'inc-1', client_id: 'client_001', building_id: 'b1', unit_id: null, reported_by_user_id: 'u_owner', assigned_to_user_id: null, status: 'OPEN' }],
+        };
+      }
+      return { rows: [] };
+    });
+
+    storageMocks.saveEvidenceFile.mockResolvedValue({
+      originalName: 'proof.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 2,
+      storagePath: '.data/uploads/evidence/incident/inc-1/ev_reg.jpg',
+      publicPath: '/api/v1/operation/evidence/ev_reg',
+    });
+
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT') return { rows: [] };
+      if (sql.includes('INSERT INTO evidence_attachments')) {
+        return {
+          rows: [{
+            id: 'ev_reg', client_id: 'client_001', building_id: 'b1', unit_id: null,
+            incident_id: 'inc-1', task_id: null, checklist_execution_id: null,
+            file_name: 'proof.jpg', mime_type: 'image/jpeg', size_bytes: 2,
+            storage_path: '.data/uploads/evidence/incident/inc-1/ev_reg.jpg',
+            public_path: '/api/v1/operation/evidence/ev_reg',
+            url: '/api/v1/operation/evidence/ev_reg',
+            uploaded_by_user_id: 'u_owner', created_at: new Date().toISOString(), deleted_at: null,
+          }],
+        };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const formData = new FormData();
+    formData.set('incidentId', 'inc-1');
+    formData.set('file', new File([new Uint8Array([1, 2])], 'proof.jpg', { type: 'image/jpeg' }));
+    const req = new Request('http://localhost/api/v1/operation/evidence', { method: 'POST', body: formData });
+    Object.defineProperty(req, 'formData', { value: async () => formData });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    // Verify none of the incidents queries used deleted_at
+    const incidentSqls = capturedSqls.filter((s) => s.includes('FROM incidents'));
+    expect(incidentSqls.length).toBeGreaterThan(0);
+    for (const sql of incidentSqls) {
+      expect(sql).not.toContain('deleted_at');
+    }
+  });
+
+  it('regression: GET incident evidence query does not use incidents.deleted_at', async () => {
+    sessionUser.internalRole = 'STAFF';
+    sessionUser.id = 'u_staff';
+    sessionUser.clientId = 'client_001';
+
+    const capturedSqls: string[] = [];
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      capturedSqls.push(sql);
+      if (sql.includes('FROM incidents')) {
+        return {
+          rows: [{ id: 'inc-2', client_id: 'client_001', building_id: 'b1', reported_by_user_id: 'u_other', assigned_to_user_id: 'u_staff', unit_id: null }],
+        };
+      }
+      if (sql.includes('FROM evidence_attachments')) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence?incidentId=inc-2', { method: 'GET' });
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const incidentSqls = capturedSqls.filter((s) => s.includes('FROM incidents'));
+    expect(incidentSqls.length).toBeGreaterThan(0);
+    for (const sql of incidentSqls) {
+      expect(sql).not.toContain('deleted_at');
+    }
+  });
 });

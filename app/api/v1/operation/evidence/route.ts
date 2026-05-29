@@ -154,7 +154,7 @@ export async function GET(req: Request) {
     const incRes = await pool.query<{ id: string; client_id: string; building_id: string; reported_by_user_id: string; assigned_to_user_id: string | null; unit_id: string | null }>(
       `SELECT id, client_id, building_id, reported_by_user_id, assigned_to_user_id, unit_id
        FROM incidents
-       WHERE id = $1 AND deleted_at IS NULL
+       WHERE id = $1
        LIMIT 1`,
       [incidentId]
     );
@@ -294,7 +294,7 @@ export async function POST(req: Request) {
     }>(
       `SELECT id, client_id, building_id, unit_id, reported_by_user_id, assigned_to_user_id, status
        FROM incidents
-       WHERE id = $1 AND deleted_at IS NULL
+       WHERE id = $1
        LIMIT 1`,
       [incidentId]
     );
