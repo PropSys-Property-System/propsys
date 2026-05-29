@@ -1,8 +1,10 @@
-import { CalendarDays } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDateTime, formatTime } from '@/lib/presentation/dates';
 import { labelReservationStatus } from '@/lib/presentation/labels';
 import type { ReservationDisplayStatus } from '@/lib/features/reservations/reservations-center.data';
-import type { CommonArea, Reservation, Unit } from '@/lib/types';
+import type { CommonArea, Reservation, Unit, Building } from '@/lib/types';
+import { getStartOfWeek, getWeekDays, formatReservationTimeRange, groupReservationsByDay, isReservationInWeek } from './reservations-calendar.utils';
 
 type AdminReservationCardProps = {
   reservation: Reservation;
@@ -428,6 +430,176 @@ export function ReservationComposerDialog({
           >
             Reservar
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export type ReservationsCalendarViewProps = {
+  reservations: Reservation[];
+  areas: CommonArea[];
+  buildings: Building[];
+  units: Unit[];
+  currentUserId: string;
+  isAdmin: boolean;
+};
+
+export function ReservationsCalendarView({
+  reservations,
+  areas,
+  buildings,
+  units,
+  currentUserId,
+  isAdmin,
+}: ReservationsCalendarViewProps) {
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getStartOfWeek(new Date()));
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string>('');
+  const [selectedAreaId, setSelectedAreaId] = useState<string>('');
+
+  const weekDays = useMemo(() => getWeekDays(currentWeekStart), [currentWeekStart]);
+
+  const goToPreviousWeek = () => {
+    const next = new Date(currentWeekStart);
+    next.setDate(next.getDate() - 7);
+    setCurrentWeekStart(next);
+  };
+
+  const goToNextWeek = () => {
+    const next = new Date(currentWeekStart);
+    next.setDate(next.getDate() + 7);
+    setCurrentWeekStart(next);
+  };
+
+  const goToToday = () => {
+    setCurrentWeekStart(getStartOfWeek(new Date()));
+  };
+
+  // Filtrar reservas
+  const visibleReservations = useMemo(() => {
+    return reservations.filter(r => {
+      // Regla de privacidad y estados cancelados:
+      if (r.status === 'CANCELLED' || r.status === 'REJECTED') return false;
+
+      // Filtro de UI
+      if (selectedBuildingId && r.buildingId !== selectedBuildingId) return false;
+      if (selectedAreaId && r.commonAreaId !== selectedAreaId) return false;
+
+      // Filtro de semana
+      if (!isReservationInWeek(r, currentWeekStart)) return false;
+
+      return true;
+    });
+  }, [reservations, selectedBuildingId, selectedAreaId, currentWeekStart]);
+
+  const groupedReservations = useMemo(() => groupReservationsByDay(visibleReservations), [visibleReservations]);
+
+  const areaNameById = useMemo(() => new Map(areas.map((a) => [a.id, a.name])), [areas]);
+  const unitLabelById = useMemo(() => new Map(units.map((u) => [u.id, `Depto ${u.number}`])), [units]);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+      <div className="p-4 md:p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <button onClick={goToPreviousWeek} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+            <ChevronLeft className="w-5 h-5 text-slate-600" />
+          </button>
+          <button onClick={goToToday} className="px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-sm font-bold text-slate-700">
+            Hoy
+          </button>
+          <button onClick={goToNextWeek} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+            <ChevronRight className="w-5 h-5 text-slate-600" />
+          </button>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select 
+            value={selectedBuildingId} 
+            onChange={(e) => { setSelectedBuildingId(e.target.value); setSelectedAreaId(''); }}
+            className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="">Todos los edificios</option>
+            {buildings.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          <select 
+            value={selectedAreaId} 
+            onChange={(e) => setSelectedAreaId(e.target.value)}
+            disabled={!selectedBuildingId}
+            className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+          >
+            <option value="">Todas las áreas comunes</option>
+            {areas.filter(a => a.buildingId === selectedBuildingId).map(a => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[800px] grid grid-cols-7 divide-x divide-slate-100 border-b border-slate-100">
+          {weekDays.map((day, idx) => {
+            const isToday = new Date().toDateString() === day.toDateString();
+            const dateKey = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+            const dayReservations = groupedReservations.get(dateKey) || [];
+
+            return (
+              <div key={idx} className="min-h-[500px] flex flex-col">
+                <div className={`p-3 border-b border-slate-100 text-center ${isToday ? 'bg-primary/5' : 'bg-slate-50/50'}`}>
+                  <p className={`text-xs font-black uppercase tracking-widest ${isToday ? 'text-primary' : 'text-slate-500'}`}>
+                    {day.toLocaleDateString('es-ES', { weekday: 'short' })}
+                  </p>
+                  <p className={`mt-1 text-lg font-black ${isToday ? 'text-primary' : 'text-slate-900'}`}>
+                    {day.getDate()}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">
+                    {day.toLocaleDateString('es-ES', { month: 'short' })}
+                  </p>
+                </div>
+                
+                <div className="flex-1 p-2 space-y-2 bg-slate-50/20">
+                  {dayReservations.map(r => {
+                    const isOwner = r.createdByUserId === currentUserId;
+                    const canSeeDetails = isAdmin || isOwner;
+                    const timeRange = formatReservationTimeRange(r.startAt, r.endAt);
+                    
+                    let bgColor = 'bg-white border-slate-200';
+                    let textColor = 'text-slate-700';
+                    if (r.status === 'REQUESTED') {
+                      bgColor = 'bg-amber-50 border-amber-200';
+                      textColor = 'text-amber-800';
+                    } else if (r.status === 'APPROVED') {
+                      bgColor = 'bg-emerald-50 border-emerald-200';
+                      textColor = 'text-emerald-800';
+                    }
+
+                    if (!canSeeDetails) {
+                      return (
+                        <div key={r.id} className="p-2.5 rounded-xl border border-slate-200 bg-slate-100">
+                          <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Ocupado</p>
+                          <p className="text-xs font-medium text-slate-400 mt-1">{timeRange}</p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={r.id} className={`p-2.5 rounded-xl border shadow-sm ${bgColor}`}>
+                        <p className={`text-xs font-black truncate ${textColor}`}>
+                          {areaNameById.get(r.commonAreaId) || 'Área'}
+                        </p>
+                        <p className="text-[11px] font-bold text-slate-500 mt-1">{timeRange}</p>
+                        {isAdmin && (
+                          <p className="text-[10px] font-bold text-slate-400 truncate mt-1">
+                            {unitLabelById.get(r.unitId)}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
