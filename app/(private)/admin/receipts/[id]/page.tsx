@@ -2,7 +2,7 @@
 
 import React, { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ErrorState, LoadingState } from '@/components/States';
+import { ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   editAdminReceipt,
@@ -12,7 +12,7 @@ import {
   reviewReceiptPaymentProof,
   updateAdminReceiptStatus,
 } from '@/lib/features/receipts/receipts-center.data';
-import { AdminPaymentProofsPanel, AdminReceiptDetailView, AdminReceiptHeaderActions } from '@/lib/features/receipts/receipts-center.ui';
+import { AdminPaymentProofsPanel, AdminReceiptDetailView, AdminReceiptHeaderActions, ReceiptDetailSkeleton } from '@/lib/features/receipts/receipts-center.ui';
 import type { Building as BuildingType, Receipt, ReceiptPaymentProofReviewAction, ReceiptPaymentProofView, Unit as UnitType } from '@/lib/types';
 
 export default function AdminReceiptDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -77,11 +77,7 @@ export default function AdminReceiptDetailPage({ params }: { params: Promise<{ i
     : null;
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
-        <LoadingState title="Cargando recibo..." />
-      </div>
-    );
+    return <ReceiptDetailSkeleton />;
   }
 
   if (loadError) {

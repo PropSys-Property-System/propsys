@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from "@/components/PageHeader";
-import { EmptyState, ErrorState, LoadingState } from "@/components/States";
+import { EmptyState, ErrorState } from "@/components/States";
 import { Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -14,7 +14,7 @@ import {
   type ResidentReceiptsSortOrder,
   type ResidentReceiptsStatusFilter,
 } from '@/lib/features/receipts/receipts-center.data';
-import { ResidentReceiptsList, ResidentReceiptsOverview } from '@/lib/features/receipts/receipts-center.ui';
+import { ResidentReceiptsList, ResidentReceiptsOverview, ResidentReceiptsSkeleton } from '@/lib/features/receipts/receipts-center.ui';
 import { Receipt, ReceiptPaymentProofView } from '@/lib/types';
 import { formatReceiptAmount, summarizeReceiptTotalsByCurrency } from '@/lib/presentation/receipts';
 
@@ -96,6 +96,20 @@ export default function ResidentReceiptsPage() {
     [receipts]
   );
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full bg-slate-50/50">
+        <PageHeader
+          title="Mis Recibos"
+          description="Gestiona tus gastos comunes y comprobantes de pago de PropSys"
+        />
+        <div className="p-6 md:p-8">
+          <ResidentReceiptsSkeleton />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
       <PageHeader 
@@ -162,8 +176,6 @@ export default function ResidentReceiptsPage() {
         <div className="space-y-4">
           {loadError ? (
             <ErrorState title="Error" description={loadError} />
-          ) : isLoading ? (
-            <LoadingState title="Cargando recibos..." />
           ) : filteredReceipts.length > 0 ? (
             <ResidentReceiptsList
               receipts={filteredReceipts}

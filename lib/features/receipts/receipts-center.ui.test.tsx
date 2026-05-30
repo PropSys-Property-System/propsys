@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AdminPaymentProofsPanel,
   AdminReceiptHeaderActions,
+  AdminReceiptsWorkspaceSkeleton,
+  ReceiptDetailSkeleton,
   ResidentReceiptsList,
+  ResidentReceiptsSkeleton,
   ResidentPaymentProofPanel,
 } from './receipts-center.ui';
 import type { Receipt, ReceiptPaymentProofView } from '@/lib/types';
@@ -141,6 +144,25 @@ describe('payment proof receipt UI', () => {
 
     expect(screen.getByRole('button', { name: 'Editar recibo' })).toHaveAttribute('aria-label', 'Editar recibo');
     expect(screen.getByRole('button', { name: 'Imprimir recibo' })).toHaveAttribute('aria-label', 'Imprimir recibo');
+  });
+
+  it('renders resident receipt loading UI without provisional financial values', () => {
+    render(<ResidentReceiptsSkeleton />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando recibos...');
+    expect(screen.queryByText(/0[.,]00/)).not.toBeInTheDocument();
+  });
+
+  it('renders admin receipt workspace loading UI', () => {
+    render(<AdminReceiptsWorkspaceSkeleton />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando recibos...');
+  });
+
+  it('renders shared receipt detail loading UI', () => {
+    render(<ReceiptDetailSkeleton />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando recibo...');
   });
 
   it('renders receipt detail proofs without requiring pendingReceipts', () => {

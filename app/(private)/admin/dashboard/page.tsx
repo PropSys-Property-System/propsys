@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { EmptyState, ErrorState } from '@/components/States';
 import { approveAdminDashboardChecklist, loadAdminDashboardData, type AdminDashboardData } from '@/lib/features/dashboard/admin-dashboard.data';
 import {
   DashboardChecklistPanel,
+  DashboardSkeleton,
   DashboardKpiGrid,
   DashboardQuickLinks,
   DashboardRecentActivityPanel,
@@ -86,7 +87,7 @@ export default function AdminDashboard() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando dashboard..." />
+          <DashboardSkeleton />
         ) : !hasBuildings ? (
           <EmptyState
             title="Sin edificios asignados"

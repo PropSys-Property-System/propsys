@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Download, Plus, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { EmptyState, ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   createAdminReceipt,
@@ -13,7 +13,7 @@ import {
   reviewReceiptPaymentProof,
   updateAdminReceiptStatus,
 } from '@/lib/features/receipts/receipts-center.data';
-import { AdminPaymentProofsPanel, AdminReceiptsList, ReceiptComposerDialog } from '@/lib/features/receipts/receipts-center.ui';
+import { AdminPaymentProofsPanel, AdminReceiptsList, AdminReceiptsWorkspaceSkeleton, ReceiptComposerDialog } from '@/lib/features/receipts/receipts-center.ui';
 import type { Receipt, ReceiptPaymentProofReviewAction, ReceiptPaymentProofView } from '@/lib/types';
 
 function addOneMonthFromDateInput(dateInput: string): string {
@@ -426,9 +426,7 @@ export default function AdminReceiptsPage() {
               <ErrorState title="Error" description={error} />
             </div>
           ) : isLoading ? (
-            <div className="py-12">
-              <LoadingState title="Cargando recibos..." />
-            </div>
+            <AdminReceiptsWorkspaceSkeleton />
           ) : visibleReceipts.length > 0 ? (
             <AdminReceiptsList
               receipts={visibleReceipts}

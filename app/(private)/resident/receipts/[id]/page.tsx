@@ -2,14 +2,14 @@
 
 import React, { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ErrorState, LoadingState } from '@/components/States';
+import { ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   listReceiptPaymentProofsForReceipt,
   loadResidentReceiptDetailData,
   uploadReceiptPaymentProof,
 } from '@/lib/features/receipts/receipts-center.data';
-import { ResidentPaymentProofPanel, ResidentReceiptDetailView, ResidentReceiptHeaderActions } from '@/lib/features/receipts/receipts-center.ui';
+import { ReceiptDetailSkeleton, ResidentPaymentProofPanel, ResidentReceiptDetailView, ResidentReceiptHeaderActions } from '@/lib/features/receipts/receipts-center.ui';
 import type { Building as BuildingType, Receipt, ReceiptPaymentProofView, Unit as UnitType } from '@/lib/types';
 
 interface PageParams {
@@ -65,11 +65,7 @@ export default function ResidentReceiptDetailPage({ params }: { params: Promise<
   }, [resolvedParams.id, user]);
 
   if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
-        <LoadingState title="Cargando recibo..." />
-      </div>
-    );
+    return <ReceiptDetailSkeleton />;
   }
 
   if (loadError) {

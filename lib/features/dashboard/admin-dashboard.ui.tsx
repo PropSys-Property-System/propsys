@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AlertCircle, ArrowRight, Building2, Calendar, Receipt } from 'lucide-react';
 import { KPICard } from '@/components/KPICard';
-import { EmptyState } from '@/components/States';
+import { EmptyState, SkeletonBlock, SkeletonStatus } from '@/components/States';
 import { formatDateTime, formatTime } from '@/lib/presentation/dates';
 import { labelIncidentStatus, labelReceiptStatus, labelReservationStatus } from '@/lib/presentation/labels';
 import type { AdminDashboardActivityItem, AdminDashboardAgendaReservation } from '@/lib/features/dashboard/admin-dashboard.data';
@@ -79,6 +79,64 @@ function activityStatusLabel(activity: AdminDashboardActivityItem) {
   if (activity.type === 'receipt') return labelReceiptStatus(activity.status as ReceiptItem['status']);
   if (activity.type === 'incident') return labelIncidentStatus(activity.status as 'REPORTED' | 'ASSIGNED' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED');
   return labelReservationStatus(activity.status as 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED');
+}
+
+export function DashboardSkeleton() {
+  return (
+    <SkeletonStatus label="Cargando dashboard..." className="space-y-8">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <SkeletonBlock className="mb-4 h-12 w-12 rounded-2xl" />
+            <div className="space-y-3">
+              <SkeletonBlock className="h-3 w-28" />
+              <SkeletonBlock className="h-8 w-16" />
+              <SkeletonBlock className="h-3 w-36" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+        <div className="h-[400px] rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm lg:col-span-2">
+          <SkeletonBlock className="h-4 w-44" />
+          <SkeletonBlock className="mt-3 h-3 w-72 max-w-full" />
+          <div className="mt-6 grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-6">
+            {Array.from({ length: 4 }, (_, index) => (
+              <SkeletonBlock key={index} className="h-12 w-full bg-white" />
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+          <SkeletonBlock className="h-4 w-36" />
+          <div className="mt-8 space-y-6">
+            {Array.from({ length: 3 }, (_, index) => (
+              <div key={index} className="space-y-2">
+                <SkeletonBlock className="h-3 w-3/4" />
+                <SkeletonBlock className="h-3 w-full" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-8 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <SkeletonBlock className="h-3 w-20" />
+            <SkeletonBlock className="mt-3 h-10 w-full bg-white" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }, (_, index) => (
+          <div key={index} className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <SkeletonBlock className="h-10 w-10" />
+            <SkeletonBlock className="mt-4 h-4 w-28" />
+            <SkeletonBlock className="mt-3 h-3 w-full" />
+            <SkeletonBlock className="mt-2 h-3 w-3/4" />
+          </div>
+        ))}
+      </div>
+    </SkeletonStatus>
+  );
 }
 
 export function DashboardKpiGrid({

@@ -17,6 +17,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { ReceiptRow, StatusBadge } from '@/components/Receipts';
+import { CardListSkeleton, SkeletonBlock, SkeletonStatus } from '@/components/States';
 import { formatReceiptAmount, formatReceiptDate } from '@/lib/presentation/receipts';
 import { labelClient, labelReceiptStatus } from '@/lib/presentation/labels';
 import type { Building, Receipt, ReceiptPaymentProofView, Unit } from '@/lib/types';
@@ -129,6 +130,91 @@ type ResidentPaymentProofPanelProps = {
   onUpload: () => void | Promise<void>;
   onOpenProof?: (proof: ReceiptPaymentProofView) => void;
 };
+
+function ReceiptOverviewSkeletonBlocks() {
+  return (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      {Array.from({ length: 2 }, (_, index) => (
+        <div key={index} className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="space-y-3">
+            <SkeletonBlock className="h-3 w-28" />
+            <SkeletonBlock className="h-10 w-36" />
+          </div>
+          <SkeletonBlock className="h-14 w-14 rounded-2xl" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function ResidentReceiptsSkeleton() {
+  return (
+    <SkeletonStatus label="Cargando recibos..." className="space-y-8">
+      <ReceiptOverviewSkeletonBlocks />
+      <div className="space-y-3 border-b border-slate-100 pb-6">
+        <SkeletonBlock className="h-4 w-36" />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }, (_, index) => (
+            <SkeletonBlock key={index} className="h-12 w-full bg-white" />
+          ))}
+        </div>
+      </div>
+      <CardListSkeleton count={3} label={null} />
+    </SkeletonStatus>
+  );
+}
+
+export function AdminReceiptsWorkspaceSkeleton() {
+  return (
+    <SkeletonStatus label="Cargando recibos..." className="space-y-4">
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm md:p-8">
+        <SkeletonBlock className="h-5 w-52" />
+        <SkeletonBlock className="mt-3 h-3 w-96 max-w-full" />
+        <SkeletonBlock className="mt-5 h-20 w-full bg-slate-100" />
+      </section>
+      <CardListSkeleton count={4} label={null} />
+    </SkeletonStatus>
+  );
+}
+
+export function ReceiptDetailSkeleton() {
+  return (
+    <SkeletonStatus label="Cargando recibo..." className="flex h-full flex-col bg-slate-50/50">
+      <div className="border-b border-slate-200 bg-white">
+        <div className="px-6 py-4">
+          <SkeletonBlock className="h-3 w-28" />
+        </div>
+        <div className="border-t border-slate-100 px-6 py-6 md:px-8">
+          <SkeletonBlock className="h-8 w-52" />
+          <SkeletonBlock className="mt-3 h-4 w-72 max-w-full" />
+        </div>
+      </div>
+      <div className="p-6 md:p-8">
+        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-8 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <SkeletonBlock className="h-12 w-40" />
+                <SkeletonBlock className="h-14 w-32" />
+              </div>
+              <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2">
+                {Array.from({ length: 2 }, (_, index) => (
+                  <div key={index} className="space-y-5">
+                    <SkeletonBlock className="h-3 w-32" />
+                    <SkeletonBlock className="h-4 w-44" />
+                    <SkeletonBlock className="h-3 w-28" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <SkeletonBlock className="h-44 w-full bg-white" />
+          </div>
+          <SkeletonBlock className="h-40 w-full bg-white" />
+        </div>
+      </div>
+    </SkeletonStatus>
+  );
+}
 
 type AdminPaymentProofsPanelProps = {
   proofs: ReceiptPaymentProofView[];
