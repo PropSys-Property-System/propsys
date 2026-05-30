@@ -40,5 +40,7 @@ describe('ReservationsCalendarView', () => {
 
     expect(screen.getByText('Ocupado')).toBeInTheDocument();
     expect(screen.queryByText('Depto 202')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Semana anterior' })).toHaveAttribute('title', 'Semana anterior');
+    expect(screen.getByRole('button', { name: 'Semana siguiente' })).toHaveAttribute('title', 'Semana siguiente');
   });
 });

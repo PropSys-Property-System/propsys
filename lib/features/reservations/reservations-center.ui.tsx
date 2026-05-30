@@ -501,13 +501,23 @@ export function ReservationsCalendarView({
     <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
       <div className="p-4 md:p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <button onClick={goToPreviousWeek} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+          <button
+            aria-label="Semana anterior"
+            title="Semana anterior"
+            onClick={goToPreviousWeek}
+            className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+          >
             <ChevronLeft className="w-5 h-5 text-slate-600" />
           </button>
           <button onClick={goToToday} className="px-4 py-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-sm font-bold text-slate-700">
             Hoy
           </button>
-          <button onClick={goToNextWeek} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+          <button
+            aria-label="Semana siguiente"
+            title="Semana siguiente"
+            onClick={goToNextWeek}
+            className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
+          >
             <ChevronRight className="w-5 h-5 text-slate-600" />
           </button>
         </div>

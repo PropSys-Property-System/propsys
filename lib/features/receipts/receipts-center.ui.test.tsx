@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AdminPaymentProofsPanel,
+  AdminReceiptHeaderActions,
   ResidentReceiptsList,
   ResidentPaymentProofPanel,
 } from './receipts-center.ui';
@@ -133,6 +134,13 @@ describe('payment proof receipt UI', () => {
     fireEvent.click(screen.getByRole('button', { name: /rechazar/i }));
     expect(onApprove).toHaveBeenCalledWith('rpp_1');
     expect(onReject).toHaveBeenCalledWith('rpp_1');
+  });
+
+  it('labels compact admin receipt header actions', () => {
+    render(<AdminReceiptHeaderActions receipt={receipt} onEdit={vi.fn()} onPrint={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: 'Editar recibo' })).toHaveAttribute('aria-label', 'Editar recibo');
+    expect(screen.getByRole('button', { name: 'Imprimir recibo' })).toHaveAttribute('aria-label', 'Imprimir recibo');
   });
 
   it('renders receipt detail proofs without requiring pendingReceipts', () => {

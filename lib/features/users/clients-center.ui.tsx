@@ -41,6 +41,7 @@ export function ClientCard({ client, pendingClientId, onStatusChange, onEdit }: 
               onClick={() => onEdit(client)}
               disabled={isPending}
               className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-primary disabled:opacity-50"
+              aria-label="Editar nombre"
               title="Editar nombre"
             >
               <Edit2 className="h-4 w-4" />

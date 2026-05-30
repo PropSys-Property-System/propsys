@@ -66,6 +66,7 @@ describe('InvitationCreationDialog', () => {
   it('shows all allowed invitation roles for a root admin context', () => {
     renderDialog();
 
+    expect(screen.getByTitle('Cerrar')).toHaveAttribute('aria-label', 'Cerrar');
     expect(screen.getByRole('option', { name: 'Manager de cliente' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Administrador de edificio' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Staff' })).toBeInTheDocument();

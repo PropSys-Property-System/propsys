@@ -34,6 +34,7 @@ describe('clients center ui', () => {
     expect(screen.getByText('ACTIVO')).toBeInTheDocument();
 
     const editBtn = screen.getByTitle('Editar nombre');
+    expect(editBtn).toHaveAttribute('aria-label', 'Editar nombre');
     fireEvent.click(editBtn);
     expect(onEdit).toHaveBeenCalledWith(activeClient);
 

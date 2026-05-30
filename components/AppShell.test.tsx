@@ -39,6 +39,7 @@ describe('AppShell', () => {
 
     expect(screen.getByRole('link', { name: /Clientes/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Invitaciones/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abrir menú' })).toHaveAttribute('title', 'Abrir menú');
   });
 
   it('hides Clientes link for CLIENT_MANAGER but shows Invitaciones', () => {

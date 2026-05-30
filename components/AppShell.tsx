@@ -154,7 +154,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 lg:hidden">
-          <button onClick={() => setIsSidebarOpen(true)} className="rounded-md p-2 text-slate-600 hover:bg-slate-100">
+          <button
+            aria-label="Abrir menú"
+            title="Abrir menú"
+            onClick={() => setIsSidebarOpen(true)}
+            className="rounded-md p-2 text-slate-600 hover:bg-slate-100"
+          >
             <Menu className="h-6 w-6" />
           </button>
           <h1 className="text-xl font-bold text-primary">PropSys</h1>

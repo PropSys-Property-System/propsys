@@ -422,6 +422,7 @@ export function AdminReceiptHeaderActions({
         onClick={() => onEdit?.(receipt)}
         disabled={!onEdit}
         aria-disabled={!onEdit}
+        aria-label="Editar recibo"
         title={onEdit ? 'Editar recibo' : editDisabledReason || 'No disponible'}
         className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm ${onEdit ? 'text-slate-600 hover:text-primary' : 'text-slate-400 cursor-not-allowed opacity-70'}`}
       >
@@ -432,6 +433,7 @@ export function AdminReceiptHeaderActions({
         onClick={() => onPrint?.(receipt)}
         disabled={!onPrint}
         aria-disabled={!onPrint}
+        aria-label="Imprimir recibo"
         title={onPrint ? 'Imprimir / guardar PDF' : 'No disponible'}
         className={`p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm ${onPrint ? 'text-slate-600 hover:text-primary' : 'text-slate-400 cursor-not-allowed opacity-70'}`}
       >

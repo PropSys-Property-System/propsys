@@ -186,6 +186,8 @@ export function InvitationCreationDialog({
           </div>
           <button
             type="button"
+            aria-label="Cerrar"
+            title="Cerrar"
             onClick={onClose}
             disabled={isSubmitting}
             className="rounded-xl p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-700 disabled:opacity-60"
