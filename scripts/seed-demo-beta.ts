@@ -120,13 +120,27 @@ async function main() {
     await client.query(
       `INSERT INTO common_areas (id, client_id, building_id, name, capacity, requires_approval, status, created_at, updated_at) VALUES
        ('ca_demo_1', $1, 'b_demo_A', 'Sala de reuniones', 15, true, 'ACTIVE', now(), now()),
-       ('ca_demo_2', $1, 'b_demo_A', 'Terraza / Parrilla', 25, true, 'ACTIVE', now(), now())`,
+       ('ca_demo_2', $1, 'b_demo_A', 'Terraza / Parrilla', 25, true, 'ACTIVE', now(), now()),
+       ('ca_demo_3', $1, 'b_demo_B', 'Salón social', 30, true, 'ACTIVE', now(), now())`,
       [DEMO_CLIENT_ID]
     );
 
     await client.query(
-      `INSERT INTO reservations (id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, created_at, updated_at) VALUES
-       ('resv_demo_1', $1, 'b_demo_A', 'u_demo_A101', 'ca_demo_2', 'u_demo_owner', now() + interval '2 days', now() + interval '2 days' + interval '4 hours', 'APPROVED', now(), now())`,
+      `WITH demo_week AS (
+         SELECT date_trunc('week', now()) + interval '1 week' AS week_start
+       )
+       INSERT INTO reservations (id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, created_at, updated_at)
+       SELECT 'resv_demo_1', $1, 'b_demo_A', 'u_demo_A101', 'ca_demo_2', 'u_demo_owner', week_start + interval '10 hours', week_start + interval '12 hours', 'APPROVED', NULL, now(), now() FROM demo_week
+       UNION ALL
+       SELECT 'resv_demo_2', $1, 'b_demo_A', 'u_demo_A102', 'ca_demo_2', 'u_demo_tenant', week_start + interval '1 day 18 hours', week_start + interval '1 day 20 hours', 'APPROVED', NULL, now(), now() FROM demo_week
+       UNION ALL
+       SELECT 'resv_demo_3', $1, 'b_demo_A', 'u_demo_A102', 'ca_demo_2', 'u_demo_tenant', week_start + interval '2 days 10 hours', week_start + interval '2 days 12 hours', 'CANCELLED', now(), now(), now() FROM demo_week
+       UNION ALL
+       SELECT 'resv_demo_4', $1, 'b_demo_A', 'u_demo_A102', 'ca_demo_2', 'u_demo_tenant', week_start + interval '3 days 10 hours', week_start + interval '3 days 12 hours', 'REJECTED', NULL, now(), now() FROM demo_week
+       UNION ALL
+       SELECT 'resv_demo_5', $1, 'b_demo_B', 'u_demo_B101', 'ca_demo_3', 'u_demo_owner', week_start + interval '4 days 16 hours', week_start + interval '4 days 18 hours', 'APPROVED', NULL, now(), now() FROM demo_week
+       UNION ALL
+       SELECT 'resv_demo_6', $1, 'b_demo_A', 'u_demo_A102', 'ca_demo_1', 'u_demo_tenant', week_start + interval '5 days 11 hours', week_start + interval '5 days 13 hours', 'REQUESTED', NULL, now(), now() FROM demo_week`,
       [DEMO_CLIENT_ID]
     );
 

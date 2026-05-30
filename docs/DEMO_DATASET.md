@@ -32,10 +32,49 @@ Todos los usuarios comparten la misma contraseña:
 **Datos Operativos Pre-Cargados:**
 - 3 Recibos (2 Pendientes, 1 Pagado) en Soles (PEN).
 - 2 Avisos publicados.
-- 2 Áreas comunes (Torre A).
-- 1 Reserva de Área Común (Aprobada).
+- 3 Áreas comunes (2 en Torre A, 1 en Torre B).
+- 6 Reservas de Área Común para validar calendario y privacidad.
 - 1 Tarea operativa (Pendiente).
 - 1 Incidencia (Reportada).
+
+---
+
+## Reservas Demo para Calendario
+
+Las reservas se generan siempre para la semana siguiente a la ejecución del seed. El punto de referencia es el próximo lunes a las `00:00`, por lo que no quedan obsoletas si el dataset se recrea semanas después.
+
+| ID | Usuario | Unidad | Edificio | Área | Horario relativo | Estado | Propósito |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `resv_demo_1` | `owner.demo@propsys.local` | A101 | Torre A | Terraza / Parrilla | Lunes 10:00-12:00 | `APPROVED` | Reserva propia con detalle para owner |
+| `resv_demo_2` | `tenant.demo@propsys.local` | A102 | Torre A | Terraza / Parrilla | Martes 18:00-20:00 | `APPROVED` | Reserva ajena visible como `Ocupado` para owner |
+| `resv_demo_3` | `tenant.demo@propsys.local` | A102 | Torre A | Terraza / Parrilla | Miércoles 10:00-12:00 | `CANCELLED` | No debe aparecer en disponibilidad |
+| `resv_demo_4` | `tenant.demo@propsys.local` | A102 | Torre A | Terraza / Parrilla | Jueves 10:00-12:00 | `REJECTED` | No debe aparecer en disponibilidad |
+| `resv_demo_5` | `owner.demo@propsys.local` | B101 | Torre B | Salón social | Viernes 16:00-18:00 | `APPROVED` | Validar filtro por edificio |
+| `resv_demo_6` | `tenant.demo@propsys.local` | A102 | Torre A | Sala de reuniones | Sábado 11:00-13:00 | `REQUESTED` | Validar filtro por área |
+
+### Validación Manual como Owner
+
+1. Iniciar sesión con `owner.demo@propsys.local`.
+2. Abrir `Reservas` y cambiar a la vista `Calendario`.
+3. Avanzar a la semana siguiente.
+4. Confirmar que `resv_demo_1` muestra detalle propio y que `resv_demo_2` y `resv_demo_6` aparecen como `Ocupado`.
+5. Confirmar que `resv_demo_3` y `resv_demo_4` no aparecen.
+6. Usar los filtros Torre A, Torre B, Terraza / Parrilla, Sala de reuniones y Salón social.
+
+### Validación Manual como Manager
+
+1. Iniciar sesión con `manager.demo@propsys.local`.
+2. Abrir `Reservas` y cambiar a la vista `Calendario`.
+3. Avanzar a la semana siguiente.
+4. Confirmar que las reservas activas muestran detalle de gestión y que los filtros separan Torre A, Torre B y sus áreas comunes.
+
+### Validación de Privacidad en Network
+
+1. Con sesión owner, abrir DevTools y filtrar por `/api/v1/reservations?scope=availability`.
+2. Confirmar que la reserva propia mantiene detalle suficiente.
+3. Confirmar que las reservas ajenas activas tienen forma mínima: `id`, `buildingId`, `commonAreaId`, `startAt`, `endAt`, `busy: true`.
+4. Confirmar que los bloques ajenos no exponen `unitId`, `createdByUserId`, `status`, nombres ni el ID real de reserva.
+5. Confirmar que las reservas `CANCELLED` y `REJECTED` no aparecen en la respuesta.
 
 ---
 
