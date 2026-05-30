@@ -101,15 +101,30 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   // ── STAFF ─────────────────────────────────────────────────────────────────
   if (user.internalRole === 'STAFF') {
-    if (!evidence.checklist_execution_id) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
-    const execRes = await pool.query<{ assigned_to_user_id: string }>(
-      `SELECT assigned_to_user_id
-       FROM checklist_executions
-       WHERE id = $1 AND client_id = $2 AND building_id = $3 AND deleted_at IS NULL
-       LIMIT 1`,
-      [evidence.checklist_execution_id, evidence.client_id, evidence.building_id]
-    );
-    if (execRes.rows[0]?.assigned_to_user_id !== user.id) {
+    if (evidence.checklist_execution_id) {
+      const execRes = await pool.query<{ assigned_to_user_id: string }>(
+        `SELECT assigned_to_user_id
+         FROM checklist_executions
+         WHERE id = $1 AND client_id = $2 AND building_id = $3 AND deleted_at IS NULL
+         LIMIT 1`,
+        [evidence.checklist_execution_id, evidence.client_id, evidence.building_id]
+      );
+      if (execRes.rows[0]?.assigned_to_user_id !== user.id) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      }
+    } else if (evidence.incident_id) {
+      const incRes = await pool.query<{ assigned_to_user_id: string | null; reported_by_user_id: string }>(
+        `SELECT assigned_to_user_id, reported_by_user_id
+         FROM incidents
+         WHERE id = $1 AND client_id = $2 AND building_id = $3
+         LIMIT 1`,
+        [evidence.incident_id, evidence.client_id, evidence.building_id]
+      );
+      const incident = incRes.rows[0];
+      if (incident?.assigned_to_user_id !== user.id && incident?.reported_by_user_id !== user.id) {
+        return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+      }
+    } else {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
   }

@@ -129,6 +129,116 @@ describe('evidence DELETE /[id] (audit regression)', () => {
     expect(storageMocks.readEvidenceFile).not.toHaveBeenCalled();
   });
 
+  it('allows STAFF assigned to an incident to read its evidence', async () => {
+    poolQuery.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [
+            evidenceRow({
+              incident_id: 'inc-1',
+              checklist_execution_id: null,
+              uploaded_by_user_id: 'u_other',
+            }),
+          ],
+        };
+      }
+      if (sql.includes('FROM incidents')) {
+        expect(sql).toContain('client_id = $2');
+        expect(sql).toContain('building_id = $3');
+        expect(params).toEqual(['inc-1', 'client_001', 'b1']);
+        return { rows: [{ assigned_to_user_id: 'u_staff', reported_by_user_id: 'u_other' }] };
+      }
+      return { rows: [] };
+    });
+    storageMocks.readEvidenceFile.mockResolvedValue(Buffer.from([7, 8, 9]));
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(200);
+    expect(storageMocks.readEvidenceFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows STAFF who reported an incident to read its evidence', async () => {
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [
+            evidenceRow({
+              incident_id: 'inc-1',
+              checklist_execution_id: null,
+              uploaded_by_user_id: 'u_other',
+            }),
+          ],
+        };
+      }
+      if (sql.includes('FROM incidents')) {
+        return { rows: [{ assigned_to_user_id: 'u_other', reported_by_user_id: 'u_staff' }] };
+      }
+      return { rows: [] };
+    });
+    storageMocks.readEvidenceFile.mockResolvedValue(Buffer.from([7, 8, 9]));
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(200);
+    expect(storageMocks.readEvidenceFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 403 when STAFF requests evidence from an incident they did not report or receive', async () => {
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [
+            evidenceRow({
+              incident_id: 'inc-1',
+              checklist_execution_id: null,
+              uploaded_by_user_id: 'u_other',
+            }),
+          ],
+        };
+      }
+      if (sql.includes('FROM incidents')) {
+        return { rows: [{ assigned_to_user_id: 'u_other', reported_by_user_id: 'u_other' }] };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(403);
+    expect(storageMocks.readEvidenceFile).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 without reading storage when STAFF requests evidence from another client', async () => {
+    sessionUser.clientId = 'client_002';
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM evidence_attachments')) {
+        return {
+          rows: [
+            evidenceRow({
+              incident_id: 'inc-1',
+              checklist_execution_id: null,
+              uploaded_by_user_id: 'u_other',
+            }),
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/operation/evidence/ev_1', { method: 'GET' });
+    const res = await getEvidence(req, { params: Promise.resolve({ id: 'ev_1' }) });
+
+    expect(res.status).toBe(404);
+    expect(storageMocks.readEvidenceFile).not.toHaveBeenCalled();
+    const calls = poolQuery.mock.calls.map(([sql]) => sql as string);
+    expect(calls.every((sql) => !sql.includes('FROM incidents'))).toBe(true);
+  });
+
   it('serves legacy evidence records through authorization when only public_path is populated', async () => {
     poolQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM evidence_attachments')) {
