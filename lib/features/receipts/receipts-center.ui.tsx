@@ -670,7 +670,7 @@ export function ResidentReceiptsOverview({
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="p-8 bg-white rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-primary/20 transition-all cursor-default">
         <div className="space-y-1">
-          <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Deuda Pendiente</p>
+          <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Deuda pendiente</p>
           <p className="text-4xl font-black text-slate-900 group-hover:text-primary transition-colors leading-tight">
             {pendingAmountLabel}
           </p>
@@ -682,7 +682,7 @@ export function ResidentReceiptsOverview({
 
       <div className="p-8 bg-white rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group hover:border-emerald-200 transition-all cursor-default">
         <div className="space-y-1">
-          <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Ultimo Pago</p>
+          <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Último pago</p>
           <p className="text-4xl font-black text-slate-900 group-hover:text-emerald-600 transition-colors">
             {latestPaidAmountLabel}
           </p>

@@ -100,7 +100,7 @@ export default function ResidentReceiptsPage() {
     return (
       <div className="flex flex-col h-full bg-slate-50/50">
         <PageHeader
-          title="Mis Recibos"
+          title="Mis recibos"
           description="Gestiona tus gastos comunes y comprobantes de pago de PropSys"
         />
         <div className="p-6 md:p-8">
@@ -112,18 +112,18 @@ export default function ResidentReceiptsPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader 
-        title="Mis Recibos" 
+      <PageHeader
+        title="Mis recibos"
         description="Gestiona tus gastos comunes y comprobantes de pago de PropSys"
       />
       
       <div className="p-6 md:p-8 space-y-8">
         <ResidentReceiptsOverview
           pendingAmountLabel={pendingAmountLabel}
-          latestPaidAmountLabel={latestPaidReceipt ? formatReceiptAmount(latestPaidReceipt.amount, latestPaidReceipt.currency) : formatReceiptAmount(0, 'PEN')}
+          latestPaidAmountLabel={latestPaidReceipt ? formatReceiptAmount(latestPaidReceipt.amount, latestPaidReceipt.currency) : 'Sin pagos'}
         />
         <div className="space-y-3 border-b border-slate-100 pb-6">
-          <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Historial Reciente</h3>
+          <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Historial reciente</h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-primary transition-colors" />
@@ -162,11 +162,11 @@ export default function ResidentReceiptsPage() {
               onChange={(event) => setSortOrder(event.target.value as ResidentReceiptsSortOrder)}
               className="px-4 py-3 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm"
             >
-              <option value="ACTION_REQUIRED">Accion requerida primero</option>
+              <option value="ACTION_REQUIRED">Acción requerida primero</option>
               <option value="DUE_ASC">Vence primero</option>
-              <option value="DUE_DESC">Vence despues</option>
-              <option value="ISSUE_DESC">Emision mas reciente</option>
-              <option value="ISSUE_ASC">Emision mas antigua</option>
+              <option value="DUE_DESC">Vence después</option>
+              <option value="ISSUE_DESC">Emisión más reciente</option>
+              <option value="ISSUE_ASC">Emisión más antigua</option>
               <option value="AMOUNT_DESC">Monto mayor</option>
               <option value="AMOUNT_ASC">Monto menor</option>
             </select>
@@ -185,18 +185,16 @@ export default function ResidentReceiptsPage() {
               onView={(receiptId) => router.push(`/resident/receipts/${receiptId}`)}
             />
           ) : (
-            <div className="py-12 bg-white rounded-3xl border border-dashed border-slate-200">
-              <EmptyState
-                title="No tienes recibos"
-                description={
-                  searchTerm
-                    ? `No hay resultados para "${searchTerm}"`
-                    : unitFilter !== 'ALL'
-                      ? `No hay recibos para ${unitLabelById.get(unitFilter) ?? 'la unidad seleccionada'}.`
-                      : "Aún no se han emitido recibos para tu unidad."
-                }
-              />
-            </div>
+            <EmptyState
+              title="No tienes recibos"
+              description={
+                searchTerm
+                  ? `No hay resultados para "${searchTerm}"`
+                  : unitFilter !== 'ALL'
+                    ? `No hay recibos para ${unitLabelById.get(unitFilter) ?? 'la unidad seleccionada'}.`
+                    : "Aún no se han emitido recibos para tu unidad."
+              }
+            />
           )}
         </div>
       </div>

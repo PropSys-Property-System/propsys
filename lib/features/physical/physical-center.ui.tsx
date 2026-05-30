@@ -523,7 +523,7 @@ export function CommonAreaCard({
             area.requiresApproval ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
           }`}
         >
-          {area.requiresApproval ? 'Requiere aprobacion' : 'Auto-aprobacion'}
+          {area.requiresApproval ? 'Requiere aprobación' : 'Auto-aprobación'}
         </span>
       </div>
       {canManageApproval && (
@@ -537,8 +537,8 @@ export function CommonAreaCard({
             {savingAreaId === area.id
               ? 'Guardando...'
               : area.requiresApproval
-                ? 'Cambiar a auto-aprobacion'
-                : 'Requerir aprobacion'}
+                ? 'Cambiar a auto-aprobación'
+                : 'Requerir aprobación'}
           </button>
           {!showArchived && onEdit ? (
             <button

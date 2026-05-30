@@ -225,16 +225,16 @@ export default function AdminCommonAreasPage() {
         selectedBuildingId ? 'bg-primary text-white shadow-lg shadow-primary/20 hover:bg-primary/90' : 'bg-slate-100 text-slate-500 cursor-not-allowed'
       }`}
     >
-      <Plus className="w-4 h-4 mr-2" /> Nueva área comun
+      <Plus className="w-4 h-4 mr-2" /> Nueva área común
     </button>
   ) : null;
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50">
-      <PageHeader title="Áreas comunes" description="Configura espacios reservables y reglas de aprobacion" actions={actions} />
+      <PageHeader title="Áreas comunes" description="Configura espacios reservables y reglas de aprobación" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
-        {actionError && <ErrorState title="Accion no disponible" description={actionError} />}
+        {actionError && <ErrorState title="Acción no disponible" description={actionError} />}
         {actionMessage ? (
           <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{actionMessage}</div>
         ) : null}
@@ -301,30 +301,36 @@ export default function AdminCommonAreasPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button type="button" aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={() => setIsComposerOpen(false)} />
           <div role="dialog" aria-modal="true" className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <p className="text-lg font-black text-slate-900">{editingArea ? 'Editar área comun' : 'Nueva área comun'}</p>
+            <p className="text-lg font-black text-slate-900">{editingArea ? 'Editar área común' : 'Nueva área común'}</p>
             <div className="mt-4 space-y-3">
-              <input
-                value={composerName}
-                onChange={(event) => setComposerName(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                placeholder="Nombre del area"
-              />
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={composerCapacity}
-                onChange={(event) => setComposerCapacity(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                placeholder="Capacidad"
-              />
+              <label className="block space-y-1">
+                <span className="text-xs font-bold text-slate-600">Nombre</span>
+                <input
+                  value={composerName}
+                  onChange={(event) => setComposerName(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  placeholder="Nombre del área"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="text-xs font-bold text-slate-600">Capacidad</span>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={composerCapacity}
+                  onChange={(event) => setComposerCapacity(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                  placeholder="Capacidad"
+                />
+              </label>
               <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
                 <input
                   type="checkbox"
                   checked={composerRequiresApproval}
                   onChange={(event) => setComposerRequiresApproval(event.target.checked)}
                 />
-                Requiere aprobacion
+                Requiere aprobación
               </label>
               {composerError ? (
                 <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{composerError}</div>
@@ -344,7 +350,7 @@ export default function AdminCommonAreasPage() {
                 disabled={isSubmitting}
                 className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
               >
-                {isSubmitting ? 'Guardando...' : editingArea ? 'Guardar cambios' : 'Crear area'}
+                {isSubmitting ? 'Guardando...' : editingArea ? 'Guardar cambios' : 'Crear área'}
               </button>
             </div>
           </div>

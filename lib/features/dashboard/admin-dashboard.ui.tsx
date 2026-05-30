@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertCircle, ArrowRight, Building2, Calendar, Receipt } from 'lucide-react';
+import { AlertCircle, ArrowRight, Building2, Calendar, Megaphone, Receipt } from 'lucide-react';
 import { KPICard } from '@/components/KPICard';
 import { EmptyState, SkeletonBlock, SkeletonStatus } from '@/components/States';
 import { formatDateTime, formatTime } from '@/lib/presentation/dates';
@@ -152,14 +152,14 @@ export function DashboardKpiGrid({
         value={kpiValue(buildingsCount)}
         icon={Building2}
         variant="primary"
-        description="Segun tus asignaciones"
+        description="Según tus asignaciones"
       />
       <KPICard
         title="Recibos pendientes"
         value={kpiValue(pendingReceiptsCount)}
         icon={Receipt}
         variant="amber"
-        description="Segun recibos visibles"
+        description="Según recibos visibles"
       />
       <KPICard
         title="Reservas solicitadas"
@@ -185,7 +185,7 @@ export function DashboardStatsPanel({ receiptStatusCounts }: DashboardStatsPanel
   return (
     <div className="flex h-[400px] flex-col rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm lg:col-span-2">
       <div className="space-y-2">
-        <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Distribucion de Recibos</h3>
+        <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Distribución de recibos</h3>
         <p className="text-xs font-medium text-slate-500">Resumen por estado con base en los recibos visibles para tu alcance.</p>
       </div>
       <div className="mt-6 grid flex-1 grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-6">
@@ -216,11 +216,8 @@ export function DashboardRecentActivityPanel({
 }: DashboardRecentActivityPanelProps) {
   return (
     <div className="flex flex-col rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8">
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Actividad Reciente</h3>
-        <Link href="/admin/dashboard" className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">
-          Ver Todo
-        </Link>
       </div>
 
       <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto pr-2">
@@ -367,12 +364,12 @@ export function DashboardQuickLinks({ user }: DashboardQuickLinksProps) {
       <Link href="/admin/notices" className="group rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition-all hover:bg-slate-50">
         <div className="space-y-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
-            <Calendar className="h-5 w-5 text-slate-600" />
+            <Megaphone className="h-5 w-5 text-slate-600" />
           </div>
           <div>
             <h4 className="text-sm font-black uppercase tracking-widest text-slate-900">Avisos</h4>
             <p className="mt-1 text-xs font-medium text-slate-400">
-              {user?.internalRole === 'BUILDING_ADMIN' ? 'Publicar y revisar avisos de tus edificios' : 'Publicar o revisar avisos segun permisos'}
+              {user?.internalRole === 'BUILDING_ADMIN' ? 'Publicar y revisar avisos de tus edificios' : 'Publicar o revisar avisos según permisos'}
             </p>
           </div>
           <div className="flex items-center text-[10px] font-black uppercase tracking-widest text-primary">

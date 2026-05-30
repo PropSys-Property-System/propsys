@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Mail, XCircle, Check, Copy } from 'lucide-react';
+import { XCircle, Check, Copy } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
+import { EmptyState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
+import { labelInternalRole } from '@/lib/presentation/labels';
+import type { User } from '@/lib/types';
 
 type Invitation = {
   id: string;
@@ -14,7 +17,7 @@ type Invitation = {
   createdAt: string;
   name: string;
   role: string;
-  internalRole: string;
+  internalRole: User['internalRole'];
 };
 
 export default function AdminInvitationsPage() {
@@ -86,8 +89,8 @@ export default function AdminInvitationsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader 
-        title="Invitaciones Pendientes" 
+      <PageHeader
+        title="Invitaciones pendientes"
         description="Gestiona invitaciones enviadas que aún no han sido aceptadas." 
       />
 
@@ -101,15 +104,15 @@ export default function AdminInvitationsPage() {
           </div>
         )}
 
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          {loading ? (
-            <div className="p-8 text-center text-slate-500">Cargando invitaciones...</div>
-          ) : invitations.length === 0 ? (
-            <div className="p-12 text-center">
-              <Mail className="mx-auto h-12 w-12 text-slate-300 mb-3" />
-              <p className="text-slate-500">No hay invitaciones pendientes</p>
-            </div>
-          ) : (
+        {loading ? (
+          <LoadingState title="Cargando invitaciones..." />
+        ) : invitations.length === 0 ? (
+          <EmptyState
+            title="Sin invitaciones pendientes"
+            description="No hay invitaciones pendientes por aceptar."
+          />
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500">
@@ -131,7 +134,7 @@ export default function AdminInvitationsPage() {
                         <td className="px-6 py-4">{inv.email}</td>
                         <td className="px-6 py-4">
                           <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-800">
-                            {inv.role}
+                            {labelInternalRole(inv.internalRole)}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -149,10 +152,10 @@ export default function AdminInvitationsPage() {
                                   ? 'bg-green-50 text-green-700 border border-green-200' 
                                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50'
                               }`}
-                              title="Generar nuevo link y copiar"
+                              title="Generar nuevo enlace y copiar"
                             >
                               {copiedLink === inv.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                              Reemitir Link
+                              Reemitir enlace
                             </button>
                             <button
                               onClick={() => handleAction(inv.id, 'REVOKE')}
@@ -170,8 +173,8 @@ export default function AdminInvitationsPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

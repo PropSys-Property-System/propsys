@@ -18,7 +18,7 @@ export function PageHeader({ title, description, actions }: PageHeaderProps) {
         )}
       </div>
       {actions && (
-        <div className="mt-4 md:mt-0 flex items-center space-x-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3 md:mt-0">
           {actions}
         </div>
       )}
