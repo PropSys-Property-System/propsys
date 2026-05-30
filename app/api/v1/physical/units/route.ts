@@ -69,7 +69,7 @@ export async function GET(req: Request) {
          owner.user_id as owner_id,
          occupant.user_id as resident_id
        FROM units u
-       JOIN user_building_assignments uba ON uba.building_id = u.building_id
+       JOIN user_building_assignments uba ON uba.building_id = u.building_id AND uba.client_id = u.client_id
        LEFT JOIN user_unit_assignments owner ON owner.unit_id = u.id AND owner.assignment_type = 'OWNER' AND owner.status = 'ACTIVE' AND owner.deleted_at IS NULL
        LEFT JOIN user_unit_assignments occupant ON occupant.unit_id = u.id AND occupant.assignment_type = 'OCCUPANT' AND occupant.status = 'ACTIVE' AND occupant.deleted_at IS NULL
        WHERE uba.user_id = $1 AND uba.status = 'ACTIVE' AND uba.deleted_at IS NULL AND u.status = 'ACTIVE'
@@ -222,5 +222,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No pudimos registrar la auditoria.' }, { status: 500 });
   }
 }
-
 

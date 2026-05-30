@@ -75,9 +75,9 @@ export async function GET(req: Request) {
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
        FROM user_building_assignments
-       WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, buildingId]
+      [user.id, buildingId, building.client_id]
     );
     if (!ok.rows[0]) return NextResponse.json({ areas: [] as CommonArea[] });
   }

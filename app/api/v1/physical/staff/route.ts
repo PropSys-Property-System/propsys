@@ -40,10 +40,11 @@ export async function GET(req: Request) {
        FROM user_building_assignments
        WHERE user_id = $1
          AND building_id = $2
+         AND client_id = $3
          AND status = 'ACTIVE'
          AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, buildingId]
+      [user.id, buildingId, user.clientId]
     );
     if (!assignment.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   } else if (!bypassTenant) {
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
   }>(
     `SELECT DISTINCT u.id, u.name, u.internal_role, uba.building_id, u.status
      FROM users u
-     JOIN user_building_assignments uba ON uba.user_id = u.id
+     JOIN user_building_assignments uba ON uba.user_id = u.id AND uba.client_id = u.client_id
      WHERE uba.building_id = $1
        AND uba.status = 'ACTIVE'
        AND uba.deleted_at IS NULL

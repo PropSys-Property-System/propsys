@@ -50,7 +50,7 @@ export async function GET(req: Request) {
     }>(
       `SELECT b.id, b.client_id, b.name, b.address, b.city
        FROM buildings b
-       JOIN user_building_assignments uba ON uba.building_id = b.id
+       JOIN user_building_assignments uba ON uba.building_id = b.id AND uba.client_id = b.client_id
        WHERE uba.user_id = $1 AND uba.status = 'ACTIVE' AND uba.deleted_at IS NULL AND b.status = 'ACTIVE'
        ${bypassTenant ? '' : 'AND b.client_id = $2'}
        ORDER BY b.name ASC`,
@@ -190,5 +190,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No pudimos registrar la auditoría.' }, { status: 500 });
   }
 }
-
 

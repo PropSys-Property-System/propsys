@@ -32,7 +32,11 @@ function toTemplate(row: {
   };
 }
 
-async function ensureCanManageTemplate(pool: ReturnType<typeof getPool>, user: Awaited<ReturnType<typeof getSessionUser>>, template: { building_id: string }) {
+async function ensureCanManageTemplate(
+  pool: ReturnType<typeof getPool>,
+  user: Awaited<ReturnType<typeof getSessionUser>>,
+  template: { building_id: string; client_id: string }
+) {
   if (!user) return false;
   if (!hasTenantClientContext(user)) return false;
   if (user.internalRole !== 'BUILDING_ADMIN' && user.internalRole !== 'CLIENT_MANAGER' && user.internalRole !== 'ROOT_ADMIN') return false;
@@ -41,9 +45,9 @@ async function ensureCanManageTemplate(pool: ReturnType<typeof getPool>, user: A
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
        FROM user_building_assignments
-       WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, template.building_id]
+      [user.id, template.building_id, template.client_id]
     );
     return Boolean(ok.rows[0]);
   }
@@ -128,9 +132,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       const ok = await pool.query<{ ok: boolean }>(
         `SELECT true as ok
          FROM user_building_assignments
-         WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+         WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
          LIMIT 1`,
-        [user.id, current.building_id]
+        [user.id, current.building_id, current.client_id]
       );
       if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
@@ -155,9 +159,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
        FROM user_building_assignments
-       WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, current.building_id]
+      [user.id, current.building_id, current.client_id]
     );
     if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
@@ -207,7 +211,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (!canAccessTenantEntity(user, current.client_id)) return NextResponse.json({ template: null }, { status: 404 });
   if (current.is_private) return NextResponse.json({ error: 'No se puede editar un checklist manual por tarea.' }, { status: 403 });
 
-  const canManage = await ensureCanManageTemplate(pool, user, { building_id: current.building_id });
+  const canManage = await ensureCanManageTemplate(pool, user, {
+    building_id: current.building_id,
+    client_id: current.client_id,
+  });
   if (!canManage) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const usage = await getTemplateUsage(pool, id);
@@ -321,7 +328,10 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   if (!canAccessTenantEntity(user, current.client_id)) return NextResponse.json({ ok: false }, { status: 404 });
   if (current.is_private) return NextResponse.json({ error: 'No se puede eliminar un checklist manual por tarea.' }, { status: 403 });
 
-  const canManage = await ensureCanManageTemplate(pool, user, { building_id: current.building_id });
+  const canManage = await ensureCanManageTemplate(pool, user, {
+    building_id: current.building_id,
+    client_id: current.client_id,
+  });
   if (!canManage) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 
   const usage = await getTemplateUsage(pool, id);

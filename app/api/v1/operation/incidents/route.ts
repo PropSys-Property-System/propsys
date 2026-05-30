@@ -21,8 +21,8 @@ async function listBuildingIdsForUser(pool: ReturnType<typeof getPool>, user: { 
     const rows = await pool.query<{ building_id: string }>(
       `SELECT building_id
        FROM user_building_assignments
-       WHERE user_id = $1 AND status = 'ACTIVE' AND deleted_at IS NULL`,
-      [user.id]
+       WHERE user_id = $1 AND client_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL`,
+      [user.id, user.clientId]
     );
     return rows.rows.map((r) => r.building_id);
   }

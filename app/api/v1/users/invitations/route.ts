@@ -158,10 +158,11 @@ export async function POST(req: Request) {
          FROM user_building_assignments
          WHERE user_id = $1
            AND building_id = $2
+           AND client_id = $3
            AND status = 'ACTIVE'
            AND deleted_at IS NULL
          LIMIT 1`,
-        [actor.id, building.id]
+        [actor.id, building.id, building.client_id]
       );
       if (!assignmentRes.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }

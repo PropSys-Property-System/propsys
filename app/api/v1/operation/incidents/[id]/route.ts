@@ -110,12 +110,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
        JOIN user_building_assignments uba ON uba.user_id = u.id
        WHERE u.id = $1
          AND uba.building_id = $2
+         AND u.client_id = $3
+         AND uba.client_id = $3
          AND u.status = 'ACTIVE'
          AND uba.status = 'ACTIVE'
          AND uba.deleted_at IS NULL
          AND u.internal_role IN ('BUILDING_ADMIN', 'STAFF')
        LIMIT 1`,
-      [assignedToUserId, current.building_id]
+      [assignedToUserId, current.building_id, current.client_id]
     );
     if (!assignee.rows[0]) {
       return NextResponse.json({ error: 'Selecciona un responsable valido para este edificio.' }, { status: 400 });
@@ -126,9 +128,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok
        FROM user_building_assignments
-       WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, current.building_id]
+      [user.id, current.building_id, current.client_id]
     );
     if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }

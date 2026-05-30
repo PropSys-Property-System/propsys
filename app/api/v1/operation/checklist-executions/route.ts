@@ -24,8 +24,8 @@ async function listBuildingIdsForUser(
     const rows = await pool.query<{ building_id: string }>(
       `SELECT building_id
        FROM user_building_assignments
-       WHERE user_id = $1 AND status = 'ACTIVE' AND deleted_at IS NULL`,
-      [user.id]
+       WHERE user_id = $1 AND client_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL`,
+      [user.id, user.clientId]
     );
     return rows.rows.map((r) => r.building_id);
   }
@@ -168,9 +168,9 @@ export async function POST(req: Request) {
   const assignmentOk = await pool.query<{ ok: boolean }>(
     `SELECT true as ok
      FROM user_building_assignments
-     WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+     WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
      LIMIT 1`,
-    [user.id, tpl.building_id]
+    [user.id, tpl.building_id, clientId]
   );
   if (!assignmentOk.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
 

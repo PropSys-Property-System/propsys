@@ -139,9 +139,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       const ok = await pool.query<{ ok: boolean }>(
         `SELECT true as ok
          FROM user_building_assignments
-         WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+         WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
          LIMIT 1`,
-        [user.id, current.building_id]
+        [user.id, current.building_id, current.client_id]
       );
       if (!ok.rows[0]) return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }

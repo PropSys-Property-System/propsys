@@ -64,6 +64,7 @@ export async function GET(req: Request) {
            SELECT building_id
            FROM user_building_assignments
            WHERE user_id = u.id
+             AND client_id = u.client_id
              AND status = 'ACTIVE'
              AND deleted_at IS NULL
            ORDER BY updated_at DESC
@@ -88,6 +89,7 @@ export async function GET(req: Request) {
            SELECT building_id
            FROM user_building_assignments
            WHERE user_id = u.id
+             AND client_id = u.client_id
              AND status = 'ACTIVE'
              AND deleted_at IS NULL
            ORDER BY updated_at DESC
