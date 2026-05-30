@@ -547,4 +547,174 @@ describe('finance receipts API (route handlers)', () => {
     const data = (await res.json()) as { ok?: boolean };
     expect(data.ok).toBe(true);
   });
+
+  it('scopes building admin and staff receipt lists by user and client', async () => {
+    for (const internalRole of ['BUILDING_ADMIN', 'STAFF']) {
+      query.mockReset();
+      (sessionUser as { internalRole: string }).internalRole = internalRole;
+      (sessionUser as { role: string }).role = internalRole === 'STAFF' ? 'STAFF' : 'MANAGER';
+      (sessionUser as { scope: string }).scope = 'client';
+      (sessionUser as { clientId: string | null }).clientId = 'client_001';
+      (sessionUser as { id: string }).id = `u_${internalRole.toLowerCase()}`;
+
+      let assignmentSql = '';
+      let assignmentParams: unknown[] | undefined;
+      query.mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (sql.includes('FROM user_building_assignments')) {
+          assignmentSql = sql;
+          assignmentParams = params;
+          return { rows: [{ building_id: 'b1' }] };
+        }
+        if (sql.includes('FROM receipts')) return { rows: [] };
+        return { rows: [] };
+      });
+
+      const req = new Request('http://localhost/api/v1/finance/receipts', { method: 'GET' });
+      const res = await listReceipts(req);
+
+      expect(res.status).toBe(200);
+      expect(assignmentSql).toContain('client_id = $2');
+      expect(assignmentParams).toEqual([`u_${internalRole.toLowerCase()}`, 'client_001']);
+    }
+  });
+
+  it('scopes building admin receipt creation by user, building and client', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'BUILDING_ADMIN';
+    (sessionUser as { role: string }).role = 'MANAGER';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u_admin';
+
+    let assignmentSql = '';
+    let assignmentParams: unknown[] | undefined;
+    query.mockImplementation(async (sql: string, params?: unknown[]) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('FROM units')) return { rows: [{ client_id: 'client_001', building_id: 'b1' }] };
+      if (sql.includes('FROM user_building_assignments')) {
+        assignmentSql = sql;
+        assignmentParams = params;
+        return { rows: [{ ok: true }] };
+      }
+      if (sql.includes('INSERT INTO receipts')) {
+        return { rows: [receiptRow({ id: 'r-new', clientId: 'client_001', buildingId: 'b1', unitId: 'unit-101' })] };
+      }
+      if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ buildingId: 'b1', unitId: 'unit-101', amount: 150, description: 'Test', issueDate: '2026-04-01', dueDate: '2026-04-10' }),
+    });
+    const res = await createReceipt(req);
+
+    expect(res.status).toBe(200);
+    expect(assignmentSql).toContain('client_id = $3');
+    expect(assignmentParams).toEqual(['u_admin', 'b1', 'client_001']);
+  });
+
+  it('passes the receipt client to building assignment checks for detail mutations', async () => {
+    const scenarios = [
+      {
+        method: 'GET',
+        currentStatus: 'PENDING',
+        run: () => getReceipt(new Request('http://localhost/api/v1/finance/receipts/r1', { method: 'GET' }), { params: Promise.resolve({ id: 'r1' }) }),
+      },
+      {
+        method: 'PATCH',
+        currentStatus: 'PENDING',
+        run: () =>
+          patchReceipt(
+            new Request('http://localhost/api/v1/finance/receipts/r1', {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ status: 'PAID' }),
+            }),
+            { params: Promise.resolve({ id: 'r1' }) }
+          ),
+      },
+      {
+        method: 'PUT',
+        currentStatus: 'PENDING',
+        run: () =>
+          putReceipt(
+            new Request('http://localhost/api/v1/finance/receipts/r1', {
+              method: 'PUT',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                amount: 180,
+                currency: 'PEN',
+                description: 'Recibo editado',
+                issueDate: '2026-04-02',
+                dueDate: '2026-04-11',
+              }),
+            }),
+            { params: Promise.resolve({ id: 'r1' }) }
+          ),
+      },
+      {
+        method: 'DELETE',
+        currentStatus: 'CANCELLED',
+        run: () => deleteReceipt(new Request('http://localhost/api/v1/finance/receipts/r1', { method: 'DELETE' }), { params: Promise.resolve({ id: 'r1' }) }),
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      query.mockReset();
+      (sessionUser as { internalRole: string }).internalRole = 'BUILDING_ADMIN';
+      (sessionUser as { role: string }).role = 'MANAGER';
+      (sessionUser as { scope: string }).scope = 'client';
+      (sessionUser as { clientId: string | null }).clientId = 'client_001';
+      (sessionUser as { id: string }).id = 'u_admin';
+
+      const current = receiptRow({ id: 'r1', clientId: 'client_001', buildingId: 'b1', unitId: 'unit-101' });
+      current.status = scenario.currentStatus;
+      const assignmentParams: unknown[][] = [];
+
+      query.mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+        if (sql.includes('FROM receipts') && sql.includes('SELECT')) return { rows: [current] };
+        if (sql.includes('FROM user_building_assignments')) {
+          assignmentParams.push(params ?? []);
+          return { rows: [{ ok: true }] };
+        }
+        if (sql.includes('FROM receipt_payment_proofs')) return { rows: [] };
+        if (sql.includes('UPDATE receipts')) return { rows: [{ ...current, status: scenario.method === 'PATCH' ? 'PAID' : current.status }] };
+        if (sql.includes('DELETE FROM receipts')) return { rows: [] };
+        if (sql.includes('INSERT INTO audit_logs')) return { rows: [] };
+        return { rows: [] };
+      });
+
+      const res = await scenario.run();
+
+      expect(res.status, scenario.method).toBe(200);
+      expect(assignmentParams, scenario.method).toContainEqual(['u_admin', 'b1', 'client_001']);
+    }
+  });
+
+  it('denies building admin receipt detail when only an inconsistent cross-tenant assignment would match', async () => {
+    query.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'BUILDING_ADMIN';
+    (sessionUser as { role: string }).role = 'MANAGER';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u_admin';
+
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM receipts')) {
+        return { rows: [receiptRow({ id: 'r1', clientId: 'client_001', buildingId: 'b1', unitId: 'unit-101' })] };
+      }
+      if (sql.includes('FROM user_building_assignments')) {
+        return sql.includes('client_id = $3') ? { rows: [] } : { rows: [{ ok: true }] };
+      }
+      return { rows: [] };
+    });
+
+    const req = new Request('http://localhost/api/v1/finance/receipts/r1', { method: 'GET' });
+    const res = await getReceipt(req, { params: Promise.resolve({ id: 'r1' }) });
+
+    expect(res.status).toBe(404);
+  });
 });

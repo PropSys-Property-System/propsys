@@ -13,12 +13,10 @@ function listRouteFiles(dir: string): string[] {
 }
 
 describe('user_building_assignments tenant hardening', () => {
-  it('keeps every non-financial API read explicitly scoped by client_id', () => {
+  it('keeps every API read explicitly scoped by client_id', () => {
     const missingClientScope: string[] = [];
 
     for (const file of listRouteFiles(apiRoot)) {
-      if (file.includes(`${join('api', 'v1', 'finance')}`)) continue;
-
       const source = readFileSync(file, 'utf8');
       const assignmentReads = source.match(/`[^`]*(?:FROM|JOIN) user_building_assignments[^`]*`/g) ?? [];
 

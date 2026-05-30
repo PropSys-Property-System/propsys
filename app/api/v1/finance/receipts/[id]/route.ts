@@ -7,13 +7,13 @@ import { withTransaction } from '@/lib/server/db/tx';
 import type { Receipt } from '@/lib/types';
 import { labelReceiptStatus } from '@/lib/presentation/labels';
 
-async function hasBuildingAssignment(pool: ReturnType<typeof getPool>, userId: string, buildingId: string) {
+async function hasBuildingAssignment(pool: ReturnType<typeof getPool>, userId: string, buildingId: string, clientId: string) {
   const ok = await pool.query<{ ok: boolean }>(
     `SELECT true as ok
      FROM user_building_assignments
-     WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+     WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
      LIMIT 1`,
-    [userId, buildingId]
+    [userId, buildingId, clientId]
   );
   return !!ok.rows[0];
 }
@@ -112,7 +112,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   }
 
   if (user.internalRole === 'BUILDING_ADMIN' || user.internalRole === 'STAFF') {
-    const ok = await hasBuildingAssignment(pool, user.id, row.building_id);
+    const ok = await hasBuildingAssignment(pool, user.id, row.building_id, row.client_id);
     if (!ok) return NextResponse.json({ receipt: null }, { status: 404 });
     return NextResponse.json({ receipt: toLegacy(row) });
   }
@@ -182,9 +182,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (user.internalRole === 'BUILDING_ADMIN') {
     const ok = await pool.query<{ ok: boolean }>(
       `SELECT true as ok FROM user_building_assignments
-       WHERE user_id = $1 AND building_id = $2 AND status = 'ACTIVE' AND deleted_at IS NULL
+       WHERE user_id = $1 AND building_id = $2 AND client_id = $3 AND status = 'ACTIVE' AND deleted_at IS NULL
        LIMIT 1`,
-      [user.id, current.building_id]
+      [user.id, current.building_id, current.client_id]
     );
     if (!ok.rows[0]) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
   }
@@ -287,7 +287,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
   }
   if (user.internalRole === 'BUILDING_ADMIN') {
-    const ok = await hasBuildingAssignment(pool, user.id, current.building_id);
+    const ok = await hasBuildingAssignment(pool, user.id, current.building_id, current.client_id);
     if (!ok) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
   }
   if (current.status !== 'PENDING') {
@@ -377,7 +377,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
   }
   if (user.internalRole === 'BUILDING_ADMIN') {
-    const ok = await hasBuildingAssignment(pool, user.id, current.building_id);
+    const ok = await hasBuildingAssignment(pool, user.id, current.building_id, current.client_id);
     if (!ok) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 });
   }
   if (current.status === 'PAID') {
