@@ -13,6 +13,7 @@ import {
   reviewReceiptPaymentProof,
   updateAdminReceiptStatus,
 } from '@/lib/features/receipts/receipts-center.data';
+import { buildReceiptsCsv } from '@/lib/features/receipts/receipts-export';
 import { AdminPaymentProofsPanel, AdminReceiptsList, AdminReceiptsWorkspaceSkeleton, ReceiptComposerDialog } from '@/lib/features/receipts/receipts-center.ui';
 import type { Receipt, ReceiptPaymentProofReviewAction, ReceiptPaymentProofView } from '@/lib/types';
 
@@ -288,19 +289,7 @@ export default function AdminReceiptsPage() {
       <button
         type="button"
         onClick={() => {
-          const header = ['número', 'descripción', 'monto', 'moneda', 'emisión', 'vencimiento', 'estado', 'edificio', 'unidad'];
-          const rows = visibleReceipts.map((item) => [
-            item.number,
-            item.description,
-            String(item.amount),
-            item.currency,
-            item.issueDate,
-            item.dueDate,
-            item.status,
-            item.buildingId,
-            item.unitId,
-          ]);
-          const csv = [header, ...rows].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n');
+          const csv = buildReceiptsCsv(visibleReceipts, { buildingById, unitById });
           const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
           const url = URL.createObjectURL(blob);
           const anchor = document.createElement('a');
