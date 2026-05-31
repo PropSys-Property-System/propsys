@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { Search, CalendarDays as CalendarIcon, List as ListIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   approveReservationForUser,
@@ -32,6 +33,7 @@ type PendingReservationAction = {
 
 export default function AdminReservationsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -142,6 +144,7 @@ export default function AdminReservationsPage() {
         await cancelReservationForUser(user, pendingAction.reservationId);
       }
       await reload();
+      router.refresh();
       setPendingAction(null);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : fallbackError);

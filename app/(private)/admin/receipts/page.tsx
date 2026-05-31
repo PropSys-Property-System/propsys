@@ -255,6 +255,7 @@ export default function AdminReceiptsPage() {
         current.map((receipt) => (receipt.id === result.receipt.id ? { ...receipt, status: result.receipt.status } : receipt))
       );
       setActionMessage(action === 'APPROVE' ? 'Comprobante aprobado y recibo marcado como pagado.' : 'Comprobante rechazado y movido a la lista general.');
+      router.refresh();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos revisar el comprobante.');
     } finally {

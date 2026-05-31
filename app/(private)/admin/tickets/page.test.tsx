@@ -37,8 +37,13 @@ const mocks = vi.hoisted(() => {
     createTicketForUser: vi.fn(),
     updateTicketStatusForUser: vi.fn(),
     assignTicketForUser: vi.fn(),
+    refresh: vi.fn(),
   };
 });
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 
 vi.mock('@/lib/auth/auth-context', () => ({
   useAuth: () => ({ user: mocks.managerUser }),
@@ -53,6 +58,7 @@ vi.mock('@/lib/features/tickets/ticket-center.data', () => ({
 
 describe('admin tickets close confirmation flow', () => {
   beforeEach(() => {
+    mocks.refresh.mockReset();
     mocks.createTicketForUser.mockReset().mockResolvedValue({
       ...mocks.ticket,
       status: 'REPORTED',
@@ -348,6 +354,7 @@ describe('admin tickets close confirmation flow', () => {
     expect(callArgs.description).toContain('Lugar específico: Ascensor de Torre Norte, entre piso 2 y 3');
     expect(callArgs.description).toContain('Desde cuándo ocurre: Hoy');
     expect(callArgs.description).toContain('Afectación: Zona común del edificio');
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalled());
   });
 
   it('creates with unit when a valid linked unit is selected', async () => {
@@ -413,6 +420,7 @@ describe('admin tickets close confirmation flow', () => {
     await waitFor(() => {
       expect(mocks.updateTicketStatusForUser).toHaveBeenCalledWith(mocks.managerUser, 'inc_1', 'CLOSED');
     });
+    expect(mocks.refresh).toHaveBeenCalled();
   });
 
   it('keeps the manual status selector flow working as before', async () => {
@@ -430,5 +438,41 @@ describe('admin tickets close confirmation flow', () => {
     await waitFor(() => {
       expect(mocks.updateTicketStatusForUser).toHaveBeenCalledWith(mocks.managerUser, 'inc_1', 'RESOLVED');
     });
+    expect(mocks.refresh).toHaveBeenCalled();
+  });
+
+  it('refreshes after assigning an incident successfully', async () => {
+    render(<AdminTicketsPage />);
+
+    const assignButton = await screen.findByRole('button', { name: 'Reasignar' });
+    const card = assignButton.closest('.bg-white.border.border-slate-200.rounded-2xl');
+    expect(card).not.toBeNull();
+
+    const selects = within(card as HTMLElement).getAllByRole('combobox');
+    fireEvent.change(selects[0], { target: { value: 'staff_1' } });
+    fireEvent.click(assignButton);
+
+    await waitFor(() => {
+      expect(mocks.assignTicketForUser).toHaveBeenCalledWith(mocks.managerUser, 'inc_1', 'staff_1');
+    });
+    expect(mocks.refresh).toHaveBeenCalled();
+  });
+
+  it('does not refresh when updating incident status fails', async () => {
+    mocks.updateTicketStatusForUser.mockRejectedValueOnce(new Error('boom'));
+    render(<AdminTicketsPage />);
+
+    const closeButton = await screen.findByRole('button', { name: 'Cerrar incidencia' });
+    const card = closeButton.closest('.bg-white.border.border-slate-200.rounded-2xl');
+    expect(card).not.toBeNull();
+
+    const statusSelect = within(card as HTMLElement).getAllByRole('combobox').at(-1);
+    fireEvent.change(statusSelect as Element, { target: { value: 'RESOLVED' } });
+    fireEvent.click(within(card as HTMLElement).getByRole('button', { name: 'Guardar' }));
+
+    await waitFor(() => {
+      expect(mocks.updateTicketStatusForUser).toHaveBeenCalled();
+    });
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 });

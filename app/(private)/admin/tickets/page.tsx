@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -32,6 +33,7 @@ type PendingIncidentClose = {
 
 export default function AdminTicketsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [allTickets, setAllTickets] = useState<IncidentEntity[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [buildingFilterId, setBuildingFilterId] = useState('');
@@ -235,6 +237,7 @@ export default function AdminTicketsPage() {
       setIsCreateOpen(false);
       resetCreateForm();
       await reload();
+      router.refresh();
     } catch {
       setActionError('No pudimos crear la incidencia.');
     } finally {
@@ -252,6 +255,7 @@ export default function AdminTicketsPage() {
       setActionError(null);
       await updateTicketStatusForUser(user, id, nextStatus);
       await reload();
+      router.refresh();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos actualizar la incidencia.');
     } finally {
@@ -267,6 +271,7 @@ export default function AdminTicketsPage() {
       setActionError(null);
       await updateTicketStatusForUser(user, id, 'CLOSED');
       await reload();
+      router.refresh();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos cerrar la incidencia.');
     } finally {
@@ -317,6 +322,7 @@ export default function AdminTicketsPage() {
         return next;
       });
       await reload();
+      router.refresh();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos asignar la incidencia.');
     } finally {

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -15,6 +16,7 @@ import type { IncidentEntity } from '@/lib/types';
 
 export default function StaffTicketsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [allTickets, setAllTickets] = useState<IncidentEntity[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -132,6 +134,7 @@ export default function StaffTicketsPage() {
       setActionError(null);
       await updateTicketStatusForUser(user, id, nextStatus);
       await reload();
+      router.refresh();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'No pudimos actualizar la incidencia.');
     } finally {

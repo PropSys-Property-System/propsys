@@ -66,8 +66,13 @@ const mocks = vi.hoisted(() => {
     loadAdminReservationsPageData: vi.fn(),
     rejectReservationForUser: vi.fn(),
     splitReservationsByTimeline: vi.fn(),
+    refresh: vi.fn(),
   };
 });
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 
 vi.mock('@/lib/auth/auth-context', () => ({
   useAuth: () => ({ user: mocks.managerUser }),
@@ -83,6 +88,7 @@ vi.mock('@/lib/features/reservations/reservations-center.data', () => ({
 
 describe('admin reservations confirmation flow', () => {
   beforeEach(() => {
+    mocks.refresh.mockReset();
     mocks.approveReservationForUser.mockReset().mockResolvedValue({ id: 'resv_1', status: 'APPROVED' });
     mocks.rejectReservationForUser.mockReset().mockResolvedValue({ id: 'resv_1', status: 'REJECTED' });
     mocks.cancelReservationForUser.mockReset().mockResolvedValue({ id: 'resv_1', status: 'CANCELLED' });
@@ -117,6 +123,7 @@ describe('admin reservations confirmation flow', () => {
     await waitFor(() => {
       expect(mocks.approveReservationForUser).toHaveBeenCalledWith(mocks.managerUser, 'resv_1');
     });
+    expect(mocks.refresh).toHaveBeenCalled();
   });
 
   it('opens reject confirmation without executing the action yet', async () => {
@@ -151,5 +158,17 @@ describe('admin reservations confirmation flow', () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Confirmar cancelación' })).toBeInTheDocument();
     expect(mocks.cancelReservationForUser).not.toHaveBeenCalled();
+  });
+
+  it('executes reject and refreshes after confirming', async () => {
+    render(<AdminReservationsPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Rechazar' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar rechazo' }));
+
+    await waitFor(() => {
+      expect(mocks.rejectReservationForUser).toHaveBeenCalledWith(mocks.managerUser, 'resv_1');
+    });
+    expect(mocks.refresh).toHaveBeenCalled();
   });
 });
