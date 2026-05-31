@@ -4,6 +4,41 @@ import { labelClient, labelIncidentPriority, labelIncidentStatus } from '@/lib/p
 import type { IncidentEntity } from '@/lib/types';
 import type { TicketBuildingOption, TicketStaffOption, TicketUnitOption, TicketWithEvidence } from '@/lib/features/tickets/ticket-center.data';
 
+export type IncidentReportContext = {
+  reportFrom: string;
+  problemType: string;
+  whereOccurs: string;
+  locationDetail: string;
+  since: string;
+  impact: string;
+  additionalDetail: string;
+};
+
+export function buildStructuredDescription(context: IncidentReportContext): string {
+  const lines = [
+    `Reportado desde: ${context.reportFrom}`,
+    `Tipo de problema: ${context.problemType}`,
+    `Dónde ocurre: ${context.whereOccurs}`,
+    `Lugar específico: ${context.locationDetail}`,
+    `Desde cuándo ocurre: ${context.since}`,
+    `Afectación: ${context.impact}`,
+  ];
+  const detail = context.additionalDetail.trim();
+  if (detail) {
+    lines.push('');
+    lines.push('---');
+    lines.push('Detalle adicional:');
+    lines.push(detail);
+  }
+  return lines.join('\n');
+}
+
+export function getSuggestedIncidentTitle(problemType: string, whereOccurs: string) {
+  if (!problemType || !whereOccurs) return '';
+  if (problemType === 'Otro' || whereOccurs === 'Otro') return 'Incidencia reportada';
+  return `${problemType} en ${whereOccurs}`;
+}
+
 type AdminTicketCardProps = {
   ticket: TicketWithEvidence;
   buildingName: string;
@@ -62,15 +97,24 @@ type ResidentTicketComposerDialogProps = {
   units: TicketUnitOption[];
   buildingNameById: ReadonlyMap<string, string>;
   unitId: string;
+  problemType: string;
+  whereOccurs: string;
+  locationDetail: string;
+  since: string;
+  impact: string;
   title: string;
-  description: string;
+  additionalDetail: string;
   priority: IncidentEntity['priority'];
   error?: string | null;
   onClose: () => void;
-  onBuildingChange?: (buildingId: string) => void;
   onUnitChange: (unitId: string) => void;
+  onProblemTypeChange: (value: string) => void;
+  onWhereOccursChange: (value: string) => void;
+  onLocationDetailChange: (value: string) => void;
+  onSinceChange: (value: string) => void;
+  onImpactChange: (value: string) => void;
   onTitleChange: (title: string) => void;
-  onDescriptionChange: (description: string) => void;
+  onAdditionalDetailChange: (value: string) => void;
   onPriorityChange: (priority: IncidentEntity['priority']) => void;
   evidenceFile: File | null;
   onEvidenceChange: (file: File | null) => void;
@@ -583,14 +627,24 @@ export function ResidentTicketComposerDialog({
   units,
   buildingNameById,
   unitId,
+  problemType,
+  whereOccurs,
+  locationDetail,
+  since,
+  impact,
   title,
-  description,
+  additionalDetail,
   priority,
   error,
   onClose,
   onUnitChange,
+  onProblemTypeChange,
+  onWhereOccursChange,
+  onLocationDetailChange,
+  onSinceChange,
+  onImpactChange,
   onTitleChange,
-  onDescriptionChange,
+  onAdditionalDetailChange,
   onPriorityChange,
   evidenceFile,
   onEvidenceChange,
@@ -598,116 +652,253 @@ export function ResidentTicketComposerDialog({
 }: ResidentTicketComposerDialogProps) {
   if (!isOpen) return null;
 
-  const selectedUnit = units.find((unit) => unit.id === unitId);
-  const selectedBuildingName = selectedUnit ? buildingNameById.get(selectedUnit.buildingId) : null;
   const titleLength = title.trim().length;
-  const descriptionLength = description.trim().length;
+  const locationDetailLength = locationDetail.trim().length;
+  const needsDetail = problemType === 'Otro' || whereOccurs === 'Otro';
 
   const formatResidentUnitLabel = (unit: TicketUnitOption) => {
     const buildingName = buildingNameById.get(unit.buildingId);
     return buildingName ? `${buildingName} · Depto ${unit.number}` : `Depto ${unit.number}`;
   };
+  const selectedUnit = units.find((unit) => unit.id === unitId);
+  const reportFromLabel = selectedUnit ? formatResidentUnitLabel(selectedUnit) : '';
+  const hasSingleUnit = units.length === 1;
+  const hasMultipleUnits = units.length > 1;
+
+  const selectClass =
+    'w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium';
+  const sectionLabel = 'text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={onClose} type="button" />
-      <div role="dialog" aria-modal="true" className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-xl bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 max-h-[90vh] overflow-y-auto"
+      >
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-lg font-black text-slate-900">Reportar incidencia</p>
-            <p className="mt-1 text-xs text-slate-500 font-medium">Crea una incidencia para una de tus unidades.</p>
+            <p className="mt-1 text-xs text-slate-500 font-medium">
+              Cuéntanos qué ocurre para que el equipo pueda actuar más rápido.
+            </p>
           </div>
           <button type="button" onClick={onClose} className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700">
             Cerrar
           </button>
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-5 space-y-5">
           {error && (
             <div className="p-3 bg-rose-50 text-rose-600 text-xs font-bold rounded-xl border border-rose-100">
               {error}
             </div>
           )}
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Unidad</label>
-            <select
-              value={unitId}
-              onChange={(event) => onUnitChange(event.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-            >
-              <option value="" disabled>
-                Selecciona...
-              </option>
-              {units.map((unit) => (
-                <option key={unit.id} value={unit.id}>
-                  {formatResidentUnitLabel(unit)}
-                </option>
-              ))}
-            </select>
-            {selectedBuildingName ? (
-              <p className="mt-2 text-xs text-slate-500 font-bold">
-                Edificio: <span className="font-black text-slate-700">{selectedBuildingName}</span>
+
+          {/* ── REPORTANTE ────────────────────────────────────── */}
+          <div className="space-y-3">
+            <p className={sectionLabel}>Reportante</p>
+
+            <div>
+              {hasSingleUnit ? (
+                <>
+                  <p className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                    Reportado desde
+                  </p>
+                  <div className="px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm font-semibold text-slate-700">
+                    {reportFromLabel || formatResidentUnitLabel(units[0])}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                    Reportar desde
+                  </label>
+                  <select
+                    value={unitId}
+                    onChange={(e) => onUnitChange(e.target.value)}
+                    className={selectClass}
+                    disabled={!hasMultipleUnits}
+                  >
+                    <option value="" disabled>Selecciona...</option>
+                    {units.map((unit) => (
+                      <option key={unit.id} value={unit.id}>
+                        {formatResidentUnitLabel(unit)}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              <p className="mt-2 text-xs text-slate-500 font-medium">
+                Usaremos esta unidad para asociar el reporte a tu cuenta. El problema puede ocurrir dentro de tu unidad o en otra zona del edificio.
               </p>
-            ) : null}
-            <p className="mt-2 text-xs text-slate-500 font-medium">
-              Selecciona la unidad afectada para que administración ubique el problema más rápido.
-            </p>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Prioridad</label>
-            <select
-              value={priority}
-              onChange={(event) => onPriorityChange(event.target.value as IncidentEntity['priority'])}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-            >
-              <option value="LOW">{labelIncidentPriority('LOW')}</option>
-              <option value="MEDIUM">{labelIncidentPriority('MEDIUM')}</option>
-              <option value="HIGH">{labelIncidentPriority('HIGH')}</option>
-            </select>
+          {/* ── PROBLEMA ─────────────────────────────────────── */}
+          <div className="space-y-3">
+            <p className={sectionLabel}>Problema</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                  Tipo de problema
+                </label>
+                <select value={problemType} onChange={(e) => onProblemTypeChange(e.target.value)} className={selectClass}>
+                  <option value="" disabled>Selecciona...</option>
+                  <option>Agua / filtración</option>
+                  <option>Electricidad</option>
+                  <option>Gas</option>
+                  <option>Limpieza</option>
+                  <option>Seguridad</option>
+                  <option>Ruido</option>
+                  <option>Ascensor</option>
+                  <option>Daño estructural</option>
+                  <option>Mantenimiento general</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                  Dónde ocurre
+                </label>
+                <select value={whereOccurs} onChange={(e) => onWhereOccursChange(e.target.value)} className={selectClass}>
+                  <option value="" disabled>Selecciona...</option>
+                  <option>Dentro de mi unidad</option>
+                  <option>Área común</option>
+                  <option>Ascensor</option>
+                  <option>Pasillo / hall</option>
+                  <option>Escalera</option>
+                  <option>Estacionamiento</option>
+                  <option>Exterior</option>
+                  <option>Todo el edificio</option>
+                  <option>Otro</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Título</label>
-            <input
-              value={title}
-              onChange={(event) => onTitleChange(event.target.value)}
-              placeholder="Ej. Fuga de agua en baño principal"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-            />
-            <p className="mt-2 text-xs text-slate-500 font-medium">
-              Resume el problema en una frase clara. Mínimo 6 caracteres.
-            </p>
-            {titleLength > 0 && titleLength < 6 ? (
-              <p className="mt-2 text-xs font-bold text-rose-600">El título debe tener al menos 6 caracteres.</p>
-            ) : null}
+          {/* ── CONTEXTO ──────────────────────────────────────── */}
+          <div className="space-y-3">
+            <p className={sectionLabel}>Contexto</p>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                Lugar específico
+              </label>
+              <input
+                value={locationDetail}
+                onChange={(e) => onLocationDetailChange(e.target.value)}
+                placeholder="Ej. baño principal, pasillo del piso 3, ascensor de Torre A, zona de parrilla, estacionamiento B12"
+                className={selectClass}
+              />
+              {locationDetailLength > 0 && locationDetailLength < 4 ? (
+                <p className="mt-2 text-xs font-bold text-rose-600">Indica el lugar específico del problema.</p>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                  Desde cuándo ocurre
+                </label>
+                <select value={since} onChange={(e) => onSinceChange(e.target.value)} className={selectClass}>
+                  <option value="" disabled>Selecciona...</option>
+                  <option>Ahora / recién ocurrió</option>
+                  <option>Hoy</option>
+                  <option>Desde ayer</option>
+                  <option>Hace varios días</option>
+                  <option>No estoy seguro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                  Afectación
+                </label>
+                <select value={impact} onChange={(e) => onImpactChange(e.target.value)} className={selectClass}>
+                  <option value="" disabled>Selecciona...</option>
+                  <option>Solo mi unidad</option>
+                  <option>Mi unidad y zonas cercanas</option>
+                  <option>Varias unidades</option>
+                  <option>Zona común del edificio</option>
+                  <option>Todo el edificio</option>
+                  <option>No estoy seguro</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Prioridad</label>
+              <select
+                value={priority}
+                onChange={(e) => onPriorityChange(e.target.value as IncidentEntity['priority'])}
+                className={selectClass}
+              >
+                <option value="LOW">{labelIncidentPriority('LOW')}</option>
+                <option value="MEDIUM">{labelIncidentPriority('MEDIUM')}</option>
+                <option value="HIGH">{labelIncidentPriority('HIGH')}</option>
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Descripción</label>
-            <textarea
-              value={description}
-              onChange={(event) => onDescriptionChange(event.target.value)}
-              placeholder="Indica dónde ocurre, desde cuándo sucede y qué tan urgente parece."
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium min-h-[120px]"
-            />
-            <p className="mt-2 text-xs text-slate-500 font-medium">
-              Incluye la ubicación dentro de la unidad y cualquier señal útil para el equipo. Mínimo 15 caracteres.
-            </p>
-            {descriptionLength > 0 && descriptionLength < 15 ? (
-              <p className="mt-2 text-xs font-bold text-rose-600">La descripción debe tener al menos 15 caracteres.</p>
-            ) : null}
-          </div>
+          {/* ── DETALLE ───────────────────────────────────────── */}
+          <div className="space-y-3">
+            <p className={sectionLabel}>Detalle</p>
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Adjuntar Evidencia (Opcional)</label>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(event) => onEvidenceChange(event.target.files?.[0] || null)}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-            />
-            {evidenceFile && <p className="mt-1 ml-1 text-xs font-bold text-primary">Archivo seleccionado: {evidenceFile.name}</p>}
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Título</label>
+              <input
+                value={title}
+                onChange={(e) => onTitleChange(e.target.value)}
+                placeholder="Ej. Fuga de agua en baño principal"
+                className={selectClass}
+              />
+              <p className="mt-2 text-xs text-slate-500 font-medium">
+                Resume el problema en una frase clara. Mínimo 6 caracteres.
+              </p>
+              {titleLength > 0 && titleLength < 6 ? (
+                <p className="mt-2 text-xs font-bold text-rose-600">El título debe tener al menos 6 caracteres.</p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                Detalle adicional{needsDetail ? '' : ' (opcional)'}
+              </label>
+              <textarea
+                value={additionalDetail}
+                onChange={(e) => onAdditionalDetailChange(e.target.value)}
+                placeholder={
+                  needsDetail
+                    ? 'Agrega un detalle adicional cuando selecciones "Otro".'
+                    : 'El ascensor se detiene y hay olor a humedad.'
+                }
+                className={`${selectClass} min-h-[96px]`}
+              />
+              {needsDetail ? (
+                <p className="mt-2 text-xs text-slate-500 font-medium">
+                  Explica con más detalle el problema cuando el tipo o la ubicación no encajan en las opciones disponibles.
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                Adjuntar evidencia (opcional)
+              </label>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) => onEvidenceChange(e.target.files?.[0] || null)}
+                className={selectClass}
+              />
+              {evidenceFile && (
+                <p className="mt-1 ml-1 text-xs font-bold text-primary">Archivo seleccionado: {evidenceFile.name}</p>
+              )}
+            </div>
           </div>
         </div>
 
