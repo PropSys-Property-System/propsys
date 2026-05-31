@@ -41,6 +41,7 @@ export type ResidentTicketsPageData = {
 
 export type StaffTicketsPageData = {
   tickets: TicketWithEvidence[];
+  buildings: TicketBuildingOption[];
   units: TicketUnitOption[];
 };
 
@@ -97,8 +98,9 @@ export async function loadResidentTicketsPageData(user: User): Promise<ResidentT
 }
 
 export async function loadStaffTicketsPageData(user: User): Promise<StaffTicketsPageData> {
-  const [ticketsBase, units, evidence] = await Promise.all([
+  const [ticketsBase, buildings, units, evidence] = await Promise.all([
     incidentsRepo.listForUser(user), 
+    buildingsRepo.listForUser(user),
     unitsRepo.listForUser(user),
     evidenceRepo.listForUser(user).catch(() => []),
   ]);
@@ -106,6 +108,7 @@ export async function loadStaffTicketsPageData(user: User): Promise<StaffTickets
 
   return {
     tickets,
+    buildings: buildings.map((building) => ({ id: building.id, name: building.name })),
     units: units.map((unit) => ({ id: unit.id, buildingId: unit.buildingId, number: unit.number })),
   };
 }

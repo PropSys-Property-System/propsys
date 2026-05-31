@@ -11,6 +11,8 @@ import { evidenceRepo } from '@/lib/repos/operation/evidence.repo';
 import { formatClientBadge } from '@/lib/presentation/labels';
 
 export default function ResidentTicketsPage() {
+  const MIN_RESIDENT_TICKET_TITLE_LENGTH = 6;
+  const MIN_RESIDENT_TICKET_DESCRIPTION_LENGTH = 15;
   const { user } = useAuth();
   const [allTickets, setAllTickets] = useState<TicketWithEvidence[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,12 +73,22 @@ export default function ResidentTicketsPage() {
 
   const submitCreate = async () => {
     if (!user) return;
+    const trimmedTitle = createTitle.trim();
+    const trimmedDescription = createDescription.trim();
     if (!createUnitId) {
       setActionError('Selecciona una unidad.');
       return;
     }
-    if (!createTitle.trim() || !createDescription.trim()) {
+    if (!trimmedTitle || !trimmedDescription) {
       setActionError('Completa título y descripción.');
+      return;
+    }
+    if (trimmedTitle.length < MIN_RESIDENT_TICKET_TITLE_LENGTH) {
+      setActionError('El título debe tener al menos 6 caracteres.');
+      return;
+    }
+    if (trimmedDescription.length < MIN_RESIDENT_TICKET_DESCRIPTION_LENGTH) {
+      setActionError('La descripción debe tener al menos 15 caracteres.');
       return;
     }
     const unit = units.find((u) => u.id === createUnitId);
@@ -90,8 +102,8 @@ export default function ResidentTicketsPage() {
       const newTicket = await createTicketForUser(user, {
         buildingId: unit.buildingId,
         unitId: unit.id,
-        title: createTitle.trim(),
-        description: createDescription.trim(),
+        title: trimmedTitle,
+        description: trimmedDescription,
         priority: createPriority,
       });
 

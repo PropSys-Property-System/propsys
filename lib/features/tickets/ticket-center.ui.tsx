@@ -79,6 +79,8 @@ type ResidentTicketComposerDialogProps = {
 
 type StaffTicketCardProps = {
   ticket: TicketWithEvidence;
+  buildingName: string;
+  unitLabel?: string | null;
   isSubmitting: boolean;
   selectedStatus: IncidentEntity['status'] | '';
   allowedStatuses: IncidentEntity['status'][];
@@ -370,6 +372,8 @@ export function ResidentTicketCard({ ticket }: ResidentTicketCardProps) {
 
 export function StaffTicketCard({
   ticket,
+  buildingName,
+  unitLabel,
   isSubmitting,
   selectedStatus,
   allowedStatuses,
@@ -384,6 +388,19 @@ export function StaffTicketCard({
         <div className="flex items-center gap-2 flex-wrap">
           <span className={incidentStatusChip(ticket.status)}>{labelIncidentStatus(ticket.status)}</span>
           <span className={incidentPriorityChip(ticket.priority)}>{labelIncidentPriority(ticket.priority)}</span>
+        </div>
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+            Ubicación
+          </span>
+          <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+            {buildingName}
+          </span>
+          {unitLabel ? (
+            <span className="px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+              Unidad {unitLabel}
+            </span>
+          ) : null}
         </div>
         <p className="mt-3 text-sm font-black text-slate-900 truncate">{ticket.title}</p>
         <p className="mt-1 text-xs text-slate-500 font-medium">{ticket.description}</p>
@@ -583,6 +600,13 @@ export function ResidentTicketComposerDialog({
 
   const selectedUnit = units.find((unit) => unit.id === unitId);
   const selectedBuildingName = selectedUnit ? buildingNameById.get(selectedUnit.buildingId) : null;
+  const titleLength = title.trim().length;
+  const descriptionLength = description.trim().length;
+
+  const formatResidentUnitLabel = (unit: TicketUnitOption) => {
+    const buildingName = buildingNameById.get(unit.buildingId);
+    return buildingName ? `${buildingName} · Depto ${unit.number}` : `Depto ${unit.number}`;
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -616,7 +640,7 @@ export function ResidentTicketComposerDialog({
               </option>
               {units.map((unit) => (
                 <option key={unit.id} value={unit.id}>
-                  {unit.number}
+                  {formatResidentUnitLabel(unit)}
                 </option>
               ))}
             </select>
@@ -625,6 +649,9 @@ export function ResidentTicketComposerDialog({
                 Edificio: <span className="font-black text-slate-700">{selectedBuildingName}</span>
               </p>
             ) : null}
+            <p className="mt-2 text-xs text-slate-500 font-medium">
+              Selecciona la unidad afectada para que administración ubique el problema más rápido.
+            </p>
           </div>
 
           <div>
@@ -645,8 +672,15 @@ export function ResidentTicketComposerDialog({
             <input
               value={title}
               onChange={(event) => onTitleChange(event.target.value)}
+              placeholder="Ej. Fuga de agua en baño principal"
               className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
             />
+            <p className="mt-2 text-xs text-slate-500 font-medium">
+              Resume el problema en una frase clara. Mínimo 6 caracteres.
+            </p>
+            {titleLength > 0 && titleLength < 6 ? (
+              <p className="mt-2 text-xs font-bold text-rose-600">El título debe tener al menos 6 caracteres.</p>
+            ) : null}
           </div>
 
           <div>
@@ -654,8 +688,15 @@ export function ResidentTicketComposerDialog({
             <textarea
               value={description}
               onChange={(event) => onDescriptionChange(event.target.value)}
+              placeholder="Indica dónde ocurre, desde cuándo sucede y qué tan urgente parece."
               className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium min-h-[120px]"
             />
+            <p className="mt-2 text-xs text-slate-500 font-medium">
+              Incluye la ubicación dentro de la unidad y cualquier señal útil para el equipo. Mínimo 15 caracteres.
+            </p>
+            {descriptionLength > 0 && descriptionLength < 15 ? (
+              <p className="mt-2 text-xs font-bold text-rose-600">La descripción debe tener al menos 15 caracteres.</p>
+            ) : null}
           </div>
 
           <div>

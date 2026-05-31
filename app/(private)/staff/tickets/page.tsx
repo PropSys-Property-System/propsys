@@ -7,7 +7,6 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   createTicketForUser,
-  listTicketsForUser,
   loadStaffTicketsPageData,
   updateTicketStatusForUser,
 } from '@/lib/features/tickets/ticket-center.data';
@@ -26,6 +25,7 @@ export default function StaffTicketsPage() {
   const [createTitle, setCreateTitle] = useState('');
   const [createDescription, setCreateDescription] = useState('');
   const [createPriority, setCreatePriority] = useState<IncidentEntity['priority']>('MEDIUM');
+  const [buildings, setBuildings] = useState<{ id: string; name: string }[]>([]);
   const [units, setUnits] = useState<{ id: string; buildingId: string; number: string }[]>([]);
   const [createUnitId, setCreateUnitId] = useState('');
   const [statusById, setStatusById] = useState<Record<string, IncidentEntity['status']>>({});
@@ -43,6 +43,7 @@ export default function StaffTicketsPage() {
         const data = await loadStaffTicketsPageData(user);
         if (!isMounted) return;
         setAllTickets(data.tickets);
+        setBuildings(data.buildings);
         setUnits(data.units);
       } catch {
         if (!isMounted) return;
@@ -63,8 +64,10 @@ export default function StaffTicketsPage() {
   const reload = async () => {
     if (!user) return;
     setActionError(null);
-    const data = await listTicketsForUser(user);
-    setAllTickets(data);
+    const data = await loadStaffTicketsPageData(user);
+    setAllTickets(data.tickets);
+    setBuildings(data.buildings);
+    setUnits(data.units);
   };
 
   const tickets = useMemo(() => {
@@ -78,6 +81,8 @@ export default function StaffTicketsPage() {
 
   const canCreate = user?.internalRole === 'STAFF';
   const allowedStaffStatuses: IncidentEntity['status'][] = ['IN_PROGRESS', 'RESOLVED'];
+  const buildingNameById = useMemo(() => new Map(buildings.map((building) => [building.id, building.name])), [buildings]);
+  const unitNumberById = useMemo(() => new Map(units.map((unit) => [unit.id, unit.number])), [units]);
 
   const submitCreate = async () => {
     if (!user) return;
@@ -183,6 +188,8 @@ export default function StaffTicketsPage() {
               <StaffTicketCard
                 key={ticket.id}
                 ticket={ticket}
+                buildingName={buildingNameById.get(ticket.buildingId) ?? ticket.buildingId}
+                unitLabel={ticket.unitId ? (unitNumberById.get(ticket.unitId) ?? ticket.unitId) : null}
                 isSubmitting={isSubmitting}
                 selectedStatus={statusById[ticket.id] ?? ''}
                 allowedStatuses={allowedStaffStatuses}
