@@ -21,6 +21,18 @@ type AdminTicketCardProps = {
   onAssign: () => void;
 };
 
+type IncidentCloseConfirmationDialogProps = {
+  isOpen: boolean;
+  isSubmitting: boolean;
+  title: string;
+  buildingName: string;
+  unitLabel?: string | null;
+  assigneeName?: string | null;
+  currentStatus: IncidentEntity['status'];
+  onClose: () => void;
+  onConfirm: () => void;
+};
+
 type TicketComposerDialogProps = {
   isOpen: boolean;
   isSubmitting: boolean;
@@ -224,7 +236,7 @@ export function AdminTicketCard({
                 onClick={onCloseIncident}
                 className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold text-xs hover:bg-slate-800 transition-all disabled:opacity-60"
               >
-                Cerrar
+                Cerrar incidencia
               </button>
             </div>
           </div>
@@ -232,6 +244,89 @@ export function AdminTicketCard({
       </div>
       <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
         <Wrench className="w-6 h-6 text-primary" />
+      </div>
+    </div>
+  );
+}
+
+export function IncidentCloseConfirmationDialog({
+  isOpen,
+  isSubmitting,
+  title,
+  buildingName,
+  unitLabel,
+  assigneeName,
+  currentStatus,
+  onClose,
+  onConfirm,
+}: IncidentCloseConfirmationDialogProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={onClose} type="button" />
+      <div role="dialog" aria-modal="true" aria-labelledby="incident-close-confirmation-title" className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p id="incident-close-confirmation-title" className="text-lg font-black text-slate-900">
+              Confirmar cierre de incidencia
+            </p>
+            <p className="mt-1 text-xs text-slate-500 font-medium">
+              Vas a cerrar esta incidencia. Este cambio marcara el reporte como cerrado.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700">
+            Cerrar
+          </button>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Resumen</p>
+          <dl className="mt-3 space-y-3 text-sm">
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Titulo</dt>
+              <dd className="mt-1 font-bold text-slate-900">{title}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Edificio</dt>
+              <dd className="mt-1 font-bold text-slate-900">{buildingName}</dd>
+            </div>
+            {unitLabel ? (
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Unidad</dt>
+                <dd className="mt-1 font-bold text-slate-900">{unitLabel}</dd>
+              </div>
+            ) : null}
+            {assigneeName ? (
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Responsable</dt>
+                <dd className="mt-1 font-bold text-slate-900">{assigneeName}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Estado actual</dt>
+              <dd className="mt-1 font-bold text-slate-900">{labelIncidentStatus(currentStatus)}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={onConfirm}
+            className="px-5 py-3 rounded-xl bg-slate-900 text-white font-black text-sm hover:bg-slate-800 transition-all disabled:opacity-70"
+          >
+            Confirmar cierre
+          </button>
+        </div>
       </div>
     </div>
   );

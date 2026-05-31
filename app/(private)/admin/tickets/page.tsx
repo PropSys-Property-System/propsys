@@ -11,9 +11,22 @@ import {
   loadAdminTicketsPageData,
   updateTicketStatusForUser,
 } from '@/lib/features/tickets/ticket-center.data';
-import { AdminTicketCard, TicketComposerDialog } from '@/lib/features/tickets/ticket-center.ui';
+import {
+  AdminTicketCard,
+  IncidentCloseConfirmationDialog,
+  TicketComposerDialog,
+} from '@/lib/features/tickets/ticket-center.ui';
 import { formatClientBadge } from '@/lib/presentation/labels';
 import type { IncidentEntity } from '@/lib/types';
+
+type PendingIncidentClose = {
+  id: string;
+  title: string;
+  buildingName: string;
+  unitLabel?: string | null;
+  assigneeName?: string | null;
+  currentStatus: IncidentEntity['status'];
+};
 
 export default function AdminTicketsPage() {
   const { user } = useAuth();
@@ -36,6 +49,7 @@ export default function AdminTicketsPage() {
   const [units, setUnits] = useState<{ id: string; buildingId: string; number: string }[]>([]);
   const [staffByBuilding, setStaffByBuilding] = useState<Record<string, { id: string; buildingId: string; name: string; role: string }[]>>({});
   const [assigneeByTicket, setAssigneeByTicket] = useState<Record<string, string>>({});
+  const [pendingClose, setPendingClose] = useState<PendingIncidentClose | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -187,6 +201,26 @@ export default function AdminTicketsPage() {
     }
   };
 
+  const requestCloseIncident = (ticket: IncidentEntity) => {
+    const buildingStaff = staffByBuilding[ticket.buildingId] ?? [];
+    const currentAssignee = buildingStaff.find((staff) => staff.id === ticket.assignedToUserId);
+    setActionError(null);
+    setPendingClose({
+      id: ticket.id,
+      title: ticket.title,
+      buildingName: buildingNameById.get(ticket.buildingId) ?? ticket.buildingId,
+      unitLabel: ticket.unitId ? (unitNumberById.get(ticket.unitId) ?? ticket.unitId) : null,
+      assigneeName: currentAssignee?.name ?? null,
+      currentStatus: ticket.status,
+    });
+  };
+
+  const confirmCloseIncident = async () => {
+    if (!pendingClose) return;
+    await closeIncident(pendingClose.id);
+    setPendingClose(null);
+  };
+
   const assignIncident = async (id: string) => {
     if (!user) return;
     const assignedToUserId = assigneeByTicket[id];
@@ -324,7 +358,7 @@ export default function AdminTicketsPage() {
                 selectedAssignee={assigneeByTicket[ticket.id] ?? ticket.assignedToUserId ?? ''}
                 onStatusChange={(status) => setStatusById((prev) => ({ ...prev, [ticket.id]: status }))}
                 onSaveStatus={() => updateStatus(ticket.id)}
-                onCloseIncident={() => closeIncident(ticket.id)}
+                onCloseIncident={() => requestCloseIncident(ticket)}
                 onAssigneeChange={(userId) => setAssigneeByTicket((prev) => ({ ...prev, [ticket.id]: userId }))}
                 onAssign={() => assignIncident(ticket.id)}
               />
@@ -353,6 +387,18 @@ export default function AdminTicketsPage() {
         onDescriptionChange={setCreateDescription}
         onPriorityChange={setCreatePriority}
         onSubmit={submitCreate}
+      />
+
+      <IncidentCloseConfirmationDialog
+        isOpen={Boolean(pendingClose)}
+        isSubmitting={isSubmitting}
+        title={pendingClose?.title ?? ''}
+        buildingName={pendingClose?.buildingName ?? ''}
+        unitLabel={pendingClose?.unitLabel}
+        assigneeName={pendingClose?.assigneeName}
+        currentStatus={pendingClose?.currentStatus ?? 'REPORTED'}
+        onClose={() => setPendingClose(null)}
+        onConfirm={confirmCloseIncident}
       />
     </div>
   );
