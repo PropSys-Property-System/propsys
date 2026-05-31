@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReservationsCalendarView } from './reservations-center.ui';
 import type { Building, CommonArea, Reservation, Unit } from '@/lib/types';
@@ -41,7 +41,7 @@ describe('ReservationsCalendarView', () => {
     expect(screen.getByText('Ocupado')).toBeInTheDocument();
   });
 
-  it('renders sanitized resident availability blocks with area name and without unit details', () => {
+  it('renders sanitized resident availability blocks with separated busy label and area name', () => {
     const busyBlock = {
       id: 'busy_1234567890abcdef',
       buildingId: 'b1',
@@ -62,7 +62,11 @@ describe('ReservationsCalendarView', () => {
       />
     );
 
-    expect(screen.getByText('Ocupado · Parrilla')).toBeInTheDocument();
+    const timeLabel = screen.getByText('10:00 - 11:00');
+    const busyCard = timeLabel.closest('.p-2\\.5');
+    expect(busyCard).not.toBeNull();
+    expect(within(busyCard as HTMLElement).getByText('Ocupado')).toBeInTheDocument();
+    expect(within(busyCard as HTMLElement).getByText('Parrilla')).toBeInTheDocument();
     expect(screen.queryByText('Depto 202')).not.toBeInTheDocument();
     expect(screen.queryByText('u_other')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Semana anterior' })).toHaveAttribute('title', 'Semana anterior');

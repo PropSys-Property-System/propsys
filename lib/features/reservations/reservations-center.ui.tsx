@@ -738,8 +738,9 @@ export function ReservationsCalendarView({
                     if (!canSeeDetails) {
                       return (
                         <div key={r.id} className="p-2.5 rounded-xl border border-slate-200 bg-slate-100">
-                          <p className="text-xs font-black text-slate-700 truncate">
-                            {`Ocupado · ${areaNameById.get(r.commonAreaId) || 'Área común'}`}
+                          <p className="text-xs font-black text-slate-700 uppercase tracking-widest">Ocupado</p>
+                          <p className="mt-1 text-xs font-bold text-slate-600 break-words">
+                            {areaNameById.get(r.commonAreaId) || 'Área común'}
                           </p>
                           <p className="text-xs font-medium text-slate-400 mt-1">{timeRange}</p>
                         </div>
