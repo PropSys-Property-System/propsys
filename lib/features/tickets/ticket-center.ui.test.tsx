@@ -1,6 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { buildStructuredDescription, getSuggestedIncidentTitle, ResidentTicketComposerDialog, StaffTicketCard } from './ticket-center.ui';
+import {
+  AdminTicketComposerDialog,
+  buildAdminStructuredDescription,
+  buildStructuredDescription,
+  getSuggestedIncidentTitle,
+  ResidentTicketComposerDialog,
+  StaffTicketCard,
+} from './ticket-center.ui';
 
 const baseDialogProps = {
   isOpen: true,
@@ -31,6 +38,78 @@ const baseDialogProps = {
   onEvidenceChange: vi.fn(),
   onSubmit: vi.fn(),
 };
+
+const baseAdminDialogProps = {
+  isOpen: true,
+  isSubmitting: false,
+  buildings: [{ id: 'b1', name: 'Torre Norte' }],
+  units: [{ id: 'unit-101', buildingId: 'b1', number: '101' }],
+  buildingId: 'b1',
+  unitId: '',
+  problemType: '',
+  whereOccurs: '',
+  locationDetail: '',
+  since: '',
+  impact: '',
+  title: '',
+  additionalDetail: '',
+  priority: 'MEDIUM' as const,
+  error: null,
+  onClose: vi.fn(),
+  onBuildingChange: vi.fn(),
+  onUnitChange: vi.fn(),
+  onProblemTypeChange: vi.fn(),
+  onWhereOccursChange: vi.fn(),
+  onLocationDetailChange: vi.fn(),
+  onSinceChange: vi.fn(),
+  onImpactChange: vi.fn(),
+  onTitleChange: vi.fn(),
+  onAdditionalDetailChange: vi.fn(),
+  onPriorityChange: vi.fn(),
+  onSubmit: vi.fn(),
+};
+
+describe('buildAdminStructuredDescription', () => {
+  it('includes linked unit when present', () => {
+    const result = buildAdminStructuredDescription({
+      buildingName: 'Torre A',
+      unitLabel: 'Depto 101',
+      problemType: 'Agua / filtración',
+      whereOccurs: 'Ascensor',
+      locationDetail: 'Ascensor de Torre A, entre piso 2 y 3',
+      since: 'Hoy',
+      impact: 'Zona común del edificio',
+      additionalDetail: 'Hay olor a humedad.',
+    });
+
+    expect(result).toContain('Registrado para: Torre A');
+    expect(result).toContain('Unidad vinculada: Depto 101');
+    expect(result).toContain('Tipo de problema: Agua / filtración');
+    expect(result).toContain('Dónde ocurre: Ascensor');
+    expect(result).toContain('Lugar específico: Ascensor de Torre A, entre piso 2 y 3');
+    expect(result).toContain('Desde cuándo ocurre: Hoy');
+    expect(result).toContain('Afectación: Zona común del edificio');
+    expect(result).toContain('---');
+    expect(result).toContain('Detalle adicional:');
+  });
+
+  it('omits linked unit and separator when they do not apply', () => {
+    const result = buildAdminStructuredDescription({
+      buildingName: 'Torre A',
+      unitLabel: null,
+      problemType: 'Ascensor',
+      whereOccurs: 'Todo el edificio',
+      locationDetail: 'Ascensor principal',
+      since: 'Desde ayer',
+      impact: 'Todo el edificio',
+      additionalDetail: '',
+    });
+
+    expect(result).toContain('Registrado para: Torre A');
+    expect(result).not.toContain('Unidad vinculada:');
+    expect(result).not.toContain('---');
+  });
+});
 
 describe('buildStructuredDescription', () => {
   it('generates the correct format with additional detail', () => {
@@ -249,6 +328,47 @@ describe('ResidentTicketComposerDialog', () => {
     render(<ResidentTicketComposerDialog {...baseDialogProps} />);
 
     expect(screen.queryByText('Resumen del reporte')).not.toBeInTheDocument();
+  });
+});
+
+describe('AdminTicketComposerDialog', () => {
+  it('renders the admin context fields and does not show `Reportar desde`', () => {
+    render(<AdminTicketComposerDialog {...baseAdminDialogProps} />);
+
+    expect(screen.getByText('Edificio')).toBeInTheDocument();
+    expect(screen.getByText('Unidad vinculada (opcional)')).toBeInTheDocument();
+    expect(screen.getByText('Tipo de problema')).toBeInTheDocument();
+    expect(screen.getByText('Dónde ocurre')).toBeInTheDocument();
+    expect(screen.getByText('Lugar específico')).toBeInTheDocument();
+    expect(screen.getByText('Desde cuándo ocurre')).toBeInTheDocument();
+    expect(screen.getByText('Afectación')).toBeInTheDocument();
+    expect(screen.queryByText('Reportar desde')).not.toBeInTheDocument();
+  });
+
+  it('renders the admin layout sections', () => {
+    render(<AdminTicketComposerDialog {...baseAdminDialogProps} />);
+
+    expect(screen.getByText('Ubicación administrativa')).toBeInTheDocument();
+    expect(screen.getByText('Problema')).toBeInTheDocument();
+    expect(screen.getByText('Contexto')).toBeInTheDocument();
+    expect(screen.getByText('Detalle')).toBeInTheDocument();
+  });
+
+  it('renders where-occurs options for admin', () => {
+    render(<AdminTicketComposerDialog {...baseAdminDialogProps} />);
+    const whereOccursSelect = screen.getAllByRole('combobox')[3];
+
+    expect(whereOccursSelect).toHaveTextContent('Dentro de una unidad');
+    expect(whereOccursSelect).toHaveTextContent('Ascensor');
+    expect(whereOccursSelect).toHaveTextContent('Todo el edificio');
+  });
+
+  it('renders `Lugar específico` as a free-text input for admin', () => {
+    render(<AdminTicketComposerDialog {...baseAdminDialogProps} />);
+
+    expect(
+      screen.getByPlaceholderText('Ej. pasillo del piso 3, ascensor de Torre A, zona de parrilla, unidad 101')
+    ).toBeInTheDocument();
   });
 });
 
