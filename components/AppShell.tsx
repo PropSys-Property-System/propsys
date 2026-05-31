@@ -36,6 +36,11 @@ interface NavItem {
   roles: UserRole[];
 }
 
+type AppShellProps = {
+  children: React.ReactNode;
+  badgesByHref?: Partial<Record<string, number>>;
+};
+
 const NAV_ITEMS: NavItem[] = [
   { label: 'Panel', href: '/admin/dashboard', icon: LayoutDashboard, roles: ['MANAGER', 'BUILDING_ADMIN'] },
   { label: 'Recibos', href: '/admin/receipts', icon: Receipt, roles: ['MANAGER', 'BUILDING_ADMIN'] },
@@ -58,7 +63,30 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Mis unidades', href: '/resident/units', icon: Building2, roles: ['OWNER'] },
 ];
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+function formatBadgeCount(count: number) {
+  return count > 99 ? '99+' : String(count);
+}
+
+function getBadgeAriaLabel(itemLabel: string, href: string, count: number) {
+  const countText = count > 99 ? '99 o más' : String(count);
+
+  switch (href) {
+    case '/staff/tasks':
+      return `${itemLabel}, ${countText} pendientes`;
+    case '/staff/tickets':
+      return `${itemLabel}, ${countText} pendientes`;
+    case '/admin/reservations':
+      return `${itemLabel}, ${countText} pendientes`;
+    case '/admin/receipts':
+      return `${itemLabel}, ${countText} pendientes`;
+    case '/resident/receipts':
+      return `${itemLabel}, ${countText} pendientes`;
+    default:
+      return `${itemLabel}, ${countText} pendientes`;
+  }
+}
+
+export function AppShell({ children, badgesByHref = {} }: AppShellProps) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -89,20 +117,40 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-            {filteredNav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex items-center rounded-md px-4 py-2 text-sm font-medium transition-colors',
-                  pathname === item.href ? 'bg-primary text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                )}
-                onClick={() => setIsSidebarOpen(false)}
-              >
-                <item.icon className="mr-3 h-5 w-5" />
-                {item.label}
-              </Link>
-            ))}
+            {filteredNav.map((item) => {
+              const badgeCount = badgesByHref[item.href] ?? 0;
+              const hasBadge = badgeCount > 0;
+              const isActive = pathname === item.href;
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-label={hasBadge ? getBadgeAriaLabel(item.label, item.href, badgeCount) : undefined}
+                  className={cn(
+                    'flex items-center justify-between rounded-md px-4 py-2 text-sm font-medium transition-colors',
+                    isActive ? 'bg-primary text-white' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  )}
+                  onClick={() => setIsSidebarOpen(false)}
+                >
+                  <span className="flex min-w-0 items-center">
+                    <item.icon className="mr-3 h-5 w-5 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </span>
+                  {hasBadge ? (
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'ml-3 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black',
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                      )}
+                    >
+                      {formatBadgeCount(badgeCount)}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="border-t border-slate-100 p-4">
