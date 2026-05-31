@@ -571,6 +571,30 @@ export type ReservationsCalendarViewProps = {
   isAdmin: boolean;
 };
 
+function ReservationCalendarLegend() {
+  const items = [
+    { label: 'Aprobada', classes: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
+    { label: 'Solicitada', classes: 'bg-amber-50 border-amber-200 text-amber-800' },
+    { label: 'Ocupado', classes: 'bg-slate-100 border-slate-200 text-slate-700' },
+  ];
+
+  return (
+    <div className="px-4 md:px-6 pt-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Leyenda</span>
+        {items.map((item) => (
+          <span
+            key={item.label}
+            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${item.classes}`}
+          >
+            {item.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ReservationsCalendarView({
   reservations,
   areas,
@@ -672,6 +696,8 @@ export function ReservationsCalendarView({
         </div>
       </div>
 
+      <ReservationCalendarLegend />
+
       <div className="overflow-x-auto">
         <div className="min-w-[800px] grid grid-cols-7 divide-x divide-slate-100 border-b border-slate-100">
           {weekDays.map((day, idx) => {
@@ -712,7 +738,9 @@ export function ReservationsCalendarView({
                     if (!canSeeDetails) {
                       return (
                         <div key={r.id} className="p-2.5 rounded-xl border border-slate-200 bg-slate-100">
-                          <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Ocupado</p>
+                          <p className="text-xs font-black text-slate-700 truncate">
+                            {`Ocupado · ${areaNameById.get(r.commonAreaId) || 'Área común'}`}
+                          </p>
                           <p className="text-xs font-medium text-slate-400 mt-1">{timeRange}</p>
                         </div>
                       );
