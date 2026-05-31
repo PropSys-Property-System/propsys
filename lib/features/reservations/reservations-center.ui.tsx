@@ -52,6 +52,21 @@ type ReservationComposerDialogProps = {
   onSubmit: () => void;
 };
 
+export type ReservationActionKind = 'APPROVE' | 'REJECT' | 'CANCEL';
+
+type ReservationActionConfirmationDialogProps = {
+  isOpen: boolean;
+  isSubmitting: boolean;
+  action: ReservationActionKind;
+  areaName: string;
+  buildingName: string;
+  unitLabel?: string;
+  startAt: string;
+  endAt: string;
+  onClose: () => void;
+  onConfirm: () => void;
+};
+
 function overlaps(startA: Date, endA: Date, startB: Date, endB: Date) {
   return startA < endB && startB < endA;
 }
@@ -184,6 +199,33 @@ function labelReservationDisplayStatus(status: ReservationDisplayStatus) {
   return status === 'COMPLETED' ? 'Finalizada' : labelReservationStatus(status);
 }
 
+function reservationActionDialogCopy(action: ReservationActionKind) {
+  if (action === 'APPROVE') {
+    return {
+      title: 'Confirmar aprobación',
+      summaryAction: 'Aprobar reserva',
+      description: 'Vas a aprobar esta reserva y mantener el flujo actual de gestión.',
+      confirmLabel: 'Confirmar aprobación',
+    };
+  }
+
+  if (action === 'REJECT') {
+    return {
+      title: 'Confirmar rechazo',
+      summaryAction: 'Rechazar reserva',
+      description: 'Vas a rechazar esta reserva y el cambio se aplicará de inmediato.',
+      confirmLabel: 'Confirmar rechazo',
+    };
+  }
+
+  return {
+    title: 'Confirmar cancelación',
+    summaryAction: 'Cancelar reserva',
+    description: 'Vas a cancelar esta reserva y el cambio se aplicará de inmediato.',
+    confirmLabel: 'Confirmar cancelación',
+  };
+}
+
 export function reservationStatusChip(status: ReservationDisplayStatus) {
   const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
   if (status === 'REQUESTED') return `${base} bg-amber-50 text-amber-700`;
@@ -299,6 +341,90 @@ export function ResidentReservationCard({
       </div>
       <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center flex-shrink-0">
         <CalendarDays className="w-6 h-6 text-primary" />
+      </div>
+    </div>
+  );
+}
+
+export function ReservationActionConfirmationDialog({
+  isOpen,
+  isSubmitting,
+  action,
+  areaName,
+  buildingName,
+  unitLabel,
+  startAt,
+  endAt,
+  onClose,
+  onConfirm,
+}: ReservationActionConfirmationDialogProps) {
+  if (!isOpen) return null;
+
+  const copy = reservationActionDialogCopy(action);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={onClose} type="button" />
+      <div role="dialog" aria-modal="true" aria-labelledby="reservation-action-confirmation-title" className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p id="reservation-action-confirmation-title" className="text-lg font-black text-slate-900">
+              {copy.title}
+            </p>
+            <p className="mt-1 text-xs font-medium text-slate-500">{copy.description}</p>
+          </div>
+          <button type="button" onClick={onClose} className="px-3 py-2 text-xs font-black text-slate-500 hover:text-slate-700">
+            Cerrar
+          </button>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Resumen</p>
+          <dl className="mt-3 space-y-3 text-sm">
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Acción</dt>
+              <dd className="mt-1 font-bold text-slate-900">{copy.summaryAction}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Área común</dt>
+              <dd className="mt-1 font-bold text-slate-900">{areaName}</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Edificio</dt>
+              <dd className="mt-1 font-bold text-slate-900">{buildingName}</dd>
+            </div>
+            {unitLabel ? (
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Unidad</dt>
+                <dd className="mt-1 font-bold text-slate-900">{unitLabel}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Fecha y horario</dt>
+              <dd className="mt-1 font-bold text-slate-900">
+                {formatDateTime(startAt)} - {formatTime(endAt)}
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition-all hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={onConfirm}
+            className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition-all hover:bg-slate-800 disabled:opacity-70"
+          >
+            {copy.confirmLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

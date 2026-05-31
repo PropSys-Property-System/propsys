@@ -12,8 +12,23 @@ import {
   rejectReservationForUser,
   splitReservationsByTimeline,
 } from '@/lib/features/reservations/reservations-center.data';
-import { AdminReservationCard, ReservationsCalendarView } from '@/lib/features/reservations/reservations-center.ui';
+import {
+  AdminReservationCard,
+  ReservationActionConfirmationDialog,
+  ReservationsCalendarView,
+  type ReservationActionKind,
+} from '@/lib/features/reservations/reservations-center.ui';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
+
+type PendingReservationAction = {
+  reservationId: string;
+  action: ReservationActionKind;
+  areaName: string;
+  buildingName: string;
+  unitLabel?: string;
+  startAt: string;
+  endAt: string;
+};
 
 export default function AdminReservationsPage() {
   const { user } = useAuth();
@@ -27,6 +42,7 @@ export default function AdminReservationsPage() {
   const [areas, setAreas] = useState<CommonArea[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [pendingAction, setPendingAction] = useState<PendingReservationAction | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -94,43 +110,42 @@ export default function AdminReservationsPage() {
   const canManage =
     user?.internalRole === 'BUILDING_ADMIN' || user?.internalRole === 'CLIENT_MANAGER' || user?.internalRole === 'ROOT_ADMIN';
 
-  const approve = async (id: string) => {
-    if (!user) return;
-    try {
-      setIsSubmitting(true);
-      setActionError(null);
-      await approveReservationForUser(user, id);
-      await reload();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'No pudimos aprobar la reserva.');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const openConfirmation = (reservation: Reservation, action: ReservationActionKind) => {
+    setActionError(null);
+    setPendingAction({
+      reservationId: reservation.id,
+      action,
+      areaName: areaNameById.get(reservation.commonAreaId) ?? 'Área común',
+      buildingName: buildingNameById.get(reservation.buildingId) ?? 'Edificio',
+      unitLabel: unitLabelById.get(reservation.unitId) ?? reservation.unitId,
+      startAt: reservation.startAt,
+      endAt: reservation.endAt,
+    });
   };
 
-  const reject = async (id: string) => {
-    if (!user) return;
+  const confirmPendingAction = async () => {
+    if (!user || !pendingAction) return;
+    const fallbackError =
+      pendingAction.action === 'APPROVE'
+        ? 'No pudimos aprobar la reserva.'
+        : pendingAction.action === 'REJECT'
+          ? 'No pudimos rechazar la reserva.'
+          : 'No pudimos cancelar la reserva.';
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await rejectReservationForUser(user, id);
+      if (pendingAction.action === 'APPROVE') {
+        await approveReservationForUser(user, pendingAction.reservationId);
+      } else if (pendingAction.action === 'REJECT') {
+        await rejectReservationForUser(user, pendingAction.reservationId);
+      } else {
+        await cancelReservationForUser(user, pendingAction.reservationId);
+      }
       await reload();
+      setPendingAction(null);
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'No pudimos rechazar la reserva.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const cancel = async (id: string) => {
-    if (!user) return;
-    try {
-      setIsSubmitting(true);
-      setActionError(null);
-      await cancelReservationForUser(user, id);
-      await reload();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : 'No pudimos cancelar la reserva.');
+      setActionError(e instanceof Error ? e.message : fallbackError);
+      setPendingAction(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -211,9 +226,9 @@ export default function AdminReservationsPage() {
                     buildingName={buildingNameById.get(reservation.buildingId) ?? 'Edificio'}
                     canManage={Boolean(canManage)}
                     isSubmitting={isSubmitting}
-                    onApprove={() => approve(reservation.id)}
-                    onReject={() => reject(reservation.id)}
-                    onCancel={() => cancel(reservation.id)}
+                    onApprove={() => openConfirmation(reservation, 'APPROVE')}
+                    onReject={() => openConfirmation(reservation, 'REJECT')}
+                    onCancel={() => openConfirmation(reservation, 'CANCEL')}
                   />
                 ))
               )}
@@ -240,9 +255,9 @@ export default function AdminReservationsPage() {
                     buildingName={buildingNameById.get(reservation.buildingId) ?? 'Edificio'}
                     canManage={Boolean(canManage)}
                     isSubmitting={isSubmitting}
-                    onApprove={() => approve(reservation.id)}
-                    onReject={() => reject(reservation.id)}
-                    onCancel={() => cancel(reservation.id)}
+                    onApprove={() => openConfirmation(reservation, 'APPROVE')}
+                    onReject={() => openConfirmation(reservation, 'REJECT')}
+                    onCancel={() => openConfirmation(reservation, 'CANCEL')}
                   />
                 ))
               )}
@@ -250,6 +265,19 @@ export default function AdminReservationsPage() {
           </div>
         )}
       </div>
+
+      <ReservationActionConfirmationDialog
+        isOpen={Boolean(pendingAction)}
+        isSubmitting={isSubmitting}
+        action={pendingAction?.action ?? 'CANCEL'}
+        areaName={pendingAction?.areaName ?? 'Área común'}
+        buildingName={pendingAction?.buildingName ?? 'Edificio'}
+        unitLabel={pendingAction?.unitLabel}
+        startAt={pendingAction?.startAt ?? new Date().toISOString()}
+        endAt={pendingAction?.endAt ?? new Date().toISOString()}
+        onClose={() => setPendingAction(null)}
+        onConfirm={confirmPendingAction}
+      />
     </div>
   );
 }

@@ -12,8 +12,22 @@ import {
   loadResidentReservationsPageData,
   splitReservationsByTimeline,
 } from '@/lib/features/reservations/reservations-center.data';
-import { ReservationComposerDialog, ResidentReservationCard, ReservationsCalendarView } from '@/lib/features/reservations/reservations-center.ui';
+import {
+  ReservationActionConfirmationDialog,
+  ReservationComposerDialog,
+  ResidentReservationCard,
+  ReservationsCalendarView,
+} from '@/lib/features/reservations/reservations-center.ui';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
+
+type PendingCancelAction = {
+  reservationId: string;
+  areaName: string;
+  buildingName: string;
+  unitLabel?: string;
+  startAt: string;
+  endAt: string;
+};
 
 function toDateTimeLocalValue(date: Date) {
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -38,6 +52,7 @@ export default function ResidentReservationsPage() {
   const [createStartAt, setCreateStartAt] = useState('');
   const [createEndAt, setCreateEndAt] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [pendingCancel, setPendingCancel] = useState<PendingCancelAction | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -167,15 +182,29 @@ export default function ResidentReservationsPage() {
     }
   };
 
-  const cancelReservation = async (id: string) => {
-    if (!user) return;
+  const openCancelConfirmation = (reservation: Reservation) => {
+    setActionError(null);
+    setPendingCancel({
+      reservationId: reservation.id,
+      areaName: areaNameById.get(reservation.commonAreaId) ?? 'Área común',
+      buildingName: buildingNameById.get(reservation.buildingId) ?? 'Edificio',
+      unitLabel: unitLabelById.get(reservation.unitId) ?? reservation.unitId,
+      startAt: reservation.startAt,
+      endAt: reservation.endAt,
+    });
+  };
+
+  const confirmCancellation = async () => {
+    if (!user || !pendingCancel) return;
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await cancelReservationForUser(user, id);
+      await cancelReservationForUser(user, pendingCancel.reservationId);
       await reload();
+      setPendingCancel(null);
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos cancelar la reserva.');
+      setPendingCancel(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -278,7 +307,7 @@ export default function ResidentReservationsPage() {
                         new Date(reservation.endAt).getTime() >= Date.now()
                     )}
                     isSubmitting={isSubmitting}
-                    onCancel={() => cancelReservation(reservation.id)}
+                    onCancel={() => openCancelConfirmation(reservation)}
                   />
                 ))
               )}
@@ -305,7 +334,7 @@ export default function ResidentReservationsPage() {
                     buildingName={buildingNameById.get(reservation.buildingId) ?? 'Edificio'}
                     canCancel={false}
                     isSubmitting={isSubmitting}
-                    onCancel={() => cancelReservation(reservation.id)}
+                    onCancel={() => openCancelConfirmation(reservation)}
                   />
                 ))
               )}
@@ -337,6 +366,19 @@ export default function ResidentReservationsPage() {
         onStartChange={setCreateStartAt}
         onEndChange={setCreateEndAt}
         onSubmit={submitCreate}
+      />
+
+      <ReservationActionConfirmationDialog
+        isOpen={Boolean(pendingCancel)}
+        isSubmitting={isSubmitting}
+        action="CANCEL"
+        areaName={pendingCancel?.areaName ?? 'Área común'}
+        buildingName={pendingCancel?.buildingName ?? 'Edificio'}
+        unitLabel={pendingCancel?.unitLabel}
+        startAt={pendingCancel?.startAt ?? new Date().toISOString()}
+        endAt={pendingCancel?.endAt ?? new Date().toISOString()}
+        onClose={() => setPendingCancel(null)}
+        onConfirm={confirmCancellation}
       />
     </div>
   );
