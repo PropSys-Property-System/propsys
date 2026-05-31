@@ -260,6 +260,17 @@ describe('resident tickets reporting context (v1)', () => {
     expect((titleInput as HTMLInputElement).value).toBe('Agua / filtración en Ascensor');
   });
 
+  it('uses the smart in-unit suggestion for resident', async () => {
+    const dialog = await openComposer();
+    const selects = getComposerSelects(dialog);
+
+    fireEvent.change(selects[1], { target: { value: 'Gas' } });
+    fireEvent.change(selects[2], { target: { value: 'Dentro de mi unidad' } });
+
+    const titleInput = within(dialog).getByPlaceholderText('Ej. Fuga de agua en baño principal');
+    expect((titleInput as HTMLInputElement).value).toBe('Gas dentro de mi unidad');
+  });
+
   it('does not overwrite a manually edited title when selects change', async () => {
     const dialog = await openComposer();
     const selects = getComposerSelects(dialog);

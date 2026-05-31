@@ -169,13 +169,27 @@ describe('buildStructuredDescription', () => {
 });
 
 describe('getSuggestedIncidentTitle', () => {
-  it('builds a contextual title when both values are not `Otro`', () => {
+  it('uses `dentro de mi unidad` wording for in-unit incidents', () => {
+    expect(getSuggestedIncidentTitle('Gas', 'Dentro de mi unidad')).toBe('Gas dentro de mi unidad');
+    expect(getSuggestedIncidentTitle('Agua / filtración', 'Dentro de mi unidad')).toBe(
+      'Agua / filtración dentro de mi unidad'
+    );
+  });
+
+  it('uses `Problema de ...` for redundant type/location combinations', () => {
+    expect(getSuggestedIncidentTitle('Ascensor', 'Ascensor')).toBe('Problema de ascensor');
+  });
+
+  it('builds a contextual title for the general case', () => {
     expect(getSuggestedIncidentTitle('Agua / filtración', 'Ascensor')).toBe('Agua / filtración en Ascensor');
+    expect(getSuggestedIncidentTitle('Ruido', 'Área común')).toBe('Ruido en Área común');
   });
 
   it('uses fallback title when any value is `Otro`', () => {
     expect(getSuggestedIncidentTitle('Otro', 'Otro')).toBe('Incidencia reportada');
     expect(getSuggestedIncidentTitle('Electricidad', 'Otro')).toBe('Incidencia reportada');
+    expect(getSuggestedIncidentTitle('Otro', 'Ascensor')).toBe('Incidencia reportada');
+    expect(getSuggestedIncidentTitle('Gas', 'Otro')).toBe('Incidencia reportada');
   });
 });
 

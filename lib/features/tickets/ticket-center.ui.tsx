@@ -67,6 +67,18 @@ export function buildAdminStructuredDescription(context: AdminIncidentReportCont
 export function getSuggestedIncidentTitle(problemType: string, whereOccurs: string) {
   if (!problemType || !whereOccurs) return '';
   if (problemType === 'Otro' || whereOccurs === 'Otro') return 'Incidencia reportada';
+
+  const normalizedProblemType = problemType.trim().toLocaleLowerCase('es');
+  const normalizedWhereOccurs = whereOccurs.trim().toLocaleLowerCase('es');
+
+  if (whereOccurs === 'Dentro de mi unidad') {
+    return `${problemType} dentro de mi unidad`;
+  }
+
+  if (normalizedProblemType === normalizedWhereOccurs) {
+    return `Problema de ${normalizedProblemType}`;
+  }
+
   return `${problemType} en ${whereOccurs}`;
 }
 

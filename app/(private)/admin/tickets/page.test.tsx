@@ -288,6 +288,18 @@ describe('admin tickets close confirmation flow', () => {
     );
   });
 
+  it('uses the smart redundant suggestion for admin', async () => {
+    const dialog = await openCreateComposer();
+    const selects = getCreateSelects(dialog);
+
+    fireEvent.change(selects[2], { target: { value: 'Ascensor' } });
+    fireEvent.change(selects[3], { target: { value: 'Ascensor' } });
+
+    expect((within(dialog).getByPlaceholderText('Ej. Fuga de agua en ascensor principal') as HTMLInputElement).value).toBe(
+      'Problema de ascensor'
+    );
+  });
+
   it('uses fallback title when any contextual selector is `Otro`', async () => {
     const dialog = await openCreateComposer();
     const selects = getCreateSelects(dialog);
