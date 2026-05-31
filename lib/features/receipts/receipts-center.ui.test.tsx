@@ -1,10 +1,13 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  AdminReceiptDetailView,
   AdminPaymentProofsPanel,
   AdminReceiptHeaderActions,
   AdminReceiptsWorkspaceSkeleton,
   ReceiptDetailSkeleton,
+  ResidentReceiptDetailView,
+  ResidentReceiptHeaderActions,
   ResidentReceiptsList,
   ResidentReceiptsSkeleton,
   ResidentPaymentProofPanel,
@@ -146,6 +149,12 @@ describe('payment proof receipt UI', () => {
     expect(screen.getByRole('button', { name: 'Imprimir recibo' })).toHaveAttribute('aria-label', 'Imprimir recibo');
   });
 
+  it('renders resident print action in the detail header', () => {
+    render(<ResidentReceiptHeaderActions receipt={receipt} receiptStatus={receipt.status} onPrint={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /imprimir \/ guardar pdf/i })).toBeInTheDocument();
+  });
+
   it('renders resident receipt loading UI without provisional financial values', () => {
     render(<ResidentReceiptsSkeleton />);
 
@@ -269,5 +278,58 @@ describe('payment proof receipt UI', () => {
     const row = screen.getByRole('button');
     fireEvent.click(row);
     expect(onView).toHaveBeenCalledWith('rect_1');
+  });
+
+  it('marks the admin receipt detail for clean printing and keeps core fields visible', () => {
+    render(
+      <AdminReceiptDetailView
+        receipt={receipt}
+        building={{ id: 'b1', clientId: 'client_001', name: 'Torre Alerce', address: 'Calle 123', city: 'Lima' }}
+        unit={{ id: 'unit_1', buildingId: 'b1', number: '101', floor: '1', ownerId: 'u_owner', residentId: 'u_resident' }}
+        actions={<div>Acciones</div>}
+        paymentProofPanel={<div>Panel secundario</div>}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('receipt-print-root')).toBeInTheDocument();
+    expect(screen.getByTestId('receipt-print-document')).toBeInTheDocument();
+    expect(screen.getByTestId('receipt-print-card')).toBeInTheDocument();
+    expect(screen.getByTestId('receipt-print-actions')).toHaveClass('print-hidden');
+    expect(screen.getByTestId('receipt-print-secondary')).toHaveClass('print-hidden');
+    expect(screen.getByTestId('receipt-print-critical-actions')).toHaveClass('print-hidden');
+    const printRoot = screen.getByTestId('receipt-print-root');
+    const printCard = screen.getByTestId('receipt-print-card');
+    expect(within(printRoot).getByText('Recibo REC-001')).toBeInTheDocument();
+    expect(within(printRoot).getByText('Mantenimiento')).toBeInTheDocument();
+    expect(within(printCard).getAllByText('Torre Alerce').length).toBeGreaterThan(0);
+    expect(within(printCard).getAllByText('Unidad 101').length).toBeGreaterThan(0);
+    expect(within(printCard).getByText(/150/)).toBeInTheDocument();
+  });
+
+  it('marks the resident receipt detail secondary panels as hidden for printing', () => {
+    render(
+      <ResidentReceiptDetailView
+        receipt={receipt}
+        building={{ id: 'b1', clientId: 'client_001', name: 'Torre Alerce', address: 'Calle 123', city: 'Lima' }}
+        unit={{ id: 'unit_1', buildingId: 'b1', number: '101', floor: '1', ownerId: 'u_owner', residentId: 'u_resident' }}
+        actions={<div>Acciones</div>}
+        paymentProofPanel={<div>Panel secundario</div>}
+      />
+    );
+
+    expect(screen.getByTestId('receipt-print-root')).toBeInTheDocument();
+    expect(screen.getByTestId('receipt-print-document')).toBeInTheDocument();
+    expect(screen.getByTestId('receipt-print-card')).toBeInTheDocument();
+    expect(screen.getByTestId('receipt-print-actions')).toHaveClass('print-hidden');
+    expect(screen.getByTestId('receipt-print-secondary')).toHaveClass('print-hidden');
+    expect(screen.getByTestId('receipt-print-footer')).toHaveClass('print-hidden');
+    const printRoot = screen.getByTestId('receipt-print-root');
+    const printCard = screen.getByTestId('receipt-print-card');
+    expect(within(printRoot).getByText('REC-001')).toBeInTheDocument();
+    expect(within(printRoot).getByText('Mantenimiento')).toBeInTheDocument();
+    expect(within(printCard).getAllByText('Torre Alerce').length).toBeGreaterThan(0);
+    expect(within(printCard).getAllByText('Depto 101').length).toBeGreaterThan(0);
+    expect(within(printCard).getByText(/150/)).toBeInTheDocument();
   });
 });

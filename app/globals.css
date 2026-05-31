@@ -1,4 +1,4 @@
-﻿@tailwind base;
+@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -53,6 +53,81 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .receipt-print-root,
+  .receipt-print-root * {
+    visibility: visible !important;
+  }
+
+  .receipt-print-root {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  .receipt-print-root .print-hidden {
+    display: none !important;
+  }
+
+  .receipt-print-root .print-only {
+    display: block !important;
+  }
+
+  .receipt-print-root .receipt-print-document {
+    display: block !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .receipt-print-root .receipt-print-card,
+  .receipt-print-root .receipt-print-card * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .receipt-print-root .receipt-print-card,
+  .receipt-print-root .receipt-print-grid > div {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #fff !important;
+  }
+
+  .receipt-print-root .receipt-print-grid {
+    display: block !important;
+  }
+
+  .receipt-print-root .receipt-print-grid > * + * {
+    margin-top: 1.5rem !important;
+  }
+
+  .receipt-print-root a {
+    color: inherit !important;
+    text-decoration: none !important;
   }
 }
 

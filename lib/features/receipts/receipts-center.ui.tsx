@@ -545,9 +545,13 @@ export function AdminReceiptDetailView({
   isDeleting = false,
 }: AdminReceiptDetailViewProps) {
   return (
-    <div className="flex flex-col h-full bg-slate-50/50">
+    <div className="receipt-print-root flex flex-col h-full bg-slate-50/50" data-testid="receipt-print-root">
+      <div className="print-only hidden px-8 pb-4 pt-2" data-testid="receipt-print-brand">
+        <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-500">PropSys</p>
+        <p className="mt-1 text-sm font-bold text-slate-700">Detalle de recibo</p>
+      </div>
       <div className="bg-white border-b border-slate-200">
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 print-hidden" data-testid="receipt-print-backlink">
           <Link href="/admin/receipts" className="inline-flex items-center text-xs font-bold text-slate-400 hover:text-primary uppercase tracking-widest transition-colors">
             <ArrowLeft className="w-3.5 h-3.5 mr-1.5" /> Volver a Recibos
           </Link>
@@ -558,15 +562,17 @@ export function AdminReceiptDetailView({
               <p className="text-3xl font-black text-slate-900 truncate">Recibo {receipt.number}</p>
               <p className="mt-1 text-sm font-medium text-slate-500">{receipt.description}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">{actions}</div>
+            <div className="flex flex-wrap items-center gap-3 print-hidden" data-testid="receipt-print-actions">
+              {actions}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="p-6 md:p-8">
-        <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="receipt-print-document max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8" data-testid="receipt-print-document">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="receipt-print-card bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden" data-testid="receipt-print-card">
               <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center">
@@ -585,7 +591,7 @@ export function AdminReceiptDetailView({
                 </div>
               </div>
 
-              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="receipt-print-grid p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-6">
                   <div className="space-y-1">
                     <p className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center">
@@ -632,10 +638,12 @@ export function AdminReceiptDetailView({
                 </div>
               </div>
             </div>
-            {paymentProofPanel}
+            <div className="print-hidden" data-testid="receipt-print-secondary">
+              {paymentProofPanel}
+            </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 print-hidden" data-testid="receipt-print-critical-actions">
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 space-y-6">
               <div className="space-y-2">
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Acciones Criticas</p>
@@ -1097,9 +1105,13 @@ export function ResidentReceiptDetailView({
   paymentProofPanel,
 }: ResidentReceiptDetailViewProps) {
   return (
-    <div className="flex flex-col h-full bg-slate-50/50">
+    <div className="receipt-print-root flex flex-col h-full bg-slate-50/50" data-testid="receipt-print-root">
+      <div className="print-only hidden px-8 pb-4 pt-2" data-testid="receipt-print-brand">
+        <p className="text-xs font-black uppercase tracking-[0.25em] text-slate-500">PropSys</p>
+        <p className="mt-1 text-sm font-bold text-slate-700">Detalle de recibo</p>
+      </div>
       <div className="bg-white border-b border-slate-200">
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 print-hidden" data-testid="receipt-print-backlink">
           <Link
             href="/resident/receipts"
             className="inline-flex items-center text-xs font-black text-slate-400 hover:text-primary uppercase tracking-[0.2em] transition-colors"
@@ -1113,14 +1125,16 @@ export function ResidentReceiptDetailView({
               <p className="text-3xl font-black text-slate-900 truncate">Detalle de Cobro</p>
               <p className="mt-1 text-sm font-medium text-slate-500">{receipt.number}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">{actions}</div>
+            <div className="flex flex-wrap items-center gap-3 print-hidden" data-testid="receipt-print-actions">
+              {actions}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="p-6 md:p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+        <div className="receipt-print-document max-w-4xl mx-auto space-y-6" data-testid="receipt-print-document">
+          <div className="receipt-print-card bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden" data-testid="receipt-print-card">
             <div className="flex flex-col gap-6 border-b border-slate-100 p-8 md:flex-row md:items-start md:justify-between md:p-10">
               <div className="min-w-0 space-y-4">
                 <StatusBadge status={receipt.status} />
@@ -1152,7 +1166,7 @@ export function ResidentReceiptDetailView({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-8 p-8 md:grid-cols-2 md:p-10">
+            <div className="receipt-print-grid grid grid-cols-1 gap-8 p-8 md:grid-cols-2 md:p-10">
               <div className="space-y-6">
                 <div className="space-y-1">
                   <p className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center">
@@ -1191,9 +1205,11 @@ export function ResidentReceiptDetailView({
             </div>
           </div>
 
-          {paymentProofPanel}
+          <div className="print-hidden" data-testid="receipt-print-secondary">
+            {paymentProofPanel}
+          </div>
 
-          <div className="flex items-center justify-center p-6 bg-primary/5 rounded-3xl border border-primary/10">
+          <div className="print-hidden flex items-center justify-center p-6 bg-primary/5 rounded-3xl border border-primary/10" data-testid="receipt-print-footer">
             <p className="text-xs text-slate-600 font-medium">
               Si tienes dudas sobre este cobro, contacta a la administración de <span className="font-bold">{building?.name ?? 'tu edificio'}</span> por el canal oficial.
             </p>
