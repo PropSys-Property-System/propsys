@@ -49,6 +49,9 @@ function reservationRow(input: {
     start_at: now,
     end_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     status: input.status,
+    status_reason: null,
+    status_reason_updated_at: null,
+    status_reason_updated_by: null,
     cancelled_at: null,
     deleted_at: null,
     created_at: now,
@@ -218,6 +221,7 @@ describe('reservations API (route handlers)', () => {
       createdByUserId: 'u5',
       status: 'APPROVED',
     });
+    expect(ownReservation).not.toHaveProperty('status_reason');
 
     const busyBlock = data.reservations.find((reservation) => reservation.commonAreaId === 'ca-2');
     expect(busyBlock).toMatchObject({
@@ -232,7 +236,67 @@ describe('reservations API (route handlers)', () => {
     expect(busyBlock).not.toHaveProperty('unitId');
     expect(busyBlock).not.toHaveProperty('createdByUserId');
     expect(busyBlock).not.toHaveProperty('status');
+    expect(busyBlock).not.toHaveProperty('statusReason');
+    expect(busyBlock).not.toHaveProperty('status_reason');
     expect(busyBlock).not.toHaveProperty('clientId');
+  });
+
+  it('includes statusReason in normal reservation listings but not in availability', async () => {
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'OCCUPANT';
+    (sessionUser as { role: string }).role = 'TENANT';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u5';
+
+    const ownCancelled = {
+      ...reservationRow({
+        id: 'resv_cancelled_own',
+        clientId: 'client_001',
+        buildingId: 'b1',
+        unitId: 'unit-102',
+        commonAreaId: 'ca-1',
+        createdByUserId: 'u5',
+        status: 'CANCELLED',
+      }),
+      status_reason: 'El residente solicitó cancelar la reserva.',
+    };
+    const otherRequested = reservationRow({
+      id: 'resv_other_requested',
+      clientId: 'client_001',
+      buildingId: 'b1',
+      unitId: 'unit-999',
+      commonAreaId: 'ca-2',
+      createdByUserId: 'u_other',
+      status: 'REQUESTED',
+    });
+
+    poolQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT unit_id')) return { rows: [{ unit_id: 'unit-102' }] };
+      if (sql.includes('SELECT DISTINCT u.building_id')) return { rows: [{ building_id: 'b1' }] };
+      if (sql.includes('FROM reservations')) return { rows: [ownCancelled, otherRequested] };
+      return { rows: [] };
+    });
+
+    const listReq = new Request('http://localhost/api/v1/reservations', { method: 'GET' });
+    const listRes = await listReservations(listReq);
+    expect(listRes.status).toBe(200);
+    const listData = (await listRes.json()) as { reservations: Array<Record<string, unknown>> };
+    expect(listData.reservations[0]).toMatchObject({
+      id: 'resv_cancelled_own',
+      status: 'CANCELLED',
+      statusReason: 'El residente solicitó cancelar la reserva.',
+    });
+
+    const availabilityReq = new Request('http://localhost/api/v1/reservations?scope=availability', { method: 'GET' });
+    const availabilityRes = await listReservations(availabilityReq);
+    expect(availabilityRes.status).toBe(200);
+    const availabilityData = (await availabilityRes.json()) as { reservations: Array<Record<string, unknown>> };
+    availabilityData.reservations.forEach((reservation) => {
+      expect(reservation).not.toHaveProperty('statusReason');
+      expect(reservation).not.toHaveProperty('status_reason');
+    });
   });
 
   it('omits cancelled and rejected reservations from resident availability', async () => {
@@ -431,7 +495,7 @@ describe('reservations API (route handlers)', () => {
     const req = new Request('http://localhost/api/v1/reservations/resv_1', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'CANCEL' }),
+      body: JSON.stringify({ action: 'CANCEL', reason: 'El residente solicitó cancelar la reserva.' }),
     });
     const res = await patchReservation(req, { params: Promise.resolve({ id: 'resv_1' }) });
     expect(res.status).toBe(200);

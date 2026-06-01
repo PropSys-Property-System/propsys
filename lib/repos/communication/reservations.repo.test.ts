@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { reservationsRepo } from '@/lib/repos/communication/reservations.repo';
 import {
   MOCK_RESERVATION_ENTITIES,
@@ -172,8 +172,9 @@ describe('reservationsRepo (V1)', () => {
     expect(approved?.status).toBe('APPROVED');
 
     MOCK_RESERVATION_ENTITIES[0] = { ...MOCK_RESERVATION_ENTITIES[0], status: 'REQUESTED' };
-    const rejected = await reservationsRepo.rejectForUser(admin, 'resv-test-req');
+    const rejected = await reservationsRepo.rejectForUser(admin, 'resv-test-req', 'El área común no está disponible.');
     expect(rejected?.status).toBe('REJECTED');
+    expect(rejected?.statusReason).toBe('El área común no está disponible.');
   });
 
   it('enforces cancellation rules for OWNER/OCCUPANT and BUILDING_ADMIN', async () => {
@@ -194,13 +195,18 @@ describe('reservationsRepo (V1)', () => {
       })
     );
 
-    const cancelledByOwner = await reservationsRepo.cancelForUser(owner, 'resv-owner-cancel-future');
+    const cancelledByOwner = await reservationsRepo.cancelForUser(owner, 'resv-owner-cancel-future', 'El residente solicitó cancelar la reserva.');
     expect(cancelledByOwner?.status).toBe('CANCELLED');
+    expect(cancelledByOwner?.statusReason).toBe('El residente solicitó cancelar la reserva.');
+    expect(cancelledByOwner?.statusReasonUpdatedBy).toBe(owner.id);
 
-    await expect(reservationsRepo.cancelForUser(occupant, 'resv-owner-cancel-future')).rejects.toThrow('No autorizado');
+    await expect(
+      reservationsRepo.cancelForUser(occupant, 'resv-owner-cancel-future', 'Intento ajeno de cancelación.')
+    ).rejects.toThrow('No autorizado');
 
-    const cancelledByAdmin = await reservationsRepo.cancelForUser(admin, 'resv-admin-cancel-future');
+    const cancelledByAdmin = await reservationsRepo.cancelForUser(admin, 'resv-admin-cancel-future', 'Reserva cancelada por coordinación interna.');
     expect(cancelledByAdmin?.status).toBe('CANCELLED');
+    expect(cancelledByAdmin?.statusReason).toBe('Reserva cancelada por coordinación interna.');
   });
 });
 

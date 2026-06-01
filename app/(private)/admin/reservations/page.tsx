@@ -21,6 +21,9 @@ import {
 } from '@/lib/features/reservations/reservations-center.ui';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
 
+const STATUS_REASON_MIN_LENGTH = 8;
+const STATUS_REASON_MAX_LENGTH = 300;
+
 type PendingReservationAction = {
   reservationId: string;
   action: ReservationActionKind;
@@ -45,6 +48,8 @@ export default function AdminReservationsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [pendingAction, setPendingAction] = useState<PendingReservationAction | null>(null);
+  const [pendingActionReason, setPendingActionReason] = useState('');
+  const [pendingActionReasonError, setPendingActionReasonError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -112,8 +117,28 @@ export default function AdminReservationsPage() {
   const canManage =
     user?.internalRole === 'BUILDING_ADMIN' || user?.internalRole === 'CLIENT_MANAGER' || user?.internalRole === 'ROOT_ADMIN';
 
+  const validatePendingReason = (action: ReservationActionKind, reason: string) => {
+    if (action !== 'REJECT' && action !== 'CANCEL') return null;
+    const trimmed = reason.trim();
+    if (trimmed.length < STATUS_REASON_MIN_LENGTH) {
+      return `El motivo debe tener al menos ${STATUS_REASON_MIN_LENGTH} caracteres.`;
+    }
+    if (trimmed.length > STATUS_REASON_MAX_LENGTH) {
+      return `El motivo no puede superar ${STATUS_REASON_MAX_LENGTH} caracteres.`;
+    }
+    return null;
+  };
+
+  const closePendingActionDialog = () => {
+    setPendingAction(null);
+    setPendingActionReason('');
+    setPendingActionReasonError(null);
+  };
+
   const openConfirmation = (reservation: Reservation, action: ReservationActionKind) => {
     setActionError(null);
+    setPendingActionReason('');
+    setPendingActionReasonError(null);
     setPendingAction({
       reservationId: reservation.id,
       action,
@@ -133,22 +158,29 @@ export default function AdminReservationsPage() {
         : pendingAction.action === 'REJECT'
           ? 'No pudimos rechazar la reserva.'
           : 'No pudimos cancelar la reserva.';
+    const reasonError = validatePendingReason(pendingAction.action, pendingActionReason);
+    if (reasonError) {
+      setPendingActionReasonError(reasonError);
+      return;
+    }
+    const trimmedReason = pendingActionReason.trim();
     try {
       setIsSubmitting(true);
       setActionError(null);
+      setPendingActionReasonError(null);
       if (pendingAction.action === 'APPROVE') {
         await approveReservationForUser(user, pendingAction.reservationId);
       } else if (pendingAction.action === 'REJECT') {
-        await rejectReservationForUser(user, pendingAction.reservationId);
+        await rejectReservationForUser(user, pendingAction.reservationId, trimmedReason);
       } else {
-        await cancelReservationForUser(user, pendingAction.reservationId);
+        await cancelReservationForUser(user, pendingAction.reservationId, trimmedReason);
       }
       await reload();
       router.refresh();
-      setPendingAction(null);
+      closePendingActionDialog();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : fallbackError);
-      setPendingAction(null);
+      closePendingActionDialog();
     } finally {
       setIsSubmitting(false);
     }
@@ -278,7 +310,13 @@ export default function AdminReservationsPage() {
         unitLabel={pendingAction?.unitLabel}
         startAt={pendingAction?.startAt ?? new Date().toISOString()}
         endAt={pendingAction?.endAt ?? new Date().toISOString()}
-        onClose={() => setPendingAction(null)}
+        reason={pendingActionReason}
+        reasonError={pendingActionReasonError}
+        onClose={closePendingActionDialog}
+        onReasonChange={(value) => {
+          setPendingActionReason(value);
+          if (pendingActionReasonError) setPendingActionReasonError(null);
+        }}
         onConfirm={confirmPendingAction}
       />
     </div>

@@ -22,7 +22,19 @@ function toLegacyReservation(r: ReservationEntity): Reservation {
     startAt: r.startAt,
     endAt: r.endAt,
     status: r.status,
+    statusReason: r.status === 'REJECTED' || r.status === 'CANCELLED' ? r.statusReason ?? null : undefined,
   };
+}
+
+function toAvailabilityBusyBlock(reservation: ReservationEntity): Reservation {
+  return {
+    id: `busy_${reservation.buildingId}_${reservation.commonAreaId}_${new Date(reservation.startAt).getTime()}`,
+    buildingId: reservation.buildingId,
+    commonAreaId: reservation.commonAreaId,
+    startAt: reservation.startAt,
+    endAt: reservation.endAt,
+    status: 'APPROVED',
+  } as Reservation;
 }
 
 function overlaps(startA: Date, endA: Date, startB: Date, endB: Date) {
@@ -71,7 +83,13 @@ export const reservationsRepo = {
     if (user.internalRole === 'OWNER' || user.internalRole === 'OCCUPANT') {
       const units = await unitsRepo.listForUser(user);
       const buildingIds = Array.from(new Set(units.map((unit) => unit.buildingId)));
-      return tenantScoped.filter((reservation) => buildingIds.includes(reservation.buildingId)).map(toLegacyReservation);
+      return tenantScoped
+        .filter(
+          (reservation) =>
+            buildingIds.includes(reservation.buildingId) &&
+            (reservation.status === 'REQUESTED' || reservation.status === 'APPROVED')
+        )
+        .map((reservation) => (reservation.createdByUserId === user.id ? toLegacyReservation(reservation) : toAvailabilityBusyBlock(reservation)));
     }
 
     return this.listForUser(user);
@@ -158,13 +176,13 @@ export const reservationsRepo = {
     return entity;
   },
 
-  async cancelForUser(user: User, id: string): Promise<ReservationEntity | null> {
+  async cancelForUser(user: User, id: string, reason: string): Promise<ReservationEntity | null> {
     if (isDbMode()) {
       const res = await fetch(`/api/v1/reservations/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ action: 'CANCEL' }),
+        body: JSON.stringify({ action: 'CANCEL', reason }),
       });
       if (res.status === 404) return null;
       const data = (await res.json().catch(() => null)) as { reservation?: ReservationEntity | null; error?: string } | null;
@@ -196,7 +214,16 @@ export const reservationsRepo = {
     if (new Date(current.endAt).getTime() < Date.now()) throw new Error('No puedes cancelar una reserva que ya finalizó.');
 
     const now = new Date().toISOString();
-    const updated: ReservationEntity = { ...current, status: 'CANCELLED', cancelledAt: now, updatedAt: now };
+    const trimmedReason = reason.trim();
+    const updated: ReservationEntity = {
+      ...current,
+      status: 'CANCELLED',
+      cancelledAt: now,
+      statusReason: trimmedReason,
+      statusReasonUpdatedAt: now,
+      statusReasonUpdatedBy: user.id,
+      updatedAt: now,
+    };
     MOCK_RESERVATION_ENTITIES[idx] = updated;
 
     auditService.logAction({
@@ -207,7 +234,7 @@ export const reservationsRepo = {
       entityId: updated.id,
       oldData: current,
       newData: updated,
-      metadata: { buildingId: updated.buildingId, unitId: updated.unitId, commonAreaId: updated.commonAreaId },
+      metadata: { action: 'CANCEL', reason: trimmedReason, buildingId: updated.buildingId, unitId: updated.unitId, commonAreaId: updated.commonAreaId },
     });
 
     return updated;
@@ -239,7 +266,14 @@ export const reservationsRepo = {
     if (current.status !== 'REQUESTED') throw new Error('No autorizado');
 
     const now = new Date().toISOString();
-    const updated: ReservationEntity = { ...current, status: 'APPROVED', updatedAt: now };
+    const updated: ReservationEntity = {
+      ...current,
+      status: 'APPROVED',
+      statusReason: null,
+      statusReasonUpdatedAt: null,
+      statusReasonUpdatedBy: null,
+      updatedAt: now,
+    };
     MOCK_RESERVATION_ENTITIES[idx] = updated;
 
     auditService.logAction({
@@ -250,19 +284,19 @@ export const reservationsRepo = {
       entityId: updated.id,
       oldData: current,
       newData: updated,
-      metadata: { buildingId: updated.buildingId, unitId: updated.unitId, commonAreaId: updated.commonAreaId },
+      metadata: { action: 'APPROVE', buildingId: updated.buildingId, unitId: updated.unitId, commonAreaId: updated.commonAreaId },
     });
 
     return updated;
   },
 
-  async rejectForUser(user: User, id: string): Promise<ReservationEntity | null> {
+  async rejectForUser(user: User, id: string, reason: string): Promise<ReservationEntity | null> {
     if (isDbMode()) {
       const res = await fetch(`/api/v1/reservations/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ action: 'REJECT' }),
+        body: JSON.stringify({ action: 'REJECT', reason }),
       });
       if (res.status === 404) return null;
       const data = (await res.json().catch(() => null)) as { reservation?: ReservationEntity | null; error?: string } | null;
@@ -282,7 +316,15 @@ export const reservationsRepo = {
     if (current.status !== 'REQUESTED') throw new Error('No autorizado');
 
     const now = new Date().toISOString();
-    const updated: ReservationEntity = { ...current, status: 'REJECTED', updatedAt: now };
+    const trimmedReason = reason.trim();
+    const updated: ReservationEntity = {
+      ...current,
+      status: 'REJECTED',
+      statusReason: trimmedReason,
+      statusReasonUpdatedAt: now,
+      statusReasonUpdatedBy: user.id,
+      updatedAt: now,
+    };
     MOCK_RESERVATION_ENTITIES[idx] = updated;
 
     auditService.logAction({
@@ -293,7 +335,7 @@ export const reservationsRepo = {
       entityId: updated.id,
       oldData: current,
       newData: updated,
-      metadata: { buildingId: updated.buildingId, unitId: updated.unitId, commonAreaId: updated.commonAreaId },
+      metadata: { action: 'REJECT', reason: trimmedReason, buildingId: updated.buildingId, unitId: updated.unitId, commonAreaId: updated.commonAreaId },
     });
 
     return updated;

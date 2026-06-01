@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     startAt: '2026-06-20T10:00:00.000Z',
     endAt: '2026-06-20T12:00:00.000Z',
     status: 'REQUESTED',
+    statusReason: null,
   };
 
   const unit = {
@@ -126,7 +127,7 @@ describe('admin reservations confirmation flow', () => {
     expect(mocks.refresh).toHaveBeenCalled();
   });
 
-  it('opens reject confirmation without executing the action yet', async () => {
+  it('requires a valid reason before rejecting', async () => {
     render(<AdminReservationsPage />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rechazar' }));
@@ -134,6 +135,8 @@ describe('admin reservations confirmation flow', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Confirmar rechazo' })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Motivo')).toBeInTheDocument();
+    expect(within(dialog).getByText('Debes ingresar un motivo.')).toBeInTheDocument();
     expect(mocks.rejectReservationForUser).not.toHaveBeenCalled();
   });
 
@@ -157,6 +160,7 @@ describe('admin reservations confirmation flow', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Confirmar cancelación' })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Motivo')).toBeInTheDocument();
     expect(mocks.cancelReservationForUser).not.toHaveBeenCalled();
   });
 
@@ -164,11 +168,63 @@ describe('admin reservations confirmation flow', () => {
     render(<AdminReservationsPage />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Rechazar' }));
+    fireEvent.change(screen.getByLabelText('Motivo'), {
+      target: { value: 'El área común no está disponible por mantenimiento.' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar rechazo' }));
 
     await waitFor(() => {
-      expect(mocks.rejectReservationForUser).toHaveBeenCalledWith(mocks.managerUser, 'resv_1');
+      expect(mocks.rejectReservationForUser).toHaveBeenCalledWith(
+        mocks.managerUser,
+        'resv_1',
+        'El área común no está disponible por mantenimiento.'
+      );
     });
     expect(mocks.refresh).toHaveBeenCalled();
+  });
+
+  it('executes cancel with reason after confirming', async () => {
+    render(<AdminReservationsPage />);
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Cancelar' }))[0]);
+    fireEvent.change(screen.getByLabelText('Motivo'), {
+      target: { value: 'El residente solicitó cancelar la reserva.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar cancelación' }));
+
+    await waitFor(() => {
+      expect(mocks.cancelReservationForUser).toHaveBeenCalledWith(
+        mocks.managerUser,
+        'resv_1',
+        'El residente solicitó cancelar la reserva.'
+      );
+    });
+  });
+
+  it('renders status reason in historical cards', async () => {
+    const historicalReservation = {
+      ...mocks.reservation,
+      id: 'resv_history',
+      status: 'REJECTED',
+      statusReason: 'El área común no está disponible por mantenimiento.',
+    };
+    mocks.loadAdminReservationsPageData.mockResolvedValue({
+      ...mocks.pageData,
+      reservations: [historicalReservation],
+    });
+    mocks.splitReservationsByTimeline.mockImplementation(() => ({
+      active: [],
+      history: [
+        {
+          reservation: historicalReservation,
+          displayStatus: 'REJECTED',
+        },
+      ],
+    }));
+
+    render(<AdminReservationsPage />);
+
+    expect(await screen.findByText('Motivo')).toBeInTheDocument();
+    expect(screen.getByText('El área común no está disponible por mantenimiento.')).toBeInTheDocument();
   });
 });

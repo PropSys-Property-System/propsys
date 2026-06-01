@@ -74,6 +74,9 @@ function toEntity(row: {
   start_at: string;
   end_at: string;
   status: string;
+  status_reason: string | null;
+  status_reason_updated_at: string | null;
+  status_reason_updated_by: string | null;
   created_at: string;
   updated_at: string;
   cancelled_at: string | null;
@@ -89,6 +92,9 @@ function toEntity(row: {
     startAt: row.start_at,
     endAt: row.end_at,
     status: row.status as ReservationEntity['status'],
+    statusReason: row.status_reason,
+    statusReasonUpdatedAt: row.status_reason_updated_at,
+    statusReasonUpdatedBy: row.status_reason_updated_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     cancelledAt: row.cancelled_at ?? undefined,
@@ -106,6 +112,7 @@ function toLegacyReservation(e: ReservationEntity): Reservation {
     startAt: e.startAt,
     endAt: e.endAt,
     status: e.status,
+    statusReason: e.status === 'REJECTED' || e.status === 'CANCELLED' ? e.statusReason ?? null : undefined,
   };
 }
 
@@ -157,12 +164,17 @@ export async function GET(req: Request) {
         start_at: string;
         end_at: string;
         status: string;
+        status_reason: string | null;
+        status_reason_updated_at: string | null;
+        status_reason_updated_by: string | null;
         cancelled_at: string | null;
         deleted_at: string | null;
         created_at: string;
         updated_at: string;
       }>(
-        `SELECT id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at
+        `SELECT id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status,
+                status_reason, status_reason_updated_at, status_reason_updated_by,
+                cancelled_at, deleted_at, created_at, updated_at
          FROM reservations
          WHERE deleted_at IS NULL
            ${tenantWhere}
@@ -187,12 +199,17 @@ export async function GET(req: Request) {
       start_at: string;
       end_at: string;
       status: string;
+      status_reason: string | null;
+      status_reason_updated_at: string | null;
+      status_reason_updated_by: string | null;
       cancelled_at: string | null;
       deleted_at: string | null;
       created_at: string;
       updated_at: string;
     }>(
-      `SELECT id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at
+      `SELECT id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status,
+              status_reason, status_reason_updated_at, status_reason_updated_by,
+              cancelled_at, deleted_at, created_at, updated_at
        FROM reservations
        WHERE deleted_at IS NULL
          ${tenantWhere}
@@ -216,12 +233,17 @@ export async function GET(req: Request) {
     start_at: string;
     end_at: string;
     status: string;
+    status_reason: string | null;
+    status_reason_updated_at: string | null;
+    status_reason_updated_by: string | null;
     cancelled_at: string | null;
     deleted_at: string | null;
     created_at: string;
     updated_at: string;
   }>(
-    `SELECT id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at
+    `SELECT id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status,
+            status_reason, status_reason_updated_at, status_reason_updated_by,
+            cancelled_at, deleted_at, created_at, updated_at
      FROM reservations
      WHERE deleted_at IS NULL
        ${tenantWhere}
@@ -336,6 +358,9 @@ export async function POST(req: Request) {
         start_at: string;
         end_at: string;
         status: string;
+        status_reason: string | null;
+        status_reason_updated_at: string | null;
+        status_reason_updated_by: string | null;
         cancelled_at: string | null;
         deleted_at: string | null;
         created_at: string;
@@ -343,7 +368,9 @@ export async function POST(req: Request) {
       }>(
         `INSERT INTO reservations (id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
-         RETURNING id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at`,
+         RETURNING id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status,
+                   status_reason, status_reason_updated_at, status_reason_updated_by,
+                   cancelled_at, deleted_at, created_at, updated_at`,
         [id, clientId, buildingId, unitId, commonAreaId, user.id, start.toISOString(), end.toISOString(), status, now]
       );
       await insertAuditLog(db, {

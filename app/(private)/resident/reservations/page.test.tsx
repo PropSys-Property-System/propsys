@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     startAt: '2026-06-20T10:00:00.000Z',
     endAt: '2026-06-20T12:00:00.000Z',
     status: 'APPROVED',
+    statusReason: null,
   };
 
   const unit = {
@@ -98,13 +99,15 @@ describe('resident reservations confirmation flow', () => {
     }));
   });
 
-  it('opens cancel confirmation without executing the action yet', async () => {
+  it('opens cancel confirmation and requires reason before executing', async () => {
     render(<ResidentReservationsPage />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirmar cancelación' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Motivo')).toBeInTheDocument();
+    expect(screen.getByText('Debes ingresar un motivo.')).toBeInTheDocument();
     expect(mocks.cancelReservationForUser).not.toHaveBeenCalled();
   });
 
@@ -112,10 +115,44 @@ describe('resident reservations confirmation flow', () => {
     render(<ResidentReservationsPage />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }));
+    fireEvent.change(screen.getByLabelText('Motivo'), {
+      target: { value: 'El residente solicitó cancelar la reserva.' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar cancelación' }));
 
     await waitFor(() => {
-      expect(mocks.cancelReservationForUser).toHaveBeenCalledWith(mocks.residentUser, 'resv_1');
+      expect(mocks.cancelReservationForUser).toHaveBeenCalledWith(
+        mocks.residentUser,
+        'resv_1',
+        'El residente solicitó cancelar la reserva.'
+      );
     });
+  });
+
+  it('renders status reason for own cancelled or rejected reservations', async () => {
+    const historicalReservation = {
+      ...mocks.reservation,
+      id: 'resv_history',
+      status: 'CANCELLED',
+      statusReason: 'El residente solicitó cancelar la reserva.',
+    };
+    mocks.loadResidentReservationsPageData.mockResolvedValue({
+      ...mocks.pageData,
+      reservations: [historicalReservation],
+    });
+    mocks.splitReservationsByTimeline.mockImplementation(() => ({
+      active: [],
+      history: [
+        {
+          reservation: historicalReservation,
+          displayStatus: 'CANCELLED',
+        },
+      ],
+    }));
+
+    render(<ResidentReservationsPage />);
+
+    expect(await screen.findByText('Motivo')).toBeInTheDocument();
+    expect(screen.getByText('El residente solicitó cancelar la reserva.')).toBeInTheDocument();
   });
 });

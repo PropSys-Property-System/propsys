@@ -20,6 +20,9 @@ import {
 } from '@/lib/features/reservations/reservations-center.ui';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
 
+const STATUS_REASON_MIN_LENGTH = 8;
+const STATUS_REASON_MAX_LENGTH = 300;
+
 type PendingCancelAction = {
   reservationId: string;
   areaName: string;
@@ -53,6 +56,8 @@ export default function ResidentReservationsPage() {
   const [createEndAt, setCreateEndAt] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [pendingCancel, setPendingCancel] = useState<PendingCancelAction | null>(null);
+  const [pendingCancelReason, setPendingCancelReason] = useState('');
+  const [pendingCancelReasonError, setPendingCancelReasonError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -135,6 +140,23 @@ export default function ResidentReservationsPage() {
     </button>
   ) : null;
 
+  const validateCancelReason = (reason: string) => {
+    const trimmed = reason.trim();
+    if (trimmed.length < STATUS_REASON_MIN_LENGTH) {
+      return `El motivo debe tener al menos ${STATUS_REASON_MIN_LENGTH} caracteres.`;
+    }
+    if (trimmed.length > STATUS_REASON_MAX_LENGTH) {
+      return `El motivo no puede superar ${STATUS_REASON_MAX_LENGTH} caracteres.`;
+    }
+    return null;
+  };
+
+  const closeCancelDialog = () => {
+    setPendingCancel(null);
+    setPendingCancelReason('');
+    setPendingCancelReasonError(null);
+  };
+
   const submitCreate = async () => {
     if (!user) return;
     if (!createUnitId) {
@@ -184,6 +206,8 @@ export default function ResidentReservationsPage() {
 
   const openCancelConfirmation = (reservation: Reservation) => {
     setActionError(null);
+    setPendingCancelReason('');
+    setPendingCancelReasonError(null);
     setPendingCancel({
       reservationId: reservation.id,
       areaName: areaNameById.get(reservation.commonAreaId) ?? 'Área común',
@@ -196,15 +220,22 @@ export default function ResidentReservationsPage() {
 
   const confirmCancellation = async () => {
     if (!user || !pendingCancel) return;
+    const reasonError = validateCancelReason(pendingCancelReason);
+    if (reasonError) {
+      setPendingCancelReasonError(reasonError);
+      return;
+    }
+    const trimmedReason = pendingCancelReason.trim();
     try {
       setIsSubmitting(true);
       setActionError(null);
-      await cancelReservationForUser(user, pendingCancel.reservationId);
+      setPendingCancelReasonError(null);
+      await cancelReservationForUser(user, pendingCancel.reservationId, trimmedReason);
       await reload();
-      setPendingCancel(null);
+      closeCancelDialog();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos cancelar la reserva.');
-      setPendingCancel(null);
+      closeCancelDialog();
     } finally {
       setIsSubmitting(false);
     }
@@ -377,7 +408,13 @@ export default function ResidentReservationsPage() {
         unitLabel={pendingCancel?.unitLabel}
         startAt={pendingCancel?.startAt ?? new Date().toISOString()}
         endAt={pendingCancel?.endAt ?? new Date().toISOString()}
-        onClose={() => setPendingCancel(null)}
+        reason={pendingCancelReason}
+        reasonError={pendingCancelReasonError}
+        onClose={closeCancelDialog}
+        onReasonChange={(value) => {
+          setPendingCancelReason(value);
+          if (pendingCancelReasonError) setPendingCancelReasonError(null);
+        }}
         onConfirm={confirmCancellation}
       />
     </div>

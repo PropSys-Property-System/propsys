@@ -6,6 +6,29 @@ import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
 import type { ReservationEntity } from '@/lib/types';
 
+const STATUS_REASON_MIN_LENGTH = 8;
+const STATUS_REASON_MAX_LENGTH = 300;
+
+function normalizeStatusReason(action: 'APPROVE' | 'REJECT' | 'CANCEL', reason: unknown) {
+  if (action === 'APPROVE') {
+    return { value: null, error: null as string | null };
+  }
+
+  if (typeof reason !== 'string') {
+    return { value: null, error: 'Debes ingresar un motivo.' };
+  }
+
+  const trimmed = reason.trim();
+  if (trimmed.length < STATUS_REASON_MIN_LENGTH) {
+    return { value: null, error: `El motivo debe tener al menos ${STATUS_REASON_MIN_LENGTH} caracteres.` };
+  }
+  if (trimmed.length > STATUS_REASON_MAX_LENGTH) {
+    return { value: null, error: `El motivo no puede superar ${STATUS_REASON_MAX_LENGTH} caracteres.` };
+  }
+
+  return { value: trimmed, error: null as string | null };
+}
+
 function toEntity(row: {
   id: string;
   client_id: string;
@@ -16,6 +39,9 @@ function toEntity(row: {
   start_at: string;
   end_at: string;
   status: string;
+  status_reason: string | null;
+  status_reason_updated_at: string | null;
+  status_reason_updated_by: string | null;
   created_at: string;
   updated_at: string;
   cancelled_at: string | null;
@@ -31,6 +57,9 @@ function toEntity(row: {
     startAt: row.start_at,
     endAt: row.end_at,
     status: row.status as ReservationEntity['status'],
+    statusReason: row.status_reason,
+    statusReasonUpdatedAt: row.status_reason_updated_at,
+    statusReasonUpdatedBy: row.status_reason_updated_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     cancelledAt: row.cancelled_at ?? undefined,
@@ -46,6 +75,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const body = await req.json().catch(() => null);
   const action = body?.action === 'APPROVE' || body?.action === 'REJECT' || body?.action === 'CANCEL' ? body.action : null;
   if (!action) return NextResponse.json({ error: 'Datos inválidos' }, { status: 400 });
+  const normalizedReason = normalizeStatusReason(action, body?.reason);
+  if (normalizedReason.error) {
+    return NextResponse.json({ error: normalizedReason.error }, { status: 400 });
+  }
 
   const pool = getPool();
   const currentRes = await pool.query<{
@@ -58,12 +91,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     start_at: string;
     end_at: string;
     status: string;
+    status_reason: string | null;
+    status_reason_updated_at: string | null;
+    status_reason_updated_by: string | null;
     cancelled_at: string | null;
     deleted_at: string | null;
     created_at: string;
     updated_at: string;
   }>(
-    `SELECT id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at
+    `SELECT id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status,
+            status_reason, status_reason_updated_at, status_reason_updated_by,
+            cancelled_at, deleted_at, created_at, updated_at
      FROM reservations
      WHERE id = $1
      LIMIT 1`,
@@ -124,16 +162,26 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           start_at: string;
           end_at: string;
           status: string;
+          status_reason: string | null;
+          status_reason_updated_at: string | null;
+          status_reason_updated_by: string | null;
           cancelled_at: string | null;
           deleted_at: string | null;
           created_at: string;
           updated_at: string;
         }>(
           `UPDATE reservations
-           SET status = 'CANCELLED', cancelled_at = $2, updated_at = $2
+           SET status = 'CANCELLED',
+               cancelled_at = $2,
+               status_reason = $3,
+               status_reason_updated_at = $2,
+               status_reason_updated_by = $4,
+               updated_at = $2
            WHERE id = $1
-           RETURNING id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at`,
-          [id, now]
+           RETURNING id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status,
+                     status_reason, status_reason_updated_at, status_reason_updated_by,
+                     cancelled_at, deleted_at, created_at, updated_at`,
+          [id, now, normalizedReason.value, user.id]
         );
         await insertAuditLog(db, {
           clientId: current.client_id,
@@ -141,7 +189,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           action: 'UPDATE',
           entity: 'Reservation',
           entityId: id,
-          metadata: { action },
+          metadata: { action, reason: normalizedReason.value },
           oldData: current,
           newData: res.rows[0],
         });
@@ -181,16 +229,25 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         start_at: string;
         end_at: string;
         status: string;
+        status_reason: string | null;
+        status_reason_updated_at: string | null;
+        status_reason_updated_by: string | null;
         cancelled_at: string | null;
         deleted_at: string | null;
         created_at: string;
         updated_at: string;
       }>(
         `UPDATE reservations
-         SET status = $2, updated_at = $3
+         SET status = $2,
+             status_reason = $3,
+             status_reason_updated_at = $4,
+             status_reason_updated_by = $5,
+             updated_at = $4
          WHERE id = $1
-         RETURNING id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status, cancelled_at, deleted_at, created_at, updated_at`,
-        [id, newStatus, now]
+         RETURNING id, client_id, building_id, unit_id, common_area_id, created_by_user_id, start_at, end_at, status,
+                   status_reason, status_reason_updated_at, status_reason_updated_by,
+                   cancelled_at, deleted_at, created_at, updated_at`,
+        [id, newStatus, action === 'REJECT' ? normalizedReason.value : null, now, action === 'REJECT' ? user.id : null]
       );
       await insertAuditLog(db, {
         clientId: current.client_id,
@@ -198,7 +255,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         action: 'UPDATE',
         entity: 'Reservation',
         entityId: id,
-        metadata: { action },
+        metadata: action === 'REJECT' ? { action, reason: normalizedReason.value } : { action },
         oldData: current,
         newData: res.rows[0],
       });

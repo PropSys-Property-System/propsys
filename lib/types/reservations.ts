@@ -1,4 +1,4 @@
-﻿export type ReservationEntityStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type ReservationEntityStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 export interface ReservationEntity {
   id: string;
@@ -10,6 +10,9 @@ export interface ReservationEntity {
   startAt: string;
   endAt: string;
   status: ReservationEntityStatus;
+  statusReason?: string | null;
+  statusReasonUpdatedAt?: string | null;
+  statusReasonUpdatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
   cancelledAt?: string;

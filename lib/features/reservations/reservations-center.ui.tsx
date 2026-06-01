@@ -6,6 +6,9 @@ import type { ReservationDisplayStatus } from '@/lib/features/reservations/reser
 import type { CommonArea, Reservation, Unit, Building } from '@/lib/types';
 import { getStartOfWeek, getWeekDays, formatReservationTimeRange, groupReservationsByDay, isReservationInWeek } from './reservations-calendar.utils';
 
+const STATUS_REASON_MIN_LENGTH = 8;
+const STATUS_REASON_MAX_LENGTH = 300;
+
 type AdminReservationCardProps = {
   reservation: Reservation;
   displayStatus: ReservationDisplayStatus;
@@ -63,7 +66,10 @@ type ReservationActionConfirmationDialogProps = {
   unitLabel?: string;
   startAt: string;
   endAt: string;
+  reason: string;
+  reasonError?: string | null;
   onClose: () => void;
+  onReasonChange: (value: string) => void;
   onConfirm: () => void;
 };
 
@@ -226,6 +232,25 @@ function reservationActionDialogCopy(action: ReservationActionKind) {
   };
 }
 
+function getReasonValidationError(reason: string) {
+  const trimmedLength = reason.trim().length;
+  if (trimmedLength === 0) return 'Debes ingresar un motivo.';
+  if (trimmedLength < STATUS_REASON_MIN_LENGTH) {
+    return `El motivo debe tener al menos ${STATUS_REASON_MIN_LENGTH} caracteres.`;
+  }
+  if (trimmedLength > STATUS_REASON_MAX_LENGTH) {
+    return `El motivo no puede superar ${STATUS_REASON_MAX_LENGTH} caracteres.`;
+  }
+  return null;
+}
+
+function reservationReasonPlaceholder(action: ReservationActionKind) {
+  if (action === 'REJECT') {
+    return 'Ej. El área común no está disponible por mantenimiento.';
+  }
+  return 'Ej. El residente solicitó cancelar la reserva.';
+}
+
 export function reservationStatusChip(status: ReservationDisplayStatus) {
   const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
   if (status === 'REQUESTED') return `${base} bg-amber-50 text-amber-700`;
@@ -264,6 +289,12 @@ export function AdminReservationCard({
         <p className="mt-1 text-xs text-slate-500 font-medium">
           {buildingName} · {formatDateTime(reservation.startAt)} - {formatTime(reservation.endAt)}
         </p>
+        {(reservation.status === 'REJECTED' || reservation.status === 'CANCELLED') && reservation.statusReason ? (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Motivo</p>
+            <p className="mt-1 text-sm font-medium text-slate-700">{reservation.statusReason}</p>
+          </div>
+        ) : null}
 
         {canManage ? (
           <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -327,6 +358,12 @@ export function ResidentReservationCard({
         <p className="mt-1 text-xs text-slate-500 font-medium">
           {buildingName} · {formatDateTime(reservation.startAt)} - {formatTime(reservation.endAt)}
         </p>
+        {(reservation.status === 'REJECTED' || reservation.status === 'CANCELLED') && reservation.statusReason ? (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Motivo</p>
+            <p className="mt-1 text-sm font-medium text-slate-700">{reservation.statusReason}</p>
+          </div>
+        ) : null}
         {canCancel ? (
           <div className="mt-4">
             <button
@@ -355,12 +392,18 @@ export function ReservationActionConfirmationDialog({
   unitLabel,
   startAt,
   endAt,
+  reason,
+  reasonError,
   onClose,
+  onReasonChange,
   onConfirm,
 }: ReservationActionConfirmationDialogProps) {
   if (!isOpen) return null;
 
   const copy = reservationActionDialogCopy(action);
+  const requiresReason = action === 'REJECT' || action === 'CANCEL';
+  const inlineReasonError = requiresReason ? getReasonValidationError(reason) : null;
+  const displayedReasonError = reasonError ?? inlineReasonError;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -408,6 +451,28 @@ export function ReservationActionConfirmationDialog({
           </dl>
         </div>
 
+        {requiresReason ? (
+          <div className="mt-5">
+            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-400" htmlFor="reservation-status-reason">
+              Motivo
+            </label>
+            <textarea
+              id="reservation-status-reason"
+              value={reason}
+              onChange={(event) => onReasonChange(event.target.value)}
+              rows={4}
+              placeholder={reservationReasonPlaceholder(action)}
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/5"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className={`text-xs font-bold ${displayedReasonError ? 'text-rose-600' : 'text-slate-400'}`}>
+                {displayedReasonError ?? `Entre ${STATUS_REASON_MIN_LENGTH} y ${STATUS_REASON_MAX_LENGTH} caracteres.`}
+              </p>
+              <p className="text-xs font-bold text-slate-400">{reason.trim().length}/{STATUS_REASON_MAX_LENGTH}</p>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
@@ -418,7 +483,7 @@ export function ReservationActionConfirmationDialog({
           </button>
           <button
             type="button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || (requiresReason && Boolean(inlineReasonError))}
             onClick={onConfirm}
             className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white transition-all hover:bg-slate-800 disabled:opacity-70"
           >
@@ -456,8 +521,12 @@ export function ReservationComposerDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={onClose} type="button" />
-      <div role="dialog" aria-modal="true" className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
-        <div className="flex items-start justify-between gap-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
           <div>
             <p className="text-lg font-black text-slate-900">Nueva reserva</p>
             <p className="mt-1 text-xs text-slate-500 font-medium">Reserva un área común para tu unidad.</p>
@@ -467,7 +536,8 @@ export function ReservationComposerDialog({
           </button>
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="space-y-3">
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Unidad</label>
             <select
@@ -539,8 +609,10 @@ export function ReservationComposerDialog({
             endAt={endAt}
           />
         </div>
+        </div>
 
-        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+        <div className="border-t border-slate-100 bg-white px-6 py-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}
@@ -556,6 +628,7 @@ export function ReservationComposerDialog({
           >
             Reservar
           </button>
+          </div>
         </div>
       </div>
     </div>

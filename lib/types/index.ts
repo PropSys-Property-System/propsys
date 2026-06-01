@@ -146,6 +146,7 @@ export interface Reservation {
   startAt: string;
   endAt: string;
   status: ReservationStatus;
+  statusReason?: string | null;
 }
 
 export interface AuthState {

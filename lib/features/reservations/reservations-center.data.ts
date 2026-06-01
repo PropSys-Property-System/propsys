@@ -148,14 +148,14 @@ export async function createReservationForUser(user: User, input: CreateReservat
   return reservationsRepo.createForUser(user, input);
 }
 
-export async function cancelReservationForUser(user: User, id: string): Promise<ReservationEntity | null> {
-  return reservationsRepo.cancelForUser(user, id);
+export async function cancelReservationForUser(user: User, id: string, reason: string): Promise<ReservationEntity | null> {
+  return reservationsRepo.cancelForUser(user, id, reason);
 }
 
 export async function approveReservationForUser(user: User, id: string): Promise<ReservationEntity | null> {
   return reservationsRepo.approveForUser(user, id);
 }
 
-export async function rejectReservationForUser(user: User, id: string): Promise<ReservationEntity | null> {
-  return reservationsRepo.rejectForUser(user, id);
+export async function rejectReservationForUser(user: User, id: string, reason: string): Promise<ReservationEntity | null> {
+  return reservationsRepo.rejectForUser(user, id, reason);
 }
