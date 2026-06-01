@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { BuildingUnitsDialog } from './physical-center.ui';
+import { BuildingUnitsDialog, PhysicalGridSkeleton } from './physical-center.ui';
 import type { Building, Unit } from '@/lib/types';
 
 const building: Building = {
@@ -82,5 +82,16 @@ describe('BuildingUnitsDialog assignment UI', () => {
     renderDialog();
     expect(screen.getByText(/número de unidad/i)).toBeInTheDocument();
     expect(screen.getByText(/piso/i, { selector: 'label' })).toBeInTheDocument();
+  });
+});
+
+describe('PhysicalGridSkeleton', () => {
+  it('announces configurable loading while reserving a responsive grid', () => {
+    render(<PhysicalGridSkeleton label="Cargando áreas comunes..." count={2} />);
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Cargando áreas comunes...');
+    expect(Array.from(status.querySelectorAll('div')).some((element) => element.classList.contains('md:grid-cols-2'))).toBe(true);
+    expect(status.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0);
   });
 });

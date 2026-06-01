@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { EmptyState, ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   archiveCommonAreaForUser,
@@ -15,7 +15,7 @@ import {
   updateCommonAreaForUser,
   updateCommonAreaApprovalForUser,
 } from '@/lib/features/physical/physical-center.data';
-import { BuildingScopeToolbar, CommonAreaCard, buildingToolbarIcon } from '@/lib/features/physical/physical-center.ui';
+import { BuildingScopeToolbar, CommonAreaCard, PhysicalGridSkeleton, buildingToolbarIcon } from '@/lib/features/physical/physical-center.ui';
 import type { Building, CommonArea } from '@/lib/types';
 
 export default function AdminCommonAreasPage() {
@@ -24,6 +24,7 @@ export default function AdminCommonAreasPage() {
   const [selectedBuildingId, setSelectedBuildingId] = useState('');
   const [areas, setAreas] = useState<CommonArea[]>([]);
   const [archivedAreas, setArchivedAreas] = useState<CommonArea[]>([]);
+  const [loadedAreasBuildingId, setLoadedAreasBuildingId] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -86,6 +87,7 @@ export default function AdminCommonAreasPage() {
         if (!isMounted) return;
         setAreas(active);
         setArchivedAreas(archived);
+        setLoadedAreasBuildingId(selectedBuildingId);
       } catch {
         if (!isMounted) return;
         setError('No pudimos cargar las áreas comunes.');
@@ -107,6 +109,7 @@ export default function AdminCommonAreasPage() {
     const normalizedTerm = searchTerm.toLowerCase();
     return source.filter((area) => area.name.toLowerCase().includes(normalizedTerm));
   }, [areas, archivedAreas, searchTerm, showArchived]);
+  const isAreasLoading = isLoading || (Boolean(selectedBuildingId) && loadedAreasBuildingId !== selectedBuildingId);
 
   const updateApproval = async (area: CommonArea, nextRequiresApproval: boolean) => {
     if (!user) return;
@@ -239,7 +242,7 @@ export default function AdminCommonAreasPage() {
           <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{actionMessage}</div>
         ) : null}
 
-        {canManageApproval ? (
+        {canManageApproval && !isAreasLoading ? (
           <div className="inline-flex p-1 bg-white border border-slate-200 rounded-2xl">
             <button
               type="button"
@@ -273,8 +276,8 @@ export default function AdminCommonAreasPage() {
 
         {error ? (
           <ErrorState title="Error" description={error} />
-        ) : isLoading ? (
-          <LoadingState title="Cargando áreas comunes..." />
+        ) : isAreasLoading ? (
+          <PhysicalGridSkeleton label="Cargando áreas comunes..." />
         ) : !selectedBuildingId ? (
           <EmptyState title="Sin edificio" description="No hay un edificio seleccionado." />
         ) : filteredAreas.length === 0 ? (

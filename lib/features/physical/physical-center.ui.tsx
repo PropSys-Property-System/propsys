@@ -1,9 +1,40 @@
 import type { ReactNode } from 'react';
 import { Building2, Home, Phone, Search, Users } from 'lucide-react';
+import { SkeletonBlock, SkeletonStatus } from '@/components/States';
 import type { Building, CommonArea, StaffMember, Unit } from '@/lib/types';
 import { labelClient } from '@/lib/presentation/labels';
 
 type UnitAssignmentType = 'OWNER' | 'OCCUPANT';
+
+type PhysicalGridSkeletonProps = {
+  count?: number;
+  label: string;
+};
+
+export function PhysicalGridSkeleton({
+  count = 4,
+  label,
+}: PhysicalGridSkeletonProps) {
+  return (
+    <SkeletonStatus label={label}>
+      <div className="grid max-w-5xl grid-cols-1 gap-4 md:grid-cols-2">
+        {Array.from({ length: count }, (_, index) => (
+          <div key={index} className="rounded-2xl border border-slate-200 bg-white p-6">
+            <div className="flex items-start justify-between gap-6">
+              <div className="min-w-0 flex-1">
+                <SkeletonBlock className="h-5 w-24 rounded-full" />
+                <SkeletonBlock className="mt-3 h-4 w-40 max-w-full" />
+                <SkeletonBlock className="mt-2 h-3 w-56 max-w-full" />
+                <SkeletonBlock className="mt-4 h-9 w-32" />
+              </div>
+              <SkeletonBlock className="h-12 w-12 flex-shrink-0 rounded-2xl" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </SkeletonStatus>
+  );
+}
 
 type BuildingCardProps = {
   building: Building;

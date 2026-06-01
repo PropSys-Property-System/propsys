@@ -1,9 +1,42 @@
 import Image from 'next/image';
 import { ExternalLink, FileText, Trash2 } from 'lucide-react';
+import { SkeletonBlock, SkeletonStatus } from '@/components/States';
 import { formatDateTime } from '@/lib/presentation/dates';
 import type { ChecklistExecution, EvidenceAttachment, TaskEntity } from '@/lib/types';
 
 export const taskImageLoader = ({ src }: { src: string }) => src;
+
+type TaskListSkeletonProps = {
+  count?: number;
+  label?: string;
+};
+
+export function TaskListSkeleton({
+  count = 3,
+  label = 'Cargando tareas...',
+}: TaskListSkeletonProps) {
+  return (
+    <SkeletonStatus label={label} className="max-w-4xl space-y-3">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="flex items-start justify-between gap-6">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap gap-2">
+                <SkeletonBlock className="h-5 w-20 rounded-full" />
+                <SkeletonBlock className="h-5 w-28 rounded-full" />
+              </div>
+              <SkeletonBlock className="mt-3 h-4 w-48 max-w-full" />
+              <SkeletonBlock className="mt-2 h-3 w-full max-w-xl" />
+              <SkeletonBlock className="mt-2 h-3 w-40 max-w-full" />
+              <SkeletonBlock className="mt-4 h-9 w-40" />
+            </div>
+            <SkeletonBlock className="h-12 w-12 flex-shrink-0 rounded-2xl" />
+          </div>
+        </div>
+      ))}
+    </SkeletonStatus>
+  );
+}
 
 export function labelTaskStatus(status: TaskEntity['status']): string {
   if (status === 'APPROVED') return 'Aprobada';

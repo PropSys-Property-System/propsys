@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { EmptyState, ErrorState, SkeletonBlock } from '@/components/States';
 import { ChevronDown, Plus, Search } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
@@ -17,7 +17,7 @@ import {
   returnAdminChecklist,
   saveAdminTaskTemplate,
 } from '@/lib/features/tasks/task-center.data';
-import { labelTaskStatus } from '@/lib/features/tasks/task-center.ui';
+import { labelTaskStatus, TaskListSkeleton } from '@/lib/features/tasks/task-center.ui';
 import { TaskReviewDialog } from '@/lib/features/tasks/task-review-dialog';
 import { formatDateTime } from '@/lib/presentation/dates';
 import type { ChecklistExecution, ChecklistTemplate, EvidenceAttachment, StaffMember, TaskEntity } from '@/lib/types';
@@ -507,9 +507,13 @@ export default function AdminTasksPage() {
                 <p className="mt-2 text-sm text-slate-600 font-medium">Crea y reutiliza checklists por edificio.</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {(templatesByBuildingId[templatesBuildingId] ?? []).length} templates
-                </span>
+                {isLoading ? (
+                  <SkeletonBlock className="h-6 w-20 rounded-full" />
+                ) : (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                    {(templatesByBuildingId[templatesBuildingId] ?? []).length} templates
+                  </span>
+                )}
                 <ChevronDown
                   className={`h-5 w-5 text-slate-400 transition-transform ${isTemplatesExpanded ? 'rotate-180' : ''}`}
                 />
@@ -577,7 +581,7 @@ export default function AdminTasksPage() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando tareas..." />
+          <TaskListSkeleton count={4} />
         ) : tasks.length === 0 ? (
           <EmptyState
             title="Sin tareas"

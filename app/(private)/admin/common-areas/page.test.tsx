@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminCommonAreasPage from './page';
 
 const mocks = vi.hoisted(() => {
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     managerUser,
+    building,
     loadAdminCommonAreasPageData: vi.fn(async () => ({ buildings: [building], defaultBuildingId: building.id })),
     listCommonAreasForBuilding: vi.fn(async () => []),
     listArchivedCommonAreasForBuilding: vi.fn(async () => []),
@@ -50,6 +51,44 @@ vi.mock('@/lib/features/physical/physical-center.data', () => ({
 }));
 
 describe('admin common areas page polish', () => {
+  beforeEach(() => {
+    mocks.loadAdminCommonAreasPageData.mockReset().mockResolvedValue({
+      buildings: [mocks.building],
+      defaultBuildingId: mocks.building.id,
+    });
+    mocks.listCommonAreasForBuilding.mockReset().mockResolvedValue([]);
+    mocks.listArchivedCommonAreasForBuilding.mockReset().mockResolvedValue([]);
+  });
+
+  it('renders an accessible skeleton without provisional counters or empty states while loading', () => {
+    mocks.loadAdminCommonAreasPageData.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<AdminCommonAreasPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando áreas comunes...');
+    expect(screen.queryByText('Activas (0)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Archivadas (0)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sin edificio')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sin áreas')).not.toBeInTheDocument();
+  });
+
+  it('renders real common-area content after loading', async () => {
+    mocks.listCommonAreasForBuilding.mockResolvedValueOnce([
+      {
+        id: 'area_1',
+        clientId: 'client_001',
+        buildingId: mocks.building.id,
+        name: 'Terraza',
+        capacity: 20,
+        requiresApproval: true,
+      },
+    ]);
+
+    render(<AdminCommonAreasPage />);
+
+    expect(await screen.findByText('Terraza')).toBeInTheDocument();
+  });
+
   it('exposes accessible labels for the common-area composer fields', async () => {
     render(<AdminCommonAreasPage />);
 

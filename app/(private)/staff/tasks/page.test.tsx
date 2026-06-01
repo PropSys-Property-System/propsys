@@ -111,6 +111,15 @@ describe('staff tasks page UX polish', () => {
     mocks.listStaffTasksForUser.mockReset().mockResolvedValue(mocks.tasks);
   });
 
+  it('renders an accessible skeleton without an empty state while loading', () => {
+    mocks.loadStaffTasksPageData.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<StaffTasksPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando tareas...');
+    expect(screen.queryByText('Sin tareas')).not.toBeInTheDocument();
+  });
+
   it('shows contextual checklist CTA and indicators in task cards', async () => {
     render(<StaffTasksPage />);
 

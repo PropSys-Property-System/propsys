@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { EmptyState, ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   archiveBuildingForUser,
@@ -15,7 +15,7 @@ import {
   restoreBuildingForUser,
   unassignUnitResident,
 } from '@/lib/features/physical/physical-center.data';
-import { BuildingCard, BuildingComposerDialog, BuildingUnitsDialog } from '@/lib/features/physical/physical-center.ui';
+import { BuildingCard, BuildingComposerDialog, BuildingUnitsDialog, PhysicalGridSkeleton } from '@/lib/features/physical/physical-center.ui';
 import { InvitationCreationDialog } from '@/lib/features/users/invitations.ui';
 import type { Building, Unit } from '@/lib/types';
 import type { ClientAccount } from '@/lib/repos/core/clients.repo';
@@ -403,7 +403,7 @@ export default function BuildingsPage() {
       <PageHeader title="Gestión de edificios" description="Administra el portafolio de edificios de PropSys" actions={actions} />
 
       <div className="p-6 md:p-8 space-y-6">
-        {canArchive ? (
+        {canArchive && !isLoading ? (
           <div className="inline-flex p-1 bg-white border border-slate-200 rounded-2xl">
             <button
               type="button"
@@ -456,7 +456,7 @@ export default function BuildingsPage() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando edificios..." />
+          <PhysicalGridSkeleton label="Cargando edificios..." />
         ) : buildings.length === 0 ? (
           <EmptyState
             title={showArchived ? 'Sin edificios archivados' : 'Sin edificios'}

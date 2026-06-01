@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, CheckCircle2, Circle, ListChecks, Search } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { EmptyState, ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   completeStaffTaskChecklist,
@@ -17,7 +17,7 @@ import {
   uploadStaffTaskEvidence,
 } from '@/lib/features/tasks/task-center.data';
 import { TaskChecklistDialog } from '@/lib/features/tasks/task-checklist-dialog';
-import { labelTaskStatus } from '@/lib/features/tasks/task-center.ui';
+import { labelTaskStatus, TaskListSkeleton } from '@/lib/features/tasks/task-center.ui';
 import type { ChecklistExecution, ChecklistTemplate, EvidenceAttachment, TaskEntity } from '@/lib/types';
 
 export default function StaffTasksPage() {
@@ -400,7 +400,7 @@ export default function StaffTasksPage() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando tareas..." />
+          <TaskListSkeleton />
         ) : tasks.length === 0 ? (
           <EmptyState
             title="Sin tareas"
