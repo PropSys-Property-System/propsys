@@ -83,7 +83,7 @@ export default function AdminDashboard() {
         description={`Bienvenido de nuevo, ${user?.name}. Revisa un resumen de tu alcance con PropSys.`}
       />
 
-      <div className="mx-auto w-full max-w-7xl space-y-8 p-6 md:p-8">
+      <div className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 md:space-y-8 md:p-8">
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
@@ -102,14 +102,12 @@ export default function AdminDashboard() {
               openIncidentsCount={dashboardData?.openIncidentsCount ?? null}
             />
 
-            <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+            <DashboardQuickLinks user={user} />
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
               <DashboardStatsPanel receiptStatusCounts={dashboardData?.receiptStatusCounts ?? { pending: 0, overdue: 0, paid: 0, cancelled: 0 }} />
 
-              <div>
-                <DashboardRecentActivityPanel
-                  recentActivity={dashboardData?.recentActivity ?? []}
-                  agendaReservations={dashboardData?.agendaReservations ?? []}
-                />
+              <div className="order-1 lg:order-2">
                 <DashboardChecklistPanel
                   user={user}
                   checklistError={dashboardData?.checklistError ?? null}
@@ -119,15 +117,17 @@ export default function AdminDashboard() {
                   isApprovingChecklistId={isApprovingChecklistId}
                   onApproveChecklist={approveChecklist}
                 />
+                <DashboardRecentActivityPanel
+                  recentActivity={dashboardData?.recentActivity ?? []}
+                  agendaReservations={dashboardData?.agendaReservations ?? []}
+                />
               </div>
             </div>
-
-            <DashboardQuickLinks user={user} />
           </>
         )}
       </div>
 
-      <div className="py-8 text-center">
+      <div className="py-4 text-center md:py-8">
         <span className="text-xs font-black uppercase tracking-[0.5em] text-slate-300">PropSys Dashboard</span>
       </div>
     </div>

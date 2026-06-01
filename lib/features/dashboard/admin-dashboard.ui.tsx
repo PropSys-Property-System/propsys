@@ -83,11 +83,11 @@ function activityStatusLabel(activity: AdminDashboardActivityItem) {
 
 export function DashboardSkeleton() {
   return (
-    <SkeletonStatus label="Cargando dashboard..." className="space-y-8">
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <SkeletonStatus label="Cargando dashboard..." className="space-y-6 md:space-y-8">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-            <SkeletonBlock className="mb-4 h-12 w-12 rounded-2xl" />
+          <div key={index} className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <SkeletonBlock className="mb-3 h-10 w-10 rounded-2xl md:mb-4 md:h-12 md:w-12" />
             <div className="space-y-3">
               <SkeletonBlock className="h-3 w-28" />
               <SkeletonBlock className="h-8 w-16" />
@@ -97,18 +97,29 @@ export function DashboardSkeleton() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        <div className="h-[400px] rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm lg:col-span-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm md:p-6">
+            <SkeletonBlock className="h-10 w-10" />
+            <SkeletonBlock className="mt-4 h-4 w-28" />
+            <SkeletonBlock className="mt-3 h-3 w-full" />
+            <SkeletonBlock className="mt-2 h-3 w-3/4" />
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
+        <div className="order-2 h-auto rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm md:p-8 lg:order-1 lg:col-span-2 lg:h-[400px]">
           <SkeletonBlock className="h-4 w-44" />
           <SkeletonBlock className="mt-3 h-3 w-72 max-w-full" />
-          <div className="mt-6 grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-6">
+          <div className="mt-6 grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 md:p-6">
             {Array.from({ length: 4 }, (_, index) => (
               <SkeletonBlock key={index} className="h-12 w-full bg-white" />
             ))}
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="order-1 rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm md:p-8 lg:order-2">
           <SkeletonBlock className="h-4 w-36" />
           <div className="mt-8 space-y-6">
             {Array.from({ length: 3 }, (_, index) => (
@@ -124,17 +135,6 @@ export function DashboardSkeleton() {
           </div>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 3 }, (_, index) => (
-          <div key={index} className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-            <SkeletonBlock className="h-10 w-10" />
-            <SkeletonBlock className="mt-4 h-4 w-28" />
-            <SkeletonBlock className="mt-3 h-3 w-full" />
-            <SkeletonBlock className="mt-2 h-3 w-3/4" />
-          </div>
-        ))}
-      </div>
     </SkeletonStatus>
   );
 }
@@ -146,7 +146,7 @@ export function DashboardKpiGrid({
   openIncidentsCount,
 }: DashboardKpiGridProps) {
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-4">
       <KPICard
         title="Edificios accesibles"
         value={kpiValue(buildingsCount)}
@@ -183,12 +183,12 @@ export function DashboardStatsPanel({ receiptStatusCounts }: DashboardStatsPanel
   const total = receiptStatusCounts.pending + receiptStatusCounts.overdue + receiptStatusCounts.paid + receiptStatusCounts.cancelled;
   const percent = (value: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
   return (
-    <div className="flex h-[400px] flex-col rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm lg:col-span-2">
+    <div className="order-2 flex h-auto flex-col rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm md:p-8 lg:order-1 lg:col-span-2 lg:h-[400px]">
       <div className="space-y-2">
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Distribución de recibos</h3>
         <p className="text-xs font-medium text-slate-500">Resumen por estado con base en los recibos visibles para tu alcance.</p>
       </div>
-      <div className="mt-6 grid flex-1 grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-6">
+      <div className="mt-6 grid flex-1 grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 md:p-6">
         <div className="rounded-xl bg-white border border-slate-200 p-3 flex items-center justify-between">
           <span className="text-xs font-black uppercase tracking-widest text-amber-700">Pendientes</span>
           <span className="text-sm font-black text-slate-900">{receiptStatusCounts.pending} ({percent(receiptStatusCounts.pending)}%)</span>
@@ -215,12 +215,12 @@ export function DashboardRecentActivityPanel({
   agendaReservations,
 }: DashboardRecentActivityPanelProps) {
   return (
-    <div className="flex flex-col rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-      <div className="mb-8">
+    <div className="flex flex-col rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm md:p-8">
+      <div className="mb-6 md:mb-8">
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Actividad Reciente</h3>
       </div>
 
-      <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto pr-2">
+      <div className="custom-scrollbar flex-1 space-y-6 pr-2 lg:max-h-[300px] lg:overflow-y-auto">
         {recentActivity.length === 0 ? (
           <div className="py-10">
             <EmptyState
@@ -290,7 +290,7 @@ export function DashboardChecklistPanel({
   if (user?.internalRole !== 'BUILDING_ADMIN') return null;
 
   return (
-    <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+    <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-4">
         <div className="flex items-center text-xs font-black uppercase tracking-widest text-slate-700">Checklist por aprobar</div>
         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{checklistsToApprove.length}</span>
@@ -327,8 +327,8 @@ export function DashboardChecklistPanel({
 
 export function DashboardQuickLinks({ user }: DashboardQuickLinksProps) {
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-      <Link href="/admin/receipts" className="group relative overflow-hidden rounded-[2rem] bg-primary p-6 text-white shadow-xl shadow-primary/20 transition-all hover:scale-[1.02]">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-4">
+      <Link href="/admin/receipts" className="group relative overflow-hidden rounded-[2rem] bg-primary p-4 text-white shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] md:p-6">
         <div className="absolute -right-8 -bottom-8 opacity-10 transition-transform duration-700 group-hover:scale-125">
           <Receipt className="h-32 w-32" />
         </div>
@@ -346,7 +346,22 @@ export function DashboardQuickLinks({ user }: DashboardQuickLinksProps) {
         </div>
       </Link>
 
-      <Link href="/admin/tickets" className="group rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition-all hover:bg-slate-50">
+      <Link href="/admin/reservations" className="group rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm transition-all hover:bg-slate-50 md:p-6">
+        <div className="space-y-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50">
+            <Calendar className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div>
+            <h4 className="text-sm font-black uppercase tracking-widest text-slate-900">Reservas</h4>
+            <p className="mt-1 text-xs font-medium text-slate-400">Revisar solicitudes y agenda de áreas comunes</p>
+          </div>
+          <div className="flex items-center text-[10px] font-black uppercase tracking-widest text-primary">
+            Abrir <ArrowRight className="ml-2 h-3 w-3 transition-transform group-hover:translate-x-2" />
+          </div>
+        </div>
+      </Link>
+
+      <Link href="/admin/tickets" className="group rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm transition-all hover:bg-slate-50 md:p-6">
         <div className="space-y-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50">
             <AlertCircle className="h-5 w-5 text-rose-600" />
@@ -361,7 +376,7 @@ export function DashboardQuickLinks({ user }: DashboardQuickLinksProps) {
         </div>
       </Link>
 
-      <Link href="/admin/notices" className="group rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition-all hover:bg-slate-50">
+      <Link href="/admin/notices" className="group rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm transition-all hover:bg-slate-50 md:p-6">
         <div className="space-y-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
             <Megaphone className="h-5 w-5 text-slate-600" />

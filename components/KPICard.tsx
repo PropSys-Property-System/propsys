@@ -26,10 +26,10 @@ const VARIANTS = {
 
 export function KPICard({ title, value, icon: Icon, description, trend, variant = 'primary' }: KPICardProps) {
   return (
-    <div className="p-6 bg-white border border-slate-200 rounded-[2rem] shadow-sm hover:shadow-md transition-all group">
-      <div className="flex items-start justify-between mb-4">
-        <div className={cn("p-3 rounded-2xl transition-transform group-hover:scale-110 duration-300", VARIANTS[variant])}>
-          <Icon className="w-6 h-6" />
+    <div className="group rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md md:p-6">
+      <div className="mb-3 flex items-start justify-between md:mb-4">
+        <div className={cn("rounded-2xl p-2.5 transition-transform duration-300 group-hover:scale-110 md:p-3", VARIANTS[variant])}>
+          <Icon className="h-5 w-5 md:h-6 md:w-6" />
         </div>
         {trend && (
           <div className={cn(
