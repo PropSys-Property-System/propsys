@@ -103,6 +103,16 @@ describe('admin reservations confirmation flow', () => {
     }));
   });
 
+  it('renders an accessible list skeleton without empty states while loading', () => {
+    mocks.loadAdminReservationsPageData.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<AdminReservationsPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando reservas...');
+    expect(screen.queryByText('Sin reservas activas')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sin historial')).not.toBeInTheDocument();
+  });
+
   it('opens approval confirmation without executing the action yet', async () => {
     render(<AdminReservationsPage />);
 

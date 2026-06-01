@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { CardListSkeleton, EmptyState, ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import { createTicketForUser, loadResidentTicketsPageData, TicketWithEvidence } from '@/lib/features/tickets/ticket-center.data';
 import {
@@ -262,7 +262,7 @@ export default function ResidentTicketsPage() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando incidencias..." />
+          <CardListSkeleton count={3} label="Cargando incidencias..." />
         ) : tickets.length === 0 ? (
           <EmptyState title="Sin incidencias" description={searchTerm ? `No hay resultados para "${searchTerm}".` : 'Aún no has reportado incidencias.'} />
         ) : (

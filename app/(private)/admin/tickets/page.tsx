@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { CardListSkeleton, EmptyState, ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   assignTicketForUser,
@@ -372,23 +372,25 @@ export default function AdminTicketsPage() {
         )}
 
         {actionError && <ErrorState title="Accion no disponible" description={actionError} />}
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
-            Total {ticketCounts.total}
-          </span>
-          <span className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-rose-700">
-            Reportadas {ticketCounts.reported}
-          </span>
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700">
-            Asignadas {ticketCounts.assigned + ticketCounts.inProgress}
-          </span>
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">
-            Resueltas {ticketCounts.resolved}
-          </span>
-          <span className="rounded-full bg-slate-200 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-700">
-            Cerradas {ticketCounts.closed}
-          </span>
-        </div>
+        {!isLoading ? (
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600">
+              Total {ticketCounts.total}
+            </span>
+            <span className="rounded-full bg-rose-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-rose-700">
+              Reportadas {ticketCounts.reported}
+            </span>
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700">
+              Asignadas {ticketCounts.assigned + ticketCounts.inProgress}
+            </span>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+              Resueltas {ticketCounts.resolved}
+            </span>
+            <span className="rounded-full bg-slate-200 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-slate-700">
+              Cerradas {ticketCounts.closed}
+            </span>
+          </div>
+        ) : null}
 
         <div className="flex flex-col md:flex-row gap-4 max-w-4xl">
           <div className="relative group flex-1">
@@ -418,7 +420,7 @@ export default function AdminTicketsPage() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando incidencias..." />
+          <CardListSkeleton count={4} label="Cargando incidencias..." />
         ) : tickets.length === 0 ? (
           <EmptyState title="Sin incidencias" description={searchTerm ? `No hay resultados para "${searchTerm}".` : 'Aun no hay incidencias registradas.'} />
         ) : (

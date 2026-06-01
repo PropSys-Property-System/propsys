@@ -4,6 +4,7 @@ import {
   AdminReservationCard,
   ReservationActionConfirmationDialog,
   ReservationComposerDialog,
+  ReservationListSkeleton,
   ReservationsCalendarView,
   ResidentReservationCard,
 } from './reservations-center.ui';
@@ -104,6 +105,17 @@ describe('ReservationsCalendarView', () => {
 
     expect(screen.getByText('Terraza')).toBeInTheDocument();
     expect(screen.getByText('Depto 101')).toBeInTheDocument();
+  });
+});
+
+describe('ReservationListSkeleton', () => {
+  it('announces loading once while reserving both list sections', () => {
+    render(<ReservationListSkeleton />);
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Cargando reservas...');
+    expect(screen.getAllByText(/Reservas activas|Historial/)).toHaveLength(2);
+    expect(status.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0);
   });
 });
 

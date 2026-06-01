@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { EmptyState, ErrorState } from '@/components/States';
 import { Plus, Search, CalendarDays as CalendarIcon, List as ListIcon } from 'lucide-react';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
@@ -15,6 +15,7 @@ import {
 import {
   ReservationActionConfirmationDialog,
   ReservationComposerDialog,
+  ReservationListSkeleton,
   ResidentReservationCard,
   ReservationsCalendarView,
 } from '@/lib/features/reservations/reservations-center.ui';
@@ -299,7 +300,7 @@ export default function ResidentReservationsPage() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando reservas..." />
+          <ReservationListSkeleton />
         ) : viewMode === 'calendar' ? (
           <ReservationsCalendarView
             reservations={availabilityReservations}

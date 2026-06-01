@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CardListSkeleton, SkeletonBlock, SkeletonStatus } from '@/components/States';
 import { formatDateTime, formatTime } from '@/lib/presentation/dates';
 import { labelReservationStatus } from '@/lib/presentation/labels';
 import type { ReservationDisplayStatus } from '@/lib/features/reservations/reservations-center.data';
@@ -8,6 +9,23 @@ import { getStartOfWeek, getWeekDays, formatReservationTimeRange, groupReservati
 
 const STATUS_REASON_MIN_LENGTH = 8;
 const STATUS_REASON_MAX_LENGTH = 300;
+
+export function ReservationListSkeleton() {
+  return (
+    <SkeletonStatus label="Cargando reservas..." className="space-y-8">
+      <section className="space-y-3">
+        <SkeletonBlock className="h-5 w-36" />
+        <span className="sr-only">Reservas activas</span>
+        <CardListSkeleton count={3} label={null} />
+      </section>
+      <section className="space-y-3">
+        <SkeletonBlock className="h-5 w-24" />
+        <span className="sr-only">Historial</span>
+        <CardListSkeleton count={2} label={null} />
+      </section>
+    </SkeletonStatus>
+  );
+}
 
 type AdminReservationCardProps = {
   reservation: Reservation;

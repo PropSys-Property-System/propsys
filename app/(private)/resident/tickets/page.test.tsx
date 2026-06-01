@@ -88,6 +88,15 @@ describe('resident tickets reporting context (v1)', () => {
     });
   }
 
+  it('renders an accessible skeleton without an empty state while loading', () => {
+    mocks.loadResidentTicketsPageData.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<ResidentTicketsPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando incidencias...');
+    expect(screen.queryByText('Sin incidencias')).not.toBeInTheDocument();
+  });
+
   async function openComposer() {
     render(<ResidentTicketsPage />);
     fireEvent.click(await screen.findByRole('button', { name: /Reportar Incidencia/i }));

@@ -88,6 +88,16 @@ describe('admin tickets close confirmation flow', () => {
     return screen.getByRole('dialog');
   }
 
+  it('renders an accessible skeleton without provisional counters while loading', () => {
+    mocks.loadAdminTicketsPageData.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<AdminTicketsPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando incidencias...');
+    expect(screen.queryByText('Sin incidencias')).not.toBeInTheDocument();
+    expect(screen.queryByText('Total 0')).not.toBeInTheDocument();
+  });
+
   function getCreateSelects(dialog: HTMLElement) {
     return within(dialog).getAllByRole('combobox');
   }

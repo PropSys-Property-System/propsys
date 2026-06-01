@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/PageHeader';
-import { EmptyState, ErrorState, LoadingState } from '@/components/States';
+import { CardListSkeleton, EmptyState, ErrorState } from '@/components/States';
 import { useAuth } from '@/lib/auth/auth-context';
 import {
   createTicketForUser,
@@ -182,7 +182,7 @@ export default function StaffTicketsPage() {
         {error ? (
           <ErrorState title="Error" description={error} />
         ) : isLoading ? (
-          <LoadingState title="Cargando incidencias..." />
+          <CardListSkeleton count={3} label="Cargando incidencias..." />
         ) : tickets.length === 0 ? (
           <EmptyState title="Sin incidencias" description={searchTerm ? `No hay resultados para "${searchTerm}".` : 'Aun no hay incidencias registradas.'} />
         ) : (

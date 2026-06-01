@@ -99,6 +99,16 @@ describe('resident reservations confirmation flow', () => {
     }));
   });
 
+  it('renders an accessible list skeleton without empty states while loading', () => {
+    mocks.loadResidentReservationsPageData.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<ResidentReservationsPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando reservas...');
+    expect(screen.queryByText('Sin reservas activas')).not.toBeInTheDocument();
+    expect(screen.queryByText('Sin historial')).not.toBeInTheDocument();
+  });
+
   it('opens cancel confirmation and requires reason before executing', async () => {
     render(<ResidentReservationsPage />);
 

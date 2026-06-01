@@ -70,6 +70,15 @@ describe('staff tickets page badge refresh', () => {
     });
   });
 
+  it('renders an accessible skeleton without an empty state while loading', () => {
+    mocks.loadStaffTicketsPageData.mockImplementationOnce(() => new Promise(() => undefined));
+
+    render(<StaffTicketsPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando incidencias...');
+    expect(screen.queryByText('Sin incidencias')).not.toBeInTheDocument();
+  });
+
   it('refreshes after updating incident status successfully', async () => {
     render(<StaffTicketsPage />);
 
