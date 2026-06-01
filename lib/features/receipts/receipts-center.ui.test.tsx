@@ -5,6 +5,7 @@ import {
   AdminPaymentProofsPanel,
   AdminReceiptHeaderActions,
   AdminReceiptsWorkspaceSkeleton,
+  ReceiptComposerDialog,
   ReceiptDetailSkeleton,
   ResidentReceiptDetailView,
   ResidentReceiptHeaderActions,
@@ -331,5 +332,43 @@ describe('payment proof receipt UI', () => {
     expect(within(printCard).getAllByText('Torre Alerce').length).toBeGreaterThan(0);
     expect(within(printCard).getAllByText('Depto 101').length).toBeGreaterThan(0);
     expect(within(printCard).getByText(/150/)).toBeInTheDocument();
+  });
+});
+
+describe('receipt composer modal layout', () => {
+  it('keeps receipt actions accessible inside a vertically constrained modal', () => {
+    const onSubmit = vi.fn();
+    render(
+      <ReceiptComposerDialog
+        isOpen
+        buildings={[{ id: 'b1', name: 'Torre Alerce' }]}
+        units={[{ id: 'unit_1', buildingId: 'b1', number: '101' }]}
+        buildingId="b1"
+        unitId="unit_1"
+        amount="150"
+        currency="PEN"
+        description="Mantenimiento"
+        issueDate="2026-05-01"
+        dueDate="2026-05-10"
+        error={null}
+        isSubmitting={false}
+        onClose={vi.fn()}
+        onBuildingChange={vi.fn()}
+        onUnitChange={vi.fn()}
+        onAmountChange={vi.fn()}
+        onCurrencyChange={vi.fn()}
+        onDescriptionChange={vi.fn()}
+        onIssueDateChange={vi.fn()}
+        onDueDateChange={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('max-h-[90vh]');
+    expect(dialog.querySelector('.overflow-y-auto')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Emitir recibo' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 });

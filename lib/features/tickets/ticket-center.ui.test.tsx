@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
   AdminTicketComposerDialog,
@@ -7,6 +7,7 @@ import {
   getSuggestedIncidentTitle,
   ResidentTicketComposerDialog,
   StaffTicketCard,
+  StaffTicketComposerDialog,
 } from './ticket-center.ui';
 
 const baseDialogProps = {
@@ -418,5 +419,35 @@ describe('ticket center ui - StaffTicketCard', () => {
     expect(screen.getByText('Ubicación')).toBeInTheDocument();
     expect(screen.getByText('Torre Norte')).toBeInTheDocument();
     expect(screen.getByText('Unidad 101')).toBeInTheDocument();
+  });
+});
+
+describe('StaffTicketComposerDialog', () => {
+  it('keeps submit actions accessible inside a vertically constrained modal', () => {
+    const onSubmit = vi.fn();
+    render(
+      <StaffTicketComposerDialog
+        isOpen
+        isSubmitting={false}
+        units={[{ id: 'unit-101', buildingId: 'b1', number: '101' }]}
+        unitId="unit-101"
+        title="Fuga de agua"
+        description="Hay una fuga constante en el piso 2."
+        priority="HIGH"
+        onClose={vi.fn()}
+        onUnitChange={vi.fn()}
+        onTitleChange={vi.fn()}
+        onDescriptionChange={vi.fn()}
+        onPriorityChange={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('max-h-[90vh]');
+    expect(dialog.querySelector('.overflow-y-auto')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Crear' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 });

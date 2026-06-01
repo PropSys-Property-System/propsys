@@ -1140,8 +1140,8 @@ export function StaffTicketComposerDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={onClose} type="button" />
-      <div role="dialog" aria-modal="true" className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl p-6">
-        <div className="flex items-start justify-between gap-4">
+      <div role="dialog" aria-modal="true" className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
           <div>
             <p className="text-lg font-black text-slate-900">Reportar incidencia</p>
             <p className="mt-1 text-xs text-slate-500 font-medium">Crea una incidencia operativa para tu edificio.</p>
@@ -1151,7 +1151,7 @@ export function StaffTicketComposerDialog({
           </button>
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-5">
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Unidad (opcional)</label>
             <select
@@ -1200,7 +1200,7 @@ export function StaffTicketComposerDialog({
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+        <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-6 py-5 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}

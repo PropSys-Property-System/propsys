@@ -108,6 +108,33 @@ describe('ReservationsCalendarView', () => {
 });
 
 describe('reservation reason UI', () => {
+  it('keeps cancel actions accessible inside a vertically constrained modal', () => {
+    const onConfirm = vi.fn();
+    render(
+      <ReservationActionConfirmationDialog
+        isOpen
+        isSubmitting={false}
+        action="CANCEL"
+        areaName="Terraza"
+        buildingName="Torre A"
+        unitLabel="Depto 101"
+        startAt="2026-05-29T10:00:00"
+        endAt="2026-05-29T11:00:00"
+        reason="Motivo suficientemente claro."
+        onClose={vi.fn()}
+        onReasonChange={vi.fn()}
+        onConfirm={onConfirm}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('max-h-[90vh]');
+    expect(dialog.querySelector('.overflow-y-auto')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /confirmar cancelaci.n/i }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
   it('shows textarea only for reject and cancel actions', () => {
     const onReasonChange = vi.fn();
 

@@ -408,8 +408,8 @@ export function ReservationActionConfirmationDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button aria-label="Cerrar" className="absolute inset-0 bg-black/30" onClick={onClose} type="button" />
-      <div role="dialog" aria-modal="true" aria-labelledby="reservation-action-confirmation-title" className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
+      <div role="dialog" aria-modal="true" aria-labelledby="reservation-action-confirmation-title" className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
           <div>
             <p id="reservation-action-confirmation-title" className="text-lg font-black text-slate-900">
               {copy.title}
@@ -421,7 +421,8 @@ export function ReservationActionConfirmationDialog({
           </button>
         </div>
 
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Resumen</p>
           <dl className="mt-3 space-y-3 text-sm">
             <div>
@@ -473,7 +474,9 @@ export function ReservationActionConfirmationDialog({
           </div>
         ) : null}
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-6 py-5 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}
