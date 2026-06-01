@@ -379,6 +379,7 @@ export default function ResidentReservationsPage() {
         isOpen={isCreateOpen}
         isSubmitting={isSubmitting}
         units={units}
+        buildingNameById={buildingNameById}
         availableAreas={availableAreas}
         buildingAreas={selectedBuildingId ? areas.filter((area) => area.buildingId === selectedBuildingId) : []}
         availabilityReservations={availabilityReservations}

@@ -10,6 +10,16 @@ import { getStartOfWeek, getWeekDays, formatReservationTimeRange, groupReservati
 const STATUS_REASON_MIN_LENGTH = 8;
 const STATUS_REASON_MAX_LENGTH = 300;
 
+export function formatReservationUnitLabel(
+  unit: Pick<Unit, 'id' | 'buildingId' | 'number'>,
+  buildingNameById: ReadonlyMap<string, string>
+) {
+  const unitNumber = unit.number.trim();
+  const departmentLabel = unitNumber ? `Depto ${unitNumber}` : unit.id;
+  const buildingName = buildingNameById.get(unit.buildingId)?.trim();
+  return buildingName ? `${buildingName} · ${departmentLabel}` : departmentLabel;
+}
+
 export function ReservationListSkeleton() {
   return (
     <SkeletonStatus label="Cargando reservas..." className="space-y-8">
@@ -55,6 +65,7 @@ type ReservationComposerDialogProps = {
   isOpen: boolean;
   isSubmitting: boolean;
   units: Unit[];
+  buildingNameById: ReadonlyMap<string, string>;
   availableAreas: CommonArea[];
   buildingAreas: CommonArea[];
   availabilityReservations: Reservation[];
@@ -520,6 +531,7 @@ export function ReservationComposerDialog({
   isOpen,
   isSubmitting,
   units,
+  buildingNameById,
   availableAreas,
   buildingAreas,
   availabilityReservations,
@@ -571,7 +583,7 @@ export function ReservationComposerDialog({
               </option>
               {units.map((unit) => (
                 <option key={unit.id} value={unit.id}>
-                  Depto {unit.number}
+                  {formatReservationUnitLabel(unit, buildingNameById)}
                 </option>
               ))}
             </select>

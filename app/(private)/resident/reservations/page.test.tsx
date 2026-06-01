@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ResidentReservationsPage from './page';
 
@@ -87,7 +87,7 @@ vi.mock('@/lib/features/reservations/reservations-center.data', () => ({
 describe('resident reservations confirmation flow', () => {
   beforeEach(() => {
     mocks.cancelReservationForUser.mockReset().mockResolvedValue({ id: 'resv_1', status: 'CANCELLED' });
-    mocks.createReservationForUser.mockReset();
+    mocks.createReservationForUser.mockReset().mockResolvedValue({ id: 'resv_created' });
     mocks.filterAvailableAreasForSlot.mockReset().mockReturnValue([mocks.pageData.areas[0]]);
     mocks.loadResidentReservationsPageData.mockReset().mockResolvedValue(mocks.pageData);
     mocks.splitReservationsByTimeline.mockReset().mockImplementation((reservations) => ({
@@ -164,5 +164,50 @@ describe('resident reservations confirmation flow', () => {
 
     expect(await screen.findByText('Motivo')).toBeInTheDocument();
     expect(screen.getByText('El residente solicitó cancelar la reserva.')).toBeInTheDocument();
+  });
+
+  it('creates a reservation with the selected unit id when duplicate unit numbers exist in different buildings', async () => {
+    mocks.loadResidentReservationsPageData.mockResolvedValue({
+      ...mocks.pageData,
+      units: [
+        mocks.pageData.units[0],
+        {
+          ...mocks.pageData.units[0],
+          id: 'unit-b-101',
+          buildingId: 'b2',
+        },
+      ],
+      buildings: [
+        mocks.pageData.buildings[0],
+        {
+          ...mocks.pageData.buildings[0],
+          id: 'b2',
+          name: 'Torre Sur',
+        },
+      ],
+    });
+
+    render(<ResidentReservationsPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Nueva reserva' }));
+    const dialog = screen.getByRole('dialog');
+    const selects = within(dialog).getAllByRole('combobox');
+    fireEvent.change(selects[0], { target: { value: 'unit-b-101' } });
+    fireEvent.change(selects[1], { target: { value: 'ca-1' } });
+    const dateInputs = dialog.querySelectorAll('input[type="datetime-local"]');
+    fireEvent.change(dateInputs[0], { target: { value: '2099-06-20T10:00' } });
+    fireEvent.change(dateInputs[1], { target: { value: '2099-06-20T12:00' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reservar' }));
+
+    await waitFor(() => {
+      expect(mocks.createReservationForUser).toHaveBeenCalledWith(
+        mocks.residentUser,
+        expect.objectContaining({
+          buildingId: 'b2',
+          unitId: 'unit-b-101',
+          commonAreaId: 'ca-1',
+        })
+      );
+    });
   });
 });

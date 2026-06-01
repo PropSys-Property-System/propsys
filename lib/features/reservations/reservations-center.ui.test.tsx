@@ -7,6 +7,7 @@ import {
   ReservationListSkeleton,
   ReservationsCalendarView,
   ResidentReservationCard,
+  formatReservationUnitLabel,
 } from './reservations-center.ui';
 import type { Building, CommonArea, Reservation, Unit } from '@/lib/types';
 
@@ -240,12 +241,60 @@ describe('reservation reason UI', () => {
 });
 
 describe('reservation composer modal layout', () => {
+  it('formats duplicate unit numbers with their building names and preserves the selected unit id', () => {
+    const onUnitChange = vi.fn();
+    render(
+      <ReservationComposerDialog
+        isOpen
+        isSubmitting={false}
+        units={[
+          { id: 'unit-a-101', clientId: 'client_001', buildingId: 'b1', number: '101' },
+          { id: 'unit-b-101', clientId: 'client_001', buildingId: 'b2', number: '101' },
+        ]}
+        buildingNameById={new Map([
+          ['b1', 'Torre A'],
+          ['b2', 'Torre B'],
+        ])}
+        availableAreas={areas}
+        buildingAreas={areas}
+        availabilityReservations={[]}
+        buildingId="b1"
+        unitId="unit-a-101"
+        areaId=""
+        startAt=""
+        endAt=""
+        onClose={() => undefined}
+        onUnitChange={onUnitChange}
+        onAreaChange={() => undefined}
+        onStartChange={() => undefined}
+        onEndChange={() => undefined}
+        onSubmit={() => undefined}
+      />
+    );
+
+    expect(screen.getByRole('option', { name: 'Torre A · Depto 101' })).toHaveValue('unit-a-101');
+    expect(screen.getByRole('option', { name: 'Torre B · Depto 101' })).toHaveValue('unit-b-101');
+
+    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'unit-b-101' } });
+    expect(onUnitChange).toHaveBeenCalledWith('unit-b-101');
+  });
+
+  it('falls back to a department label when a building name is unavailable', () => {
+    expect(
+      formatReservationUnitLabel(
+        { id: 'unit-101', clientId: 'client_001', buildingId: 'missing-building', number: '101' },
+        new Map()
+      )
+    ).toBe('Depto 101');
+  });
+
   it('keeps submit and cancel buttons rendered when the visual agenda is visible', () => {
     render(
       <ReservationComposerDialog
         isOpen
         isSubmitting={false}
         units={units}
+        buildingNameById={new Map([['b1', 'Torre A']])}
         availableAreas={areas}
         buildingAreas={areas}
         availabilityReservations={[
