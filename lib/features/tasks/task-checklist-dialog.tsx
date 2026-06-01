@@ -9,12 +9,15 @@ type TaskChecklistDialogProps = {
   task: TaskEntity | null;
   buildingName: string | null;
   actionError: string | null;
+  checklistLoadError: string | null;
+  evidenceLoadError: string | null;
   activeTemplate: ChecklistTemplate | null;
   execution: ChecklistExecution | null;
   resultsByItemId: Record<string, boolean>;
   evidence: EvidenceAttachment[];
   evidenceFile: File | null;
   evidencePreviewUrl: string | null;
+  isChecklistLoading: boolean;
   isItemsReadOnly: boolean;
   isEvidenceLocked: boolean;
   isChecklistCompletable: boolean;
@@ -35,12 +38,15 @@ export function TaskChecklistDialog({
   task,
   buildingName,
   actionError,
+  checklistLoadError,
+  evidenceLoadError,
   activeTemplate,
   execution,
   resultsByItemId,
   evidence,
   evidenceFile,
   evidencePreviewUrl,
+  isChecklistLoading,
   isItemsReadOnly,
   isEvidenceLocked,
   isChecklistCompletable,
@@ -57,6 +63,8 @@ export function TaskChecklistDialog({
 }: TaskChecklistDialogProps) {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const requiredItems = activeTemplate?.items.filter((item) => item.required) ?? [];
+  const completedRequiredItems = requiredItems.filter((item) => Boolean(resultsByItemId[item.id])).length;
 
   if (!isOpen || !task) return null;
 
@@ -99,24 +107,31 @@ export function TaskChecklistDialog({
 
           <div className="space-y-2">
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Checklist</label>
-            {activeTemplate ? (
+            {isChecklistLoading ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 font-semibold">
+                Cargando checklist...
+              </div>
+            ) : activeTemplate ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 font-black">{activeTemplate.name}</div>
             ) : (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 font-semibold">
-                Esta tarea no tiene checklist asignado o el checklist ya no está disponible.
+                {checklistLoadError ?? 'Esta tarea no tiene checklist asignado.'}
               </div>
             )}
           </div>
 
           {activeTemplate && (
-            <div className="space-y-3">
+            <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center justify-between gap-4">
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Items</p>
-                {execution && (
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {labelChecklistExecutionStatus(execution.status)}
-                  </span>
-                )}
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400">Checklist</p>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                    {completedRequiredItems} de {requiredItems.length} items requeridos completados
+                  </p>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  {execution ? labelChecklistExecutionStatus(execution.status) : 'Pendiente'}
+                </span>
               </div>
               <div className="space-y-2">
                 {activeTemplate.items.map((item) => (
@@ -141,23 +156,26 @@ export function TaskChecklistDialog({
                 ))}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
-                <button
-                  type="button"
-                  disabled={isSubmitting || !activeTemplate || isItemsReadOnly}
-                  onClick={onSaveChecklist}
-                  className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
-                >
-                  Guardar
-                </button>
-                <button
-                  type="button"
-                  disabled={isSubmitting || !activeTemplate || isItemsReadOnly || !isChecklistCompletable}
-                  onClick={onCompleteChecklist}
-                  className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
-                >
-                  Completar
-                </button>
+              <div className="space-y-3">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">Acciones</p>
+                <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+                  <button
+                    type="button"
+                    disabled={isSubmitting || !activeTemplate || isItemsReadOnly}
+                    onClick={onSaveChecklist}
+                    className="px-5 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all disabled:opacity-70"
+                  >
+                    Guardar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting || !activeTemplate || isItemsReadOnly || !isChecklistCompletable}
+                    onClick={onCompleteChecklist}
+                    className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
+                  >
+                    Completar
+                  </button>
+                </div>
               </div>
               {!isItemsReadOnly && activeTemplate && !isChecklistCompletable && (
                 <p className="text-[11px] text-slate-400 font-semibold">Marca todos los items requeridos para completar el checklist.</p>
@@ -165,8 +183,11 @@ export function TaskChecklistDialog({
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
             <p className="text-xs font-black uppercase tracking-widest text-slate-400">Evidencias</p>
+            {evidenceLoadError && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">{evidenceLoadError}</div>
+            )}
             <div className="flex flex-col gap-3">
               <input
                 ref={cameraInputRef}
@@ -189,7 +210,7 @@ export function TaskChecklistDialog({
                   event.currentTarget.value = '';
                 }}
               />
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                 <button
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
@@ -212,12 +233,16 @@ export function TaskChecklistDialog({
                   type="button"
                   onClick={onUploadEvidence}
                   disabled={isSubmitting || Boolean(isEvidenceLocked) || !activeTemplate || !evidenceFile}
-                  className="inline-flex items-center justify-center px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
+                  className="px-5 py-3 rounded-xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all disabled:opacity-70"
                 >
                   Guardar evidencia
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400 font-semibold">Puedes tomar una foto o adjuntar una imagen JPG/PNG/WEBP o un PDF de hasta 10 MB.</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <p className="text-[11px] text-slate-500 font-semibold">En móvil, abre la cámara si el dispositivo lo permite.</p>
+                <p className="text-[11px] text-slate-500 font-semibold">Selecciona una imagen o PDF desde tu dispositivo.</p>
+              </div>
+              <p className="text-[11px] text-slate-400 font-semibold">Puedes adjuntar una imagen JPG/PNG/WEBP o un PDF de hasta 10 MB.</p>
               {evidenceFile && (
                 <DraftEvidenceCard
                   file={evidenceFile}

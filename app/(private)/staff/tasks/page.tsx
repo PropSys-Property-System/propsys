@@ -39,7 +39,26 @@ export default function StaffTasksPage() {
   const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
   const [evidencePreviewUrl, setEvidencePreviewUrl] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [checklistLoadError, setChecklistLoadError] = useState<string | null>(null);
+  const [evidenceLoadError, setEvidenceLoadError] = useState<string | null>(null);
+  const [isChecklistLoading, setIsChecklistLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const getChecklistIndicatorLabel = React.useCallback((task: TaskEntity) => {
+    if (!task.checklistTemplateId) return 'Sin checklist';
+    if (task.status === 'COMPLETED') return 'Checklist enviado';
+    if (task.status === 'APPROVED') return 'Checklist aprobado';
+    if (task.status === 'PENDING' || task.status === 'IN_PROGRESS') return 'Checklist pendiente';
+    return 'Checklist pendiente';
+  }, []);
+
+  const getChecklistCtaLabel = React.useCallback((task: TaskEntity) => {
+    if (!task.checklistTemplateId) return 'Abrir checklist y evidencias';
+    if (task.status === 'PENDING' || task.status === 'IN_PROGRESS') return 'Continuar checklist';
+    if (task.status === 'COMPLETED') return 'Revisar checklist enviado';
+    if (task.status === 'APPROVED') return 'Ver checklist aprobado';
+    return 'Abrir checklist y evidencias';
+  }, []);
 
   const clearEvidenceDraft = React.useCallback(() => {
     setEvidenceFile(null);
@@ -174,6 +193,9 @@ export default function StaffTasksPage() {
     setSelectedTask(task);
     setIsChecklistOpen(true);
     setActionError(null);
+    setChecklistLoadError(null);
+    setEvidenceLoadError(null);
+    setIsChecklistLoading(true);
     setIsSubmitting(false);
     clearEvidenceDraft();
     setTemplates([]);
@@ -185,7 +207,7 @@ export default function StaffTasksPage() {
     try {
       const data = await loadStaffTaskChecklistData(user, task);
       if (!data.template) {
-        setActionError('El checklist asignado ya no esta disponible.');
+        setChecklistLoadError('El checklist asignado ya no esta disponible.');
         return;
       }
 
@@ -196,16 +218,21 @@ export default function StaffTasksPage() {
       setEvidence(data.evidence);
 
       if (data.evidenceError) {
-        setActionError(data.evidenceError);
+        setEvidenceLoadError('No pudimos cargar las evidencias de esta tarea. Intenta nuevamente.');
       }
     } catch {
-      setActionError('No pudimos cargar el estado del checklist de esta tarea.');
+      setChecklistLoadError('No pudimos cargar el checklist de esta tarea. Intenta nuevamente.');
+    } finally {
+      setIsChecklistLoading(false);
     }
   };
 
   const closeChecklist = () => {
     clearEvidenceDraft();
     setActionError(null);
+    setChecklistLoadError(null);
+    setEvidenceLoadError(null);
+    setIsChecklistLoading(false);
     setIsChecklistOpen(false);
   };
 
@@ -385,6 +412,8 @@ export default function StaffTasksPage() {
               const nextStatuses = allowedNextStatuses(task);
               const canChangeStatus =
                 task.status !== 'COMPLETED' && task.status !== 'APPROVED' && nextStatuses.length > 0;
+              const checklistIndicatorLabel = getChecklistIndicatorLabel(task);
+              const checklistCtaLabel = getChecklistCtaLabel(task);
 
               return (
                 <div key={task.id} className="bg-white border border-slate-200 rounded-2xl p-5 flex items-start justify-between gap-6">
@@ -392,6 +421,19 @@ export default function StaffTasksPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500">
                         {buildingNameById[task.buildingId] ?? task.buildingId}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest ${
+                          task.checklistTemplateId
+                            ? task.status === 'APPROVED'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : task.status === 'COMPLETED'
+                                ? 'bg-amber-50 text-amber-700'
+                                : 'bg-primary/10 text-primary'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {checklistIndicatorLabel}
                       </span>
                     </div>
 
@@ -438,25 +480,30 @@ export default function StaffTasksPage() {
                     )}
 
                     <div className="mt-4">
-                      <button
-                        type="button"
-                        onClick={() => openChecklist(task)}
-                        disabled={!task.checklistTemplateId}
-                        className="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-all"
-                      >
-                        <ListChecks className="w-4 h-4 mr-2" /> Checklist y evidencias
-                      </button>
-
-                      {!task.checklistTemplateId && (
-                        <p className="mt-2 text-[11px] text-slate-400 font-semibold">
-                          Esta tarea no tiene checklist asignado.
-                        </p>
-                      )}
-
-                      {task.checklistTemplateId && task.status === 'IN_PROGRESS' && (
-                        <p className="mt-2 text-[11px] text-slate-400 font-semibold">
-                          Completa el checklist para finalizar la tarea.
-                        </p>
+                      {task.checklistTemplateId ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openChecklist(task)}
+                            className="inline-flex items-center px-4 py-2.5 rounded-xl bg-primary text-white font-black text-xs shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
+                          >
+                            <ListChecks className="w-4 h-4 mr-2" />
+                            {checklistCtaLabel}
+                          </button>
+                          <p className="mt-2 text-[11px] text-slate-500 font-semibold">
+                            {task.status === 'PENDING'
+                              ? 'Inicia el checklist cuando comiences esta tarea.'
+                              : task.status === 'IN_PROGRESS'
+                                ? 'Completa el checklist para finalizar la tarea.'
+                                : task.status === 'COMPLETED'
+                                  ? 'El checklist fue enviado y espera revisión de administración.'
+                                  : task.status === 'APPROVED'
+                                    ? 'El checklist ya fue revisado y aprobado.'
+                                    : 'Consulta el checklist y las evidencias de esta tarea.'}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-2 text-[11px] text-slate-400 font-semibold">Esta tarea no tiene checklist asignado.</p>
                       )}
                     </div>
                   </div>
@@ -486,12 +533,15 @@ export default function StaffTasksPage() {
         task={selectedTask}
         buildingName={selectedTask ? (buildingNameById[selectedTask.buildingId] ?? selectedTask.buildingId) : null}
         actionError={actionError}
+        checklistLoadError={checklistLoadError}
+        evidenceLoadError={evidenceLoadError}
         activeTemplate={activeTemplate}
         execution={execution}
         resultsByItemId={resultsByItemId}
         evidence={evidence}
         evidenceFile={evidenceFile}
         evidencePreviewUrl={evidencePreviewUrl}
+        isChecklistLoading={isChecklistLoading}
         isItemsReadOnly={isItemsReadOnly}
         isEvidenceLocked={isEvidenceLocked}
         isChecklistCompletable={isChecklistCompletable}
