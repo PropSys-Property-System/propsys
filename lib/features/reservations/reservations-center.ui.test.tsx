@@ -326,6 +326,9 @@ describe('reservation composer modal layout', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog.className).toContain('max-h-[90vh]');
     expect(dialog.className).toContain('max-w-4xl');
+    dialog.querySelectorAll('input[type="datetime-local"]').forEach((input) => {
+      expect(input).toHaveAttribute('step', '900');
+    });
     expect(screen.getByText('Agenda visual')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reservar' })).toBeInTheDocument();

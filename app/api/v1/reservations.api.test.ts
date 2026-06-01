@@ -66,6 +66,20 @@ function futureRange(daysFromNow: number, startHour = 10, durationHours = 1) {
   return { startAt: start.toISOString(), endAt: end.toISOString() };
 }
 
+function createReservationRequest(startAt: string, endAt: string) {
+  return new Request('http://localhost/api/v1/reservations', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      buildingId: 'b1',
+      unitId: 'unit-101',
+      commonAreaId: 'ca-1',
+      startAt,
+      endAt,
+    }),
+  });
+}
+
 describe('reservations API (route handlers)', () => {
   it('allows ROOT_ADMIN + scope=platform to bypass tenant filter in list', async () => {
     poolQuery.mockReset();
@@ -436,6 +450,30 @@ describe('reservations API (route handlers)', () => {
     expect(res.status).toBe(403);
   });
 
+  it.each([
+    ['inicio', 7, 0],
+    ['termino', 0, 39],
+  ])('rejects creating a reservation when %s is outside a 15-minute interval', async (_field, startMinute, endMinute) => {
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    (sessionUser as { internalRole: string }).internalRole = 'OCCUPANT';
+    (sessionUser as { role: string }).role = 'TENANT';
+    (sessionUser as { scope: string }).scope = 'client';
+    (sessionUser as { clientId: string | null }).clientId = 'client_001';
+    (sessionUser as { id: string }).id = 'u5';
+
+    const start = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    start.setUTCHours(10, startMinute, 0, 0);
+    const end = new Date(start);
+    end.setUTCHours(12, endMinute, 0, 0);
+
+    const res = await createReservation(createReservationRequest(start.toISOString(), end.toISOString()));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'El horario debe seleccionarse en intervalos de 15 minutos.' });
+    expect(poolQuery).not.toHaveBeenCalled();
+  });
+
   it('cancels an occupant reservation using a tenant-scoped unit assignment check', async () => {
     poolQuery.mockReset();
     clientQuery.mockReset();
@@ -516,9 +554,7 @@ describe('reservations API (route handlers)', () => {
     (sessionUser as { clientId: string | null }).clientId = 'client_001';
     (sessionUser as { id: string }).id = 'u5';
 
-    const now = new Date();
-    const startAt = new Date(now.getTime() + 60_000).toISOString();
-    const endAt = new Date(now.getTime() + 3_660_000).toISOString();
+    const { startAt, endAt } = futureRange(7);
 
     poolQuery.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT client_id, building_id FROM units')) {

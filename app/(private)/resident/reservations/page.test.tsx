@@ -195,8 +195,8 @@ describe('resident reservations confirmation flow', () => {
     fireEvent.change(selects[0], { target: { value: 'unit-b-101' } });
     fireEvent.change(selects[1], { target: { value: 'ca-1' } });
     const dateInputs = dialog.querySelectorAll('input[type="datetime-local"]');
-    fireEvent.change(dateInputs[0], { target: { value: '2099-06-20T10:00' } });
-    fireEvent.change(dateInputs[1], { target: { value: '2099-06-20T12:00' } });
+    fireEvent.change(dateInputs[0], { target: { value: '2099-06-20T10:15' } });
+    fireEvent.change(dateInputs[1], { target: { value: '2099-06-20T12:45' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reservar' }));
 
     await waitFor(() => {
@@ -206,8 +206,29 @@ describe('resident reservations confirmation flow', () => {
           buildingId: 'b2',
           unitId: 'unit-b-101',
           commonAreaId: 'ca-1',
+          startAt: new Date('2099-06-20T10:15').toISOString(),
+          endAt: new Date('2099-06-20T12:45').toISOString(),
         })
       );
     });
+  });
+
+  it.each([
+    ['inicio', '2099-06-20T10:07', '2099-06-20T12:00'],
+    ['termino', '2099-06-20T10:00', '2099-06-20T21:39'],
+  ])('blocks creation when %s is outside a 15-minute interval', async (_field, startAt, endAt) => {
+    render(<ResidentReservationsPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Nueva reserva' }));
+    const dialog = screen.getByRole('dialog');
+    const selects = within(dialog).getAllByRole('combobox');
+    fireEvent.change(selects[1], { target: { value: 'ca-1' } });
+    const dateInputs = dialog.querySelectorAll('input[type="datetime-local"]');
+    fireEvent.change(dateInputs[0], { target: { value: startAt } });
+    fireEvent.change(dateInputs[1], { target: { value: endAt } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reservar' }));
+
+    expect(await screen.findByText('El horario debe seleccionarse en intervalos de 15 minutos.')).toBeInTheDocument();
+    expect(mocks.createReservationForUser).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import { getSessionUser } from '@/lib/server/auth/get-session-user';
 import { canBypassTenantScope, hasTenantClientContext } from '@/lib/server/auth/tenant-scope';
 import { insertAuditLog } from '@/lib/server/audit/audit-log';
 import { withTransaction } from '@/lib/server/db/tx';
+import { isReservationQuarterHour } from '@/lib/features/reservations/reservations-time.utils';
 import type { Reservation, ReservationEntity } from '@/lib/types';
 
 async function listBuildingIdsForUser(pool: ReturnType<typeof getPool>, user: { id: string; clientId: string | null; scope: string; internalRole: string }) {
@@ -279,6 +280,9 @@ export async function POST(req: Request) {
   const start = new Date(startAt);
   const end = new Date(endAt);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 });
+  if (!isReservationQuarterHour(start) || !isReservationQuarterHour(end)) {
+    return NextResponse.json({ error: 'El horario debe seleccionarse en intervalos de 15 minutos.' }, { status: 400 });
+  }
   if (start >= end) return NextResponse.json({ error: 'La hora de inicio debe ser anterior al término.' }, { status: 400 });
   if (start.getTime() < Date.now()) {
     return NextResponse.json({ error: 'No puedes reservar una fecha u hora anterior a la actual.' }, { status: 400 });

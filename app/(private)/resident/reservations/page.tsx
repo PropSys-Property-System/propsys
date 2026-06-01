@@ -19,6 +19,7 @@ import {
   ResidentReservationCard,
   ReservationsCalendarView,
 } from '@/lib/features/reservations/reservations-center.ui';
+import { isReservationQuarterHour } from '@/lib/features/reservations/reservations-time.utils';
 import { Building, CommonArea, Reservation, Unit } from '@/lib/types';
 
 const STATUS_REASON_MIN_LENGTH = 8;
@@ -170,6 +171,10 @@ export default function ResidentReservationsPage() {
     }
     if (!createStartAt || !createEndAt) {
       setActionError('Selecciona fecha y hora.');
+      return;
+    }
+    if (!isReservationQuarterHour(createStartAt) || !isReservationQuarterHour(createEndAt)) {
+      setActionError('El horario debe seleccionarse en intervalos de 15 minutos.');
       return;
     }
     if (new Date(createStartAt).getTime() < Date.now()) {

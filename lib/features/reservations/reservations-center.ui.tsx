@@ -615,6 +615,7 @@ export function ReservationComposerDialog({
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Inicio</label>
               <input
                 type="datetime-local"
+                step={900}
                 value={startAt}
                 min={minStartAt}
                 onChange={(event) => onStartChange(event.target.value)}
@@ -625,6 +626,7 @@ export function ReservationComposerDialog({
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Termino</label>
               <input
                 type="datetime-local"
+                step={900}
                 value={endAt}
                 min={minEndAt}
                 onChange={(event) => onEndChange(event.target.value)}
