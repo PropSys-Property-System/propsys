@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import UsersPage from './users/page';
 
@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => {
       clients,
     })),
     createClientForRoot: vi.fn(),
+    updateAdminUserStatus: vi.fn(),
   };
 });
 
@@ -52,13 +53,19 @@ vi.mock('@/lib/features/users/users-center.data', () => ({
   createClientForRoot: mocks.createClientForRoot,
   loadAdminUsersPageData: mocks.loadAdminUsersPageData,
   updateAdminUserProfile: vi.fn(),
-  updateAdminUserStatus: vi.fn(),
+  updateAdminUserStatus: mocks.updateAdminUserStatus,
 }));
 
 describe('admin users page filters', () => {
+  let scrollIntoViewMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     mocks.loadAdminUsersPageData.mockClear();
     mocks.createClientForRoot.mockClear();
+    mocks.updateAdminUserStatus.mockClear();
+    scrollIntoViewMock = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   it('keeps invitations as the primary user creation action without the legacy direct-create form', async () => {
@@ -176,5 +183,49 @@ describe('admin users page filters', () => {
     // Only Charlie Staff is in b2
     expect(screen.getByText('Charlie Staff')).toBeInTheDocument();
     expect(screen.queryByText('Alice Owner')).not.toBeInTheDocument();
+  });
+
+  it('scrolls to the edit form when editing from desktop actions', async () => {
+    render(<UsersPage />);
+    await waitFor(() => expect(screen.getByText('Alice Owner')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar' })[0]);
+
+    expect(await screen.findByRole('heading', { name: 'Editar usuario' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Alice Owner')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  it('scrolls to the edit form when editing from the mobile actions menu', async () => {
+    render(<UsersPage />);
+    await waitFor(() => expect(screen.getByText('Alice Owner')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Acciones para Alice Owner' }));
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Acciones para Alice Owner' })).getByRole('menuitem', { name: 'Editar' }));
+
+    expect(await screen.findByRole('heading', { name: 'Editar usuario' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Alice Owner')).toBeInTheDocument();
+    expect(screen.queryByRole('menu', { name: 'Acciones para Alice Owner' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  it('does not scroll to the form when suspending a user', async () => {
+    mocks.updateAdminUserStatus.mockResolvedValue({ ...mocks.mockUsers[0], status: 'SUSPENDED' });
+    render(<UsersPage />);
+    await waitFor(() => expect(screen.getByText('Alice Owner')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Suspender' })[0]);
+
+    await waitFor(() => {
+      expect(mocks.updateAdminUserStatus).toHaveBeenCalledWith(mocks.managerUser, {
+        userId: 'u1',
+        status: 'SUSPENDED',
+      });
+    });
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
   });
 });

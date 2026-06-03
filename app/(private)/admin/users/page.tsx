@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Send, Search } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
@@ -49,6 +49,7 @@ export default function UsersPage() {
   const [formState, setFormState] = useState<UserFormState>(INITIAL_FORM);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [isInvitationOpen, setIsInvitationOpen] = useState(false);
+  const editFormRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -118,6 +119,9 @@ export default function UsersPage() {
     setFormState({
       name: target.name,
       email: target.email,
+    });
+    requestAnimationFrame(() => {
+      editFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
@@ -283,7 +287,7 @@ export default function UsersPage() {
 
 
         {formMode ? (
-          <form onSubmit={handleSubmitForm} className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+          <form ref={editFormRef} onSubmit={handleSubmitForm} className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-black text-slate-900">Editar usuario</h2>
               <button
