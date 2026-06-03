@@ -326,9 +326,18 @@ describe('reservation composer modal layout', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog.className).toContain('max-h-[90vh]');
     expect(dialog.className).toContain('max-w-4xl');
-    dialog.querySelectorAll('input[type="datetime-local"]').forEach((input) => {
-      expect(input).toHaveAttribute('step', '900');
-    });
+    expect(dialog.querySelector('input[type="datetime-local"]')).toBeNull();
+    expect(screen.getByLabelText('Fecha')).toHaveAttribute('type', 'date');
+    const startTime = screen.getByLabelText('Inicio');
+    const endTime = screen.getByLabelText('Termino');
+    expect(startTime).toHaveValue('10:00');
+    expect(endTime).toHaveValue('12:00');
+    expect(within(startTime).getByRole('option', { name: '10:00' })).toBeInTheDocument();
+    expect(within(startTime).getByRole('option', { name: '10:15' })).toBeInTheDocument();
+    expect(within(startTime).getByRole('option', { name: '10:30' })).toBeInTheDocument();
+    expect(within(startTime).getByRole('option', { name: '10:45' })).toBeInTheDocument();
+    expect(within(startTime).queryByRole('option', { name: '10:07' })).not.toBeInTheDocument();
+    expect(within(endTime).queryByRole('option', { name: '18:49' })).not.toBeInTheDocument();
     expect(screen.getByText('Agenda visual')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reservar' })).toBeInTheDocument();

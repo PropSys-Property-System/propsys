@@ -7,3 +7,15 @@ export function isReservationQuarterHour(value: string | Date): boolean {
     date.getMilliseconds() === 0
   );
 }
+
+export function buildReservationTimeOptions(): string[] {
+  return Array.from({ length: 24 * 4 }, (_, index) => {
+    const hour = Math.floor(index / 4);
+    const minute = (index % 4) * 15;
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  });
+}
+
+export function buildReservationDateTime(date: string, time: string): string {
+  return date && time ? `${date}T${time}` : '';
+}

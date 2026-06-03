@@ -56,6 +56,7 @@ export default function ResidentReservationsPage() {
   const [createAreaId, setCreateAreaId] = useState('');
   const [createStartAt, setCreateStartAt] = useState('');
   const [createEndAt, setCreateEndAt] = useState('');
+  const [createDate, setCreateDate] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [pendingCancel, setPendingCancel] = useState<PendingCancelAction | null>(null);
   const [pendingCancelReason, setPendingCancelReason] = useState('');
@@ -177,6 +178,10 @@ export default function ResidentReservationsPage() {
       setActionError('El horario debe seleccionarse en intervalos de 15 minutos.');
       return;
     }
+    if (new Date(createStartAt) >= new Date(createEndAt)) {
+      setActionError('La hora de inicio debe ser anterior al término.');
+      return;
+    }
     if (new Date(createStartAt).getTime() < Date.now()) {
       setActionError('No puedes reservar una fecha u hora anterior a la actual.');
       return;
@@ -202,6 +207,7 @@ export default function ResidentReservationsPage() {
       setCreateAreaId('');
       setCreateStartAt('');
       setCreateEndAt('');
+      setCreateDate('');
       await reload();
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'No pudimos crear la reserva.');
@@ -393,6 +399,7 @@ export default function ResidentReservationsPage() {
         areaId={createAreaId}
         startAt={createStartAt}
         endAt={createEndAt}
+        reservationDate={createDate}
         minStartAt={minStartAt}
         minEndAt={minEndAt}
         onClose={() => setIsCreateOpen(false)}
@@ -403,6 +410,7 @@ export default function ResidentReservationsPage() {
         onAreaChange={setCreateAreaId}
         onStartChange={setCreateStartAt}
         onEndChange={setCreateEndAt}
+        onReservationDateChange={setCreateDate}
         onSubmit={submitCreate}
       />
 

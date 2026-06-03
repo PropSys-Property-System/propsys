@@ -6,9 +6,11 @@ import { labelReservationStatus } from '@/lib/presentation/labels';
 import type { ReservationDisplayStatus } from '@/lib/features/reservations/reservations-center.data';
 import type { CommonArea, Reservation, Unit, Building } from '@/lib/types';
 import { getStartOfWeek, getWeekDays, formatReservationTimeRange, groupReservationsByDay, isReservationInWeek } from './reservations-calendar.utils';
+import { buildReservationDateTime, buildReservationTimeOptions } from './reservations-time.utils';
 
 const STATUS_REASON_MIN_LENGTH = 8;
 const STATUS_REASON_MAX_LENGTH = 300;
+const RESERVATION_TIME_OPTIONS = buildReservationTimeOptions();
 
 export function formatReservationUnitLabel(
   unit: Pick<Unit, 'id' | 'buildingId' | 'number'>,
@@ -74,6 +76,7 @@ type ReservationComposerDialogProps = {
   areaId: string;
   startAt: string;
   endAt: string;
+  reservationDate?: string;
   minStartAt?: string;
   minEndAt?: string;
   onClose: () => void;
@@ -81,6 +84,7 @@ type ReservationComposerDialogProps = {
   onAreaChange: (areaId: string) => void;
   onStartChange: (value: string) => void;
   onEndChange: (value: string) => void;
+  onReservationDateChange?: (value: string) => void;
   onSubmit: () => void;
 };
 
@@ -540,16 +544,20 @@ export function ReservationComposerDialog({
   areaId,
   startAt,
   endAt,
+  reservationDate,
   minStartAt,
-  minEndAt,
   onClose,
   onUnitChange,
   onAreaChange,
   onStartChange,
   onEndChange,
+  onReservationDateChange,
   onSubmit,
 }: ReservationComposerDialogProps) {
   if (!isOpen) return null;
+  const selectedDate = reservationDate ?? (startAt.slice(0, 10) || endAt.slice(0, 10));
+  const startTime = startAt.slice(11, 16);
+  const endTime = endAt.slice(11, 16);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -610,28 +618,48 @@ export function ReservationComposerDialog({
             ) : null}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="reservation-date" className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Fecha</label>
+            <input
+              id="reservation-date"
+              type="date"
+              value={selectedDate}
+              min={minStartAt?.slice(0, 10)}
+              onChange={(event) => {
+                onReservationDateChange?.(event.target.value);
+                onStartChange(buildReservationDateTime(event.target.value, startTime));
+                onEndChange(buildReservationDateTime(event.target.value, endTime));
+              }}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Inicio</label>
-              <input
-                type="datetime-local"
-                step={900}
-                value={startAt}
-                min={minStartAt}
-                onChange={(event) => onStartChange(event.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-              />
+              <label htmlFor="reservation-start-time" className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Inicio</label>
+              <select
+                id="reservation-start-time"
+                value={startTime}
+                disabled={!selectedDate}
+                onChange={(event) => onStartChange(buildReservationDateTime(selectedDate, event.target.value))}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium disabled:opacity-60"
+              >
+                <option value="" disabled>Selecciona...</option>
+                {RESERVATION_TIME_OPTIONS.map((time) => <option key={time} value={time}>{time}</option>)}
+              </select>
             </div>
             <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Termino</label>
-              <input
-                type="datetime-local"
-                step={900}
-                value={endAt}
-                min={minEndAt}
-                onChange={(event) => onEndChange(event.target.value)}
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium"
-              />
+              <label htmlFor="reservation-end-time" className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 ml-1">Termino</label>
+              <select
+                id="reservation-end-time"
+                value={endTime}
+                disabled={!selectedDate}
+                onChange={(event) => onEndChange(buildReservationDateTime(selectedDate, event.target.value))}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-4 focus:ring-primary/5 focus:border-primary outline-none transition-all text-sm font-medium disabled:opacity-60"
+              >
+                <option value="" disabled>Selecciona...</option>
+                {RESERVATION_TIME_OPTIONS.map((time) => <option key={time} value={time}>{time}</option>)}
+              </select>
             </div>
           </div>
 
