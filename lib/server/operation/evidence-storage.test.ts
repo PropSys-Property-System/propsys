@@ -164,4 +164,25 @@ describe('evidence storage', () => {
     const writtenPath = String(fsMocks.writeFile.mock.calls[0][0]);
     expect(writtenPath).toContain(path.join('.data', 'uploads', 'evidence'));
   });
+
+  it('throws an error in production when Supabase Storage env vars are absent, rejecting local fallback', async () => {
+    delete process.env['SUPABASE_URL'];
+    delete process.env['SUPABASE_STORAGE_EVIDENCE_BUCKET'];
+    process.env.NODE_ENV = 'production';
+
+    const file = new File([new Uint8Array([1, 2, 3])], 'foto.jpg', { type: 'image/jpeg' });
+
+    await expect(
+      saveEvidenceFile({
+        clientId: 'client_001',
+        buildingId: 'b1',
+        checklistExecutionId: 'chk-exec-1',
+        evidenceId: 'ev_prod',
+        file,
+      })
+    ).rejects.toThrow('Supabase Storage no está configurado. El almacenamiento local (.data) está deshabilitado en producción por seguridad.');
+
+    // Restore NODE_ENV (Vitest usually resets it, but just in case for other tests in this file)
+    process.env.NODE_ENV = 'test';
+  });
 });

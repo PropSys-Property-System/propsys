@@ -138,6 +138,9 @@ export async function saveEvidenceFile(input: {
       contentType: mimeType,
     });
   } else {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Supabase Storage no está configurado. El almacenamiento local (.data) está deshabilitado en producción por seguridad.');
+    }
     // Local filesystem fallback (dev only — files written to .data/uploads/evidence/).
     // Build path directly under PRIVATE_EVIDENCE_DIRECTORY using storagePath as sub-key,
     // so readEvidenceFile can serve it back later.
