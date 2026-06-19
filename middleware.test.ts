@@ -39,6 +39,6 @@ describe('middleware origin guard', () => {
     const res = middleware(nextRequest({ url: 'https://app.propsys.test/admin/users', method: 'GET' }));
 
     expect(res.status).toBe(307);
-    expect(res.headers.get('location')).toContain('/?next=%2Fadmin%2Fusers');
+    expect(res.headers.get('location')).toContain('/login?next=%2Fadmin%2Fusers');
   });
 });

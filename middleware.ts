@@ -27,7 +27,7 @@ export function middleware(req: NextRequest) {
       (process.env.NODE_ENV === 'development' && /^mock_[a-zA-Z0-9_-]+$/.test(session)));
   if (!looksValid) {
     const url = req.nextUrl.clone();
-    url.pathname = '/';
+    url.pathname = '/login';
     url.searchParams.set('next', pathname);
     const res = NextResponse.redirect(url);
     res.cookies.set('ps_session', '', { path: '/', expires: new Date(0) });
