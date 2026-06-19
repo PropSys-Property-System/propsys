@@ -1,4 +1,6 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -11,6 +13,7 @@ import {
   Bell,
   Building2,
   CheckCheck,
+  Menu,
 } from 'lucide-react';
 
 const DEMO_HREF =
@@ -90,6 +93,8 @@ const kpis = [
 ];
 
 function CommandCenter() {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <div className="relative">
       {/* Main panel */}
@@ -104,13 +109,34 @@ function CommandCenter() {
           </span>
         </div>
 
+        {/* Mobile Header (simulated app navbar) */}
+        <div className="flex lg:hidden items-center justify-between px-4 py-3 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-md bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">
+              P
+            </span>
+            <span className="font-black text-sm text-slate-900">PropSys</span>
+          </div>
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-1 text-slate-500 hover:text-slate-900 transition-colors"
+            aria-label="Abrir menú"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        </div>
+
         {/* Dashboard layout */}
-        <div className="flex h-auto lg:h-[440px]">
+        <div className="flex h-auto lg:h-[440px] relative overflow-hidden">
 
           {/* ── Sidebar ─────────────────────────────────────────────────── */}
-          <div className="w-44 lg:w-52 border-r border-slate-100 bg-slate-50 flex flex-col shrink-0">
-            {/* Brand header */}
-            <div className="px-4 py-3 border-b border-slate-100">
+          <div
+            className={`absolute inset-y-0 left-0 z-20 w-48 bg-white border-r border-slate-100 flex flex-col shrink-0 transform transition-transform lg:relative lg:w-52 lg:bg-slate-50 lg:translate-x-0 ${
+              isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+            }`}
+          >
+            {/* Brand header (hidden on mobile since we have mobile header) */}
+            <div className="hidden lg:block px-4 py-3 border-b border-slate-100">
               <p className="font-black text-sm text-slate-900">PropSys</p>
               <p className="text-xs text-slate-400">Plataforma</p>
             </div>
@@ -166,13 +192,13 @@ function CommandCenter() {
             {/* KPI cards with icons */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3 mb-4">
               {kpis.map(({ label, value, sub, accent, iconColor, Icon }) => (
-                <div key={label} className="bg-white rounded-xl border border-slate-100 p-3">
-                  <div className={`w-8 h-8 rounded-lg ${accent} flex items-center justify-center mb-2`}>
-                    <Icon className={`w-4 h-4 ${iconColor}`} />
+                <div key={label} className="bg-white rounded-xl border border-slate-100 p-3 flex flex-col items-center text-center">
+                  <div className={`w-10 h-10 shrink-0 rounded-lg ${accent} flex items-center justify-center mb-2 mx-auto`}>
+                    <Icon className={`w-5 h-5 ${iconColor}`} />
                   </div>
-                  <p className="text-[11px] text-slate-500 leading-snug">{label}</p>
-                  <p className="text-2xl font-black text-slate-900">{value}</p>
-                  <p className="text-[10px] text-slate-400">{sub}</p>
+                  <p className="text-[11px] text-slate-500 leading-snug w-full truncate">{label}</p>
+                  <p className="text-2xl font-black text-slate-900 w-full">{value}</p>
+                  <p className="text-[10px] text-slate-400 w-full truncate">{sub}</p>
                 </div>
               ))}
             </div>

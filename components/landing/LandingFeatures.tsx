@@ -60,9 +60,9 @@ export function LandingFeatures() {
           {features.map(({ icon: Icon, color, title, description, tags }) => (
             <div
               key={title}
-              className="rounded-2xl border border-slate-100 p-8 hover:border-slate-200 hover:shadow-sm transition-all"
+              className="rounded-2xl border border-slate-100 p-8 hover:border-slate-200 hover:shadow-sm transition-all flex flex-col items-center text-center lg:items-start lg:text-left"
             >
-              <div className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center mb-6 ${color}`}>
+              <div className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center mb-6 mx-auto lg:mx-0 ${color}`}>
                 <Icon className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-slate-900 mb-3">{title}</h3>

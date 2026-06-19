@@ -45,8 +45,8 @@ export function LandingProblem() {
 
         <div className="grid md:grid-cols-3 gap-6">
           {problems.map(({ icon: Icon, title, description }) => (
-            <div key={title} className="bg-white rounded-2xl border border-slate-100 p-7">
-              <div className="w-12 h-12 shrink-0 rounded-xl bg-red-50 flex items-center justify-center mb-5">
+            <div key={title} className="bg-white rounded-2xl border border-slate-100 p-7 flex flex-col items-center text-center lg:items-start lg:text-left">
+              <div className="w-12 h-12 shrink-0 rounded-xl bg-red-50 flex items-center justify-center mb-5 mx-auto lg:mx-0">
                 <Icon className="w-6 h-6 text-red-500" />
               </div>
               <h3 className="text-base font-bold text-slate-900 mb-2">{title}</h3>

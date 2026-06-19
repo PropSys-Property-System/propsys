@@ -189,9 +189,9 @@ export function LandingRoles() {
               {/* Stats grid */}
               <div className="grid grid-cols-2 gap-3 p-5">
                 {role.previewRows.map((row) => (
-                  <div key={row.label} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <p className="text-[11px] text-slate-500 mb-1 leading-snug">{row.label}</p>
-                    <p className={`text-xl font-black ${row.valueColor}`}>{row.value}</p>
+                  <div key={row.label} className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col items-center text-center">
+                    <p className="text-[11px] text-slate-500 mb-1 leading-snug w-full truncate">{row.label}</p>
+                    <p className={`text-2xl font-black ${row.valueColor}`}>{row.value}</p>
                   </div>
                 ))}
               </div>
