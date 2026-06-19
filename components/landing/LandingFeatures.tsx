@@ -62,8 +62,8 @@ export function LandingFeatures() {
               key={title}
               className="rounded-2xl border border-slate-100 p-8 hover:border-slate-200 hover:shadow-sm transition-all"
             >
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-6 ${color}`}>
-                <Icon className="w-5 h-5" />
+              <div className={`w-12 h-12 shrink-0 rounded-xl flex items-center justify-center mb-6 ${color}`}>
+                <Icon className="w-6 h-6" />
               </div>
               <h3 className="text-lg font-bold text-slate-900 mb-3">{title}</h3>
               <p className="text-sm text-slate-500 leading-relaxed mb-5">{description}</p>

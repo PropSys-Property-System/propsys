@@ -113,7 +113,7 @@ export function LandingRoles() {
 
         {/* Role selector tabs */}
         <div className="flex justify-center mb-10">
-          <div className="inline-flex bg-white border border-slate-200 rounded-2xl p-1.5 gap-1.5 shadow-sm">
+          <div className="grid grid-cols-3 lg:flex lg:inline-flex bg-white border border-slate-200 rounded-2xl p-1.5 gap-1.5 shadow-sm w-full lg:w-auto">
             {roleOrder.map((key) => {
               const r = roles[key];
               const RIcon = r.icon;
@@ -123,14 +123,14 @@ export function LandingRoles() {
                   key={key}
                   id={`role-tab-${key}`}
                   onClick={() => setActive(key)}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all ${
+                  className={`flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-1 py-2 lg:px-5 lg:py-3 rounded-xl text-[10px] sm:text-xs lg:text-sm font-bold transition-all ${
                     isActive
                       ? 'bg-slate-900 text-white shadow-md'
                       : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                   }`}
                 >
-                  <RIcon className="w-4 h-4" />
-                  {r.label}
+                  <RIcon className="w-4 h-4 shrink-0" />
+                  <span className="truncate max-w-full">{r.label}</span>
                 </button>
               );
             })}

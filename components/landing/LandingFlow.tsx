@@ -11,6 +11,8 @@ import {
   UploadCloud,
   Eye,
   BadgeCheck,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 type FlowType = 'operacional' | 'financiero';
@@ -168,9 +170,28 @@ const financialSteps = [
 export function LandingFlow() {
   const [activeFlow, setActiveFlow] = useState<FlowType>('financiero');
   const [activeStep, setActiveStep] = useState(0);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
 
   const steps = activeFlow === 'operacional' ? operationalSteps : financialSteps;
   const current = steps[activeStep];
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStart === null) return;
+    const touchEnd = e.changedTouches[0].clientX;
+    const diff = touchStart - touchEnd;
+    
+    if (diff > 50 && activeStep < steps.length - 1) {
+      setActiveStep((prev) => prev + 1);
+    }
+    if (diff < -50 && activeStep > 0) {
+      setActiveStep((prev) => prev - 1);
+    }
+    setTouchStart(null);
+  };
 
   return (
     <section id="flujo" className="py-24 px-6 bg-white">
@@ -221,8 +242,8 @@ export function LandingFlow() {
         </div>
 
         <div className="grid lg:grid-cols-2 gap-12 items-start">
-          {/* Left: Step list */}
-          <div className="space-y-2">
+          {/* Left: Step list (Desktop only) */}
+          <div className="hidden lg:flex flex-col space-y-2">
             {steps.map((step, i) => {
               const Icon = step.icon;
               const isActive = i === activeStep;
@@ -272,19 +293,23 @@ export function LandingFlow() {
 
           {/* Right: Detail panel */}
           <div className="sticky top-24">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-6">
+            <div 
+              className="rounded-2xl border border-slate-100 bg-slate-50 p-6 touch-pan-y"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
               {/* Panel header */}
               <div className="flex items-center gap-3 mb-5 pb-4 border-b border-slate-200">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${current.color}`}>
+                <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border ${current.color}`}>
                   <current.icon className="w-5 h-5" />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
                     Paso {current.id} de {steps.length}
                   </p>
-                  <p className="text-sm font-black text-slate-900">{current.title}</p>
+                  <p className="text-sm font-black text-slate-900 truncate">{current.title}</p>
                 </div>
-                <span className={`ml-auto text-xs px-2.5 py-1 rounded-lg font-semibold border ${current.badgeColor}`}>
+                <span className={`hidden sm:inline-block text-xs px-2.5 py-1 rounded-lg font-semibold border shrink-0 ${current.badgeColor}`}>
                   {current.badge}
                 </span>
               </div>
@@ -304,20 +329,41 @@ export function LandingFlow() {
                 ))}
               </div>
 
-              {/* Progress dots */}
-              <div className="flex items-center gap-2 justify-center">
-                {steps.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveStep(i)}
-                    aria-label={`Ir al paso ${i + 1}`}
-                    className={`rounded-full transition-all ${
-                      i === activeStep
-                        ? 'w-6 h-2 bg-slate-900'
-                        : 'w-2 h-2 bg-slate-300 hover:bg-slate-400'
-                    }`}
-                  />
-                ))}
+              {/* Controls */}
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  onClick={() => activeStep > 0 && setActiveStep(activeStep - 1)}
+                  disabled={activeStep === 0}
+                  className="w-10 h-10 flex items-center justify-center rounded-full border border-slate-200 text-slate-500 disabled:opacity-30 disabled:bg-slate-50 bg-white hover:bg-slate-100 transition-colors"
+                  aria-label="Paso anterior"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                {/* Progress dots */}
+                <div className="flex items-center gap-2">
+                  {steps.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveStep(i)}
+                      aria-label={`Ir al paso ${i + 1}`}
+                      className={`rounded-full transition-all ${
+                        i === activeStep
+                          ? 'w-6 h-2 bg-slate-900'
+                          : 'w-2 h-2 bg-slate-300 hover:bg-slate-400'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => activeStep < steps.length - 1 && setActiveStep(activeStep + 1)}
+                  disabled={activeStep === steps.length - 1}
+                  className="w-10 h-10 flex items-center justify-center rounded-full border border-slate-200 text-slate-500 disabled:opacity-30 disabled:bg-slate-50 bg-white hover:bg-slate-100 transition-colors"
+                  aria-label="Siguiente paso"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
               </div>
             </div>
           </div>

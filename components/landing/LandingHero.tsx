@@ -105,7 +105,7 @@ function CommandCenter() {
         </div>
 
         {/* Dashboard layout */}
-        <div className="flex h-80 lg:h-[440px]">
+        <div className="flex h-auto lg:h-[440px]">
 
           {/* ── Sidebar ─────────────────────────────────────────────────── */}
           <div className="w-44 lg:w-52 border-r border-slate-100 bg-slate-50 flex flex-col shrink-0">
@@ -178,7 +178,7 @@ function CommandCenter() {
             </div>
 
             {/* Two column bottom — activity + receipts */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
               {/* Activity */}
               <div className="bg-slate-50 rounded-xl border border-slate-100 p-3">
                 <p className="text-[11px] font-semibold text-slate-600 mb-2">Actividad reciente</p>
