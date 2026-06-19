@@ -35,7 +35,7 @@ export function LandingHero() {
             PropSys ayuda a administradoras a organizar incidencias, reservas, áreas comunes y
             comprobantes de pago en una plataforma clara, trazable y preparada para equipos reales.
           </p>
-          <div className="flex flex-col items-end sm:flex-row sm:items-center lg:justify-start gap-4">
+          <div className="flex flex-col items-center sm:flex-row sm:justify-center lg:justify-start gap-4">
             <a
               id="hero-demo-cta"
               href={DEMO_HREF}
