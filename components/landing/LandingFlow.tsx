@@ -183,7 +183,7 @@ export function LandingFlow() {
     if (touchStart === null) return;
     const touchEnd = e.changedTouches[0].clientX;
     const diff = touchStart - touchEnd;
-    
+
     if (diff > 50 && activeStep < steps.length - 1) {
       setActiveStep((prev) => prev + 1);
     }
@@ -293,7 +293,7 @@ export function LandingFlow() {
 
           {/* Right: Detail panel */}
           <div className="sticky top-24">
-            <div 
+            <div
               className="rounded-2xl border border-slate-100 bg-slate-50 p-6 touch-pan-y"
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
