@@ -35,18 +35,18 @@ export function LandingHero() {
             PropSys ayuda a administradoras a organizar incidencias, reservas, áreas comunes y
             comprobantes de pago en una plataforma clara, trazable y preparada para equipos reales.
           </p>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col items-end sm:flex-row sm:items-center lg:justify-start gap-4">
             <a
               id="hero-demo-cta"
               href={DEMO_HREF}
-              className="inline-flex items-center gap-2 px-7 py-4 rounded-2xl bg-primary text-white font-black text-sm tracking-wide shadow-xl shadow-primary/25 hover:bg-primary/90 hover:shadow-primary/35 transition-all active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl bg-primary text-white font-black text-sm tracking-wide shadow-xl shadow-primary/25 hover:bg-primary/90 hover:shadow-primary/35 transition-all active:scale-[0.98]"
             >
               Solicitar demo
               <ArrowRight className="w-4 h-4" />
             </a>
             <a
               href="#flujo"
-              className="inline-flex items-center gap-2 px-7 py-4 rounded-2xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all"
+              className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl border border-slate-200 text-slate-700 font-bold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all"
             >
               Ver cómo funciona
             </a>
