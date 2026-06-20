@@ -248,7 +248,7 @@ function CommandCenter() {
       {/* ── Floating annotation cards (lg+ only) ─────────────────────────── */}
 
       {/* Card: Incidencia resuelta */}
-      <div className="hidden lg:flex absolute -right-6 top-16 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-10">
+      <div className="hidden lg:flex absolute -right-6 top-16 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-30">
         <div className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full bg-emerald-400 block" />
           <p className="text-[11px] font-bold text-slate-700">Incidencia cerrada</p>
@@ -260,7 +260,7 @@ function CommandCenter() {
       </div>
 
       {/* Card: Comprobante recibido */}
-      <div className="hidden lg:flex absolute -left-6 bottom-20 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-10">
+      <div className="hidden lg:flex absolute -left-6 bottom-20 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-30">
         <div className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full bg-blue-400 block" />
           <p className="text-[11px] font-bold text-slate-700">Comprobante recibido</p>
@@ -272,7 +272,7 @@ function CommandCenter() {
       </div>
 
       {/* Card: Reserva aprobada */}
-      <div className="hidden lg:flex absolute right-48 -bottom-6 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-10">
+      <div className="hidden lg:flex absolute right-48 -bottom-6 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-30">
         <div className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full bg-amber-400 block" />
           <p className="text-[11px] font-bold text-slate-700">Reserva aprobada</p>
