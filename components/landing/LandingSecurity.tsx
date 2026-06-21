@@ -24,15 +24,18 @@ const points = [
 
 export function LandingSecurity() {
   return (
-    <section id="seguridad" className="py-24 px-6 bg-slate-900">
-      <div className="max-w-6xl mx-auto">
+    <section id="seguridad" className="py-24 px-6 relative bg-[#0B1120] overflow-hidden">
+      {/* Mesh Grid Background */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:24px_24px]" />
+      
+      <div className="max-w-6xl mx-auto relative z-10">
         {/* Eyebrow */}
         <div className="flex items-center gap-4 justify-center mb-5">
-          <span className="h-px w-12 bg-slate-700 block" />
+          <span className="h-px w-12 bg-white/10 block" />
           <span className="text-xs font-bold tracking-widest uppercase text-slate-400">
             Seguridad y Privacidad
           </span>
-          <span className="h-px w-12 bg-slate-700 block" />
+          <span className="h-px w-12 bg-white/10 block" />
         </div>
 
         <h2 className="text-3xl lg:text-4xl font-bold text-white tracking-tight text-center mb-4">
@@ -45,9 +48,9 @@ export function LandingSecurity() {
 
         <div className="grid md:grid-cols-3 gap-6">
           {points.map(({ icon: Icon, title, description }) => (
-            <div key={title} className="rounded-2xl border border-slate-800 bg-slate-800/40 p-7 flex flex-col items-center text-center lg:items-start lg:text-left">
-              <div className="w-12 h-12 shrink-0 rounded-xl bg-primary/20 flex items-center justify-center mb-5 mx-auto lg:mx-0">
-                <Icon className="w-6 h-6 text-primary" />
+            <div key={title} className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-7 flex flex-col items-center text-center lg:items-start lg:text-left transition-all hover:bg-white/10">
+              <div className="w-12 h-12 shrink-0 rounded-xl bg-indigo-500/20 flex items-center justify-center mb-5 mx-auto lg:mx-0 border border-indigo-500/20">
+                <Icon className="w-6 h-6 text-indigo-400" />
               </div>
               <h3 className="text-base font-bold text-white mb-2">{title}</h3>
               <p className="text-sm text-slate-400 leading-relaxed">{description}</p>
@@ -55,7 +58,7 @@ export function LandingSecurity() {
           ))}
         </div>
 
-        <p className="text-center text-xs text-slate-600 mt-10 max-w-lg mx-auto">
+        <p className="text-center text-xs text-slate-500 mt-10 max-w-lg mx-auto">
           PropSys está en beta controlada. Si tienes preguntas sobre seguridad o integración con tus
           sistemas, escríbenos a{' '}
           <a

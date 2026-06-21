@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   ArrowRight,
   CheckCircle2,
@@ -39,7 +40,7 @@ export function LandingHero() {
             <a
               id="hero-demo-cta"
               href={DEMO_HREF}
-              className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl bg-primary text-white font-black text-sm tracking-wide shadow-xl shadow-primary/25 hover:bg-primary/90 hover:shadow-primary/35 transition-all active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl bg-primary text-white font-black text-sm tracking-wide shadow-[0_0_24px_rgba(79,70,229,0.3)] hover:bg-primary/90 transition-all active:scale-95"
             >
               Solicitar demo
               <ArrowRight className="w-4 h-4" />
@@ -98,7 +99,12 @@ function CommandCenter() {
   return (
     <div className="relative">
       {/* Main panel */}
-      <div className="relative rounded-2xl border border-slate-200 shadow-2xl overflow-hidden bg-white">
+      <motion.div 
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="relative rounded-2xl border border-white/40 shadow-[0_20px_40px_rgba(0,0,0,0.08)] overflow-hidden bg-white/80 backdrop-blur-xl"
+      >
         {/* Browser chrome */}
         <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200">
           <span className="w-3 h-3 rounded-full bg-red-400 block" />
@@ -243,12 +249,17 @@ function CommandCenter() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* ── Floating annotation cards (lg+ only) ─────────────────────────── */}
 
       {/* Card: Incidencia resuelta */}
-      <div className="hidden lg:flex absolute -right-6 top-16 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-30">
+      <motion.div 
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.2 }}
+        className="hidden lg:flex absolute -right-6 top-16 flex-col gap-1 bg-white/90 backdrop-blur-xl border border-white/40 rounded-xl shadow-[0_0_24px_rgba(79,70,229,0.15)] p-3 w-52 z-30"
+      >
         <div className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full bg-emerald-400 block" />
           <p className="text-[11px] font-bold text-slate-700">Incidencia cerrada</p>
@@ -257,10 +268,15 @@ function CommandCenter() {
           Luminaria fundida — Pasillo 3er piso · Resuelta en 4h
         </p>
         <p className="text-[10px] text-slate-400 mt-0.5">Equipo operativo · 14:32</p>
-      </div>
+      </motion.div>
 
       {/* Card: Comprobante recibido */}
-      <div className="hidden lg:flex absolute -left-6 bottom-20 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-30">
+      <motion.div 
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.4 }}
+        className="hidden lg:flex absolute -left-6 bottom-20 flex-col gap-1 bg-white/90 backdrop-blur-xl border border-white/40 rounded-xl shadow-[0_0_24px_rgba(79,70,229,0.15)] p-3 w-52 z-30"
+      >
         <div className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full bg-blue-400 block" />
           <p className="text-[11px] font-bold text-slate-700">Comprobante recibido</p>
@@ -269,10 +285,15 @@ function CommandCenter() {
           Unidad 101 · Recibo Enero 2026 · En revisión
         </p>
         <p className="text-[10px] text-slate-400 mt-0.5">Subido hace 12 min</p>
-      </div>
+      </motion.div>
 
       {/* Card: Reserva aprobada */}
-      <div className="hidden lg:flex absolute right-48 -bottom-6 flex-col gap-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 w-52 z-30">
+      <motion.div 
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut", delay: 0.6 }}
+        className="hidden lg:flex absolute right-48 -bottom-6 flex-col gap-1 bg-white/90 backdrop-blur-xl border border-white/40 rounded-xl shadow-[0_0_24px_rgba(79,70,229,0.15)] p-3 w-52 z-30"
+      >
         <div className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full bg-amber-400 block" />
           <p className="text-[11px] font-bold text-slate-700">Reserva aprobada</p>
@@ -281,7 +302,7 @@ function CommandCenter() {
           Terraza / Parrilla · Lunes 10:00–12:00
         </p>
         <p className="text-[10px] text-slate-400 mt-0.5">Solicitada por: Unidad B-201</p>
-      </div>
+      </motion.div>
     </div>
   );
 }

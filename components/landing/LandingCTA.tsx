@@ -13,14 +13,17 @@ const checks = [
 
 export function LandingCTA() {
   return (
-    <section className="py-24 px-6 bg-slate-900">
-      <div className="max-w-5xl mx-auto">
+    <section className="py-24 px-6 relative bg-[#0B1120] overflow-hidden">
+      {/* Mesh Grid Background */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff0a_1px,transparent_1px),linear-gradient(to_bottom,#ffffff0a_1px,transparent_1px)] bg-[size:24px_24px]" />
+
+      <div className="max-w-5xl mx-auto relative z-10">
         <div className="grid lg:grid-cols-2 gap-14 items-center">
           {/* Left: copy */}
           <div>
             <div className="flex items-center gap-4 mb-6">
-              <span className="h-px w-8 bg-slate-700 block" />
-              <span className="text-xs font-bold tracking-widest uppercase text-slate-500">
+              <span className="h-px w-8 bg-white/10 block" />
+              <span className="text-xs font-bold tracking-widest uppercase text-slate-400">
                 Demo personalizada
               </span>
             </div>
@@ -38,7 +41,7 @@ export function LandingCTA() {
             <ul className="space-y-3 mb-10">
               {checks.map((item) => (
                 <li key={item} className="flex items-center gap-3 text-sm text-slate-300">
-                  <CalendarCheck2 className="w-4 h-4 text-primary shrink-0" />
+                  <CalendarCheck2 className="w-4 h-4 text-indigo-400 shrink-0" />
                   {item}
                 </li>
               ))}
@@ -48,7 +51,7 @@ export function LandingCTA() {
               <a
                 id="footer-demo-cta"
                 href={DEMO_HREF}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-primary text-white font-black text-sm tracking-wide shadow-xl shadow-primary/30 hover:bg-primary/90 transition-all active:scale-[0.98]"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-indigo-600 text-white font-black text-sm tracking-wide shadow-[0_0_24px_rgba(79,70,229,0.3)] hover:bg-indigo-700 transition-all active:scale-95"
               >
                 <Mail className="w-4 h-4" />
                 Solicitar demo
@@ -56,7 +59,7 @@ export function LandingCTA() {
               </a>
             </div>
 
-            <p className="mt-5 text-xs text-slate-600">
+            <p className="mt-5 text-xs text-slate-500">
               O escríbenos a{' '}
               <a
                 href="mailto:contact.orbitalframeworks@gmail.com"
@@ -69,7 +72,7 @@ export function LandingCTA() {
 
           {/* Right: visual — what to expect from a demo */}
           <div className="space-y-3">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-600 mb-4">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">
               Qué esperar de la demo
             </p>
             {[
@@ -91,9 +94,9 @@ export function LandingCTA() {
             ].map((item) => (
               <div
                 key={item.n}
-                className="flex gap-4 bg-slate-800/50 rounded-2xl border border-slate-800 p-5"
+                className="flex gap-4 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-5 transition-all hover:bg-white/10 hover:border-indigo-500/50"
               >
-                <span className="text-2xl font-black text-slate-700 shrink-0 leading-none mt-0.5">
+                <span className="text-2xl font-black text-slate-600 shrink-0 leading-none mt-0.5 font-tabular-nums">
                   {item.n}
                 </span>
                 <div>

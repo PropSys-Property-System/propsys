@@ -1,8 +1,7 @@
 import React from 'react';
 import { LandingNav } from '@/components/landing/LandingNav';
 import { LandingHero } from '@/components/landing/LandingHero';
-import { LandingProblem } from '@/components/landing/LandingProblem';
-import { LandingFeatures } from '@/components/landing/LandingFeatures';
+import { LandingProblemReveal } from '@/components/landing/LandingProblemReveal';
 import { LandingFlow } from '@/components/landing/LandingFlow';
 import { LandingRoles } from '@/components/landing/LandingRoles';
 import { LandingSecurity } from '@/components/landing/LandingSecurity';
@@ -18,8 +17,7 @@ export default function LandingPage() {
       <LandingNav />
       <main>
         <LandingHero />
-        <LandingProblem />
-        <LandingFeatures />
+        <LandingProblemReveal />
         <LandingFlow />
         <LandingRoles />
         <LandingSecurity />

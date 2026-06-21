@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { ShieldCheck, Home, Wrench } from 'lucide-react';
+import { AnimatedNumber } from './AnimatedNumber';
 
 type RoleKey = 'admin' | 'residente' | 'staff';
 
@@ -113,7 +115,7 @@ export function LandingRoles() {
 
         {/* Role selector tabs */}
         <div className="flex justify-center mb-10">
-          <div className="grid grid-cols-3 lg:flex lg:inline-flex bg-white border border-slate-200 rounded-2xl p-1.5 gap-1.5 shadow-sm w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row bg-slate-100 rounded-xl p-1 gap-1 w-full sm:w-auto relative">
             {roleOrder.map((key) => {
               const r = roles[key];
               const RIcon = r.icon;
@@ -123,14 +125,19 @@ export function LandingRoles() {
                   key={key}
                   id={`role-tab-${key}`}
                   onClick={() => setActive(key)}
-                  className={`flex flex-col lg:flex-row items-center justify-center gap-1 lg:gap-2 px-1 py-2 lg:px-5 lg:py-3 rounded-xl text-[10px] sm:text-xs lg:text-sm font-bold transition-all ${
-                    isActive
-                      ? 'bg-slate-900 text-white shadow-md'
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                  className={`relative flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-sm font-bold transition-all focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none ${
+                    isActive ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
-                  <RIcon className="w-4 h-4 shrink-0" />
-                  <span className="truncate max-w-full">{r.label}</span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="roleIndicator"
+                      className="absolute inset-0 bg-white rounded-lg shadow-sm"
+                      transition={{ type: "spring", bounce: 0, duration: 0.6 }}
+                    />
+                  )}
+                  <RIcon className="w-4 h-4 shrink-0 relative z-10" />
+                  <span className="truncate max-w-full relative z-10">{r.label}</span>
                 </button>
               );
             })}
@@ -188,12 +195,17 @@ export function LandingRoles() {
 
               {/* Stats grid */}
               <div className="grid grid-cols-2 gap-3 p-5">
-                {role.previewRows.map((row) => (
-                  <div key={row.label} className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col items-center text-center">
-                    <p className="text-[11px] text-slate-500 mb-1 leading-snug w-full truncate">{row.label}</p>
-                    <p className={`text-2xl font-black ${row.valueColor}`}>{row.value}</p>
-                  </div>
-                ))}
+                {role.previewRows.map((row) => {
+                  const isNumber = !isNaN(Number(row.value));
+                  return (
+                    <div key={row.label} className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col items-center text-center">
+                      <p className="text-[11px] text-slate-500 mb-1 leading-snug w-full truncate">{row.label}</p>
+                      <p className={`text-2xl font-black ${row.valueColor}`}>
+                        {isNumber ? <AnimatedNumber value={Number(row.value)} /> : row.value}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Simulated nav items */}
