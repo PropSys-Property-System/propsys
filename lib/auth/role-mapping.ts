@@ -1,4 +1,4 @@
-﻿import { InternalRole, UIRole } from '../types/auth';
+import { InternalRole, UIRole } from '../types/auth';
 
 /**
  * Mapeo dinámico de roles internos (negocio) a roles de interfaz (UI).
@@ -24,10 +24,4 @@ export function mapInternalRoleToUIRole(internalRole: InternalRole): UIRole {
   return uiRole;
 }
 
-/**
- * Determina si el usuario tiene acceso a nivel plataforma (Superadmin).
- */
-export function isPlatformScope(internalRole: InternalRole): boolean {
-  return internalRole === 'ROOT_ADMIN';
-}
 

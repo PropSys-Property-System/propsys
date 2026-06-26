@@ -17,13 +17,13 @@ type UserLifecycleTarget = {
   clientId?: string | null;
 };
 
-export const ADMIN_INTERNAL_ROLES = ['ROOT_ADMIN', 'CLIENT_MANAGER', 'BUILDING_ADMIN'] as const;
-export const PORTFOLIO_ADMIN_INTERNAL_ROLES = ['ROOT_ADMIN', 'CLIENT_MANAGER'] as const;
-export const STAFF_INTERNAL_ROLES = ['STAFF'] as const;
-export const RESIDENT_INTERNAL_ROLES = ['OWNER', 'OCCUPANT'] as const;
-export const OWNER_INTERNAL_ROLES = ['OWNER'] as const;
+const ADMIN_INTERNAL_ROLES = ['ROOT_ADMIN', 'CLIENT_MANAGER', 'BUILDING_ADMIN'] as const;
+const PORTFOLIO_ADMIN_INTERNAL_ROLES = ['ROOT_ADMIN', 'CLIENT_MANAGER'] as const;
+const STAFF_INTERNAL_ROLES = ['STAFF'] as const;
+const RESIDENT_INTERNAL_ROLES = ['OWNER', 'OCCUPANT'] as const;
+const OWNER_INTERNAL_ROLES = ['OWNER'] as const;
 
-export function hasInternalRole(user: Pick<RoleScopedUser, 'internalRole'>, roles: readonly InternalRole[]): boolean {
+function hasInternalRole(user: Pick<RoleScopedUser, 'internalRole'>, roles: readonly InternalRole[]): boolean {
   return roles.includes(user.internalRole as InternalRole);
 }
 
