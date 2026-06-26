@@ -202,7 +202,7 @@ type StaffTicketComposerDialogProps = {
   onSubmit: () => void;
 };
 
-export function incidentStatusChip(status: IncidentEntity['status']) {
+function incidentStatusChip(status: IncidentEntity['status']) {
   const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
   if (status === 'REPORTED') return `${base} bg-rose-50 text-rose-700`;
   if (status === 'ASSIGNED' || status === 'IN_PROGRESS') return `${base} bg-amber-50 text-amber-700`;
@@ -210,7 +210,7 @@ export function incidentStatusChip(status: IncidentEntity['status']) {
   return `${base} bg-slate-100 text-slate-600`;
 }
 
-export function incidentPriorityChip(priority: IncidentEntity['priority']) {
+function incidentPriorityChip(priority: IncidentEntity['priority']) {
   const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
   if (priority === 'HIGH') return `${base} bg-rose-50 text-rose-700`;
   if (priority === 'MEDIUM') return `${base} bg-amber-50 text-amber-700`;

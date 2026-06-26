@@ -73,7 +73,7 @@ function forbidden(): OriginGuardResult {
   return { ok: false, status: 403, error: 'Origen no permitido' };
 }
 
-export function shouldApplyOriginGuard(req: Request): boolean {
+function shouldApplyOriginGuard(req: Request): boolean {
   return MUTATING_METHODS.has(req.method.toUpperCase()) && isApiPath(req);
 }
 

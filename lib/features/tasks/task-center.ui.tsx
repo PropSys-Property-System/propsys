@@ -4,7 +4,7 @@ import { SkeletonBlock, SkeletonStatus } from '@/components/States';
 import { formatDateTime } from '@/lib/presentation/dates';
 import type { ChecklistExecution, EvidenceAttachment, TaskEntity } from '@/lib/types';
 
-export const taskImageLoader = ({ src }: { src: string }) => src;
+const taskImageLoader = ({ src }: { src: string }) => src;
 
 type TaskListSkeletonProps = {
   count?: number;

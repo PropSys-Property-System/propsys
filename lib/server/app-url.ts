@@ -23,7 +23,7 @@ function parseCanonicalAppUrl(value: string, source: string): URL {
   return new URL(parsed.origin);
 }
 
-export function getCanonicalAppUrl(): URL {
+function getCanonicalAppUrl(): URL {
   const appUrl = process.env.PROPSYS_APP_URL?.trim();
   if (appUrl) return parseCanonicalAppUrl(appUrl, 'PROPSYS_APP_URL');
 

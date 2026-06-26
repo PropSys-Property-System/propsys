@@ -31,7 +31,7 @@ function overlaps(startA: Date, endA: Date, startB: Date, endB: Date) {
   return startA < endB && startB < endA;
 }
 
-export function getReservationDisplayStatus(reservation: Reservation, now = Date.now()): ReservationDisplayStatus {
+function getReservationDisplayStatus(reservation: Reservation, now = Date.now()): ReservationDisplayStatus {
   if (reservation.status === 'APPROVED' && new Date(reservation.endAt).getTime() < now) {
     return 'COMPLETED';
   }

@@ -26,7 +26,7 @@ function shellTitle(mode: 'request' | 'confirm') {
   return mode === 'request' ? 'Restablecer contraseña' : 'Actualizar contraseña';
 }
 
-export function PasswordResetShell({ children, mode }: { children: ReactNode; mode: 'request' | 'confirm' }) {
+function PasswordResetShell({ children, mode }: { children: ReactNode; mode: 'request' | 'confirm' }) {
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
       <section className="w-full max-w-md bg-white p-10 shadow-2xl rounded-3xl border border-slate-100 relative overflow-hidden">

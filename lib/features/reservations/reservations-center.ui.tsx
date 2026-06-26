@@ -284,7 +284,7 @@ function reservationReasonPlaceholder(action: ReservationActionKind) {
   return 'Ej. El residente solicitó cancelar la reserva.';
 }
 
-export function reservationStatusChip(status: ReservationDisplayStatus) {
+function reservationStatusChip(status: ReservationDisplayStatus) {
   const base = 'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest';
   if (status === 'REQUESTED') return `${base} bg-amber-50 text-amber-700`;
   if (status === 'APPROVED') return `${base} bg-emerald-50 text-emerald-700`;
