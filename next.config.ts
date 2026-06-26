@@ -1,3 +1,4 @@
+import './lib/server/env';
 import type { NextConfig } from 'next';
 
 function contentSecurityPolicyReportOnly() {
