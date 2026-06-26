@@ -140,9 +140,6 @@ export async function loadResidentReservationsPageData(user: User): Promise<Resi
   };
 }
 
-export async function listReservationsForUser(user: User): Promise<Reservation[]> {
-  return reservationsRepo.listForUser(user);
-}
 
 export async function createReservationForUser(user: User, input: CreateReservationInput): Promise<ReservationEntity> {
   return reservationsRepo.createForUser(user, input);

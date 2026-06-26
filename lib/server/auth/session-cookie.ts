@@ -15,9 +15,6 @@ function parseSessionId(cookieHeader: string | null | undefined): string | null 
   );
 }
 
-export function getSessionIdFromCookieHeader(cookieHeader: string | null | undefined): string | null {
-  return parseSessionId(cookieHeader);
-}
 
 export function getSessionIdFromRequest(req: Request): string | null {
   return parseSessionId(req.headers.get('cookie'));

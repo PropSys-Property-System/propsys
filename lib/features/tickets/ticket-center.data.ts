@@ -113,9 +113,6 @@ export async function loadStaffTicketsPageData(user: User): Promise<StaffTickets
   };
 }
 
-export async function listTicketsForUser(user: User): Promise<IncidentEntity[]> {
-  return incidentsRepo.listForUser(user);
-}
 
 export async function createTicketForUser(user: User, input: CreateTicketInput): Promise<IncidentEntity> {
   return incidentsRepo.createSimpleForUser(user, input);

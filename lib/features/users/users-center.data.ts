@@ -38,19 +38,7 @@ export async function updateAdminUserStatus(user: User, input: { userId: string;
   return usersRepo.updateStatusForUser(user, input);
 }
 
-export async function createAdminUser(
-  user: User,
-  input: {
-    name: string;
-    email: string;
-    internalRole: 'BUILDING_ADMIN' | 'STAFF' | 'OWNER' | 'OCCUPANT';
-    buildingId?: string;
-    unitId?: string;
-    password?: string;
-  }
-): Promise<{ user: User; tempPassword?: string }> {
-  return usersRepo.createForUser(user, input);
-}
+
 
 export async function updateAdminUserProfile(
   user: User,
