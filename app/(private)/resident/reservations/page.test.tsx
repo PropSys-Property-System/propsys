@@ -20,8 +20,8 @@ const mocks = vi.hoisted(() => {
     unitId: 'unit-101',
     commonAreaId: 'ca-1',
     createdByUserId: 'u_resident',
-    startAt: '2026-06-20T10:00:00.000Z',
-    endAt: '2026-06-20T12:00:00.000Z',
+    startAt: '2099-06-20T10:00:00.000Z',
+    endAt: '2099-06-20T12:00:00.000Z',
     status: 'APPROVED',
     statusReason: null,
   };
