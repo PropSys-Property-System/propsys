@@ -23,5 +23,3 @@ export function mapInternalRoleToUIRole(internalRole: InternalRole): UIRole {
 
   return uiRole;
 }
-
-
