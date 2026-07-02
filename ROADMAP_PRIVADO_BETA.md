@@ -71,11 +71,17 @@ No se debe sobreprometer. El sistema actualmente emite recibos y gestiona compro
 - Bootstrap/script inicial controlado para dar de alta al primer cliente/manager en el entorno productivo.
 - Limpieza de usuarios "fantasma": Gestion o purga de usuarios `INACTIVE` creados por invitaciones que nunca fueron aceptadas.
 ## 6) Pendientes Post-Beta (Nice-to-have / Futuro)
-- Pagos online (pasarela de pago).
-- Conciliacion bancaria.
-- Facturacion electronica.
-- Cobros automatizados por reservas.
-- Notificaciones financieras activas (email/app/WhatsApp).
+  - Pagos online (pasarela), conciliación bancaria y facturación electrónica siguen diferidos. Notificaciones financieras quedan post-beta.
+
+## 17. Transición de Beta Freeze (2026-07-01)
+
+El ciclo de estabilización (Beta Freeze) ha concluido y el estado de la aplicación ahora es apto para un entorno pre-productivo apuntando a su primer cliente real. 
+A partir de este punto, la planificación estratégica y los próximos ciclos de producto se trasladan a los siguientes documentos:
+- **`docs/REUNION_GESTORA_PRODUCT_INPUT.md`**: Discovery, dolores priorizados y decisiones de la reunión con la gestora inmobiliaria.
+- **`docs/POST_FREEZE_ROADMAP.md`**: Nuevo roadmap unificado y orientado al cliente real.
+
+Este documento (`ROADMAP_PRIVADO_BETA.md`) se mantiene estrictamente como registro histórico de las decisiones técnicas y operativas de la fase 0/Beta Privada. No añadir más evolutivos funcionales aquí.
+
 - Planes comerciales y limites de uso con enforcement tecnico.
 - CSP enforcement.
 - MFA futuro.
